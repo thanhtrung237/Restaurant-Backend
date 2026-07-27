@@ -36,5 +36,12 @@ out/
 ### VS Code ###
 .vscode/
 
-### ENV ###
+### Environment ###
 .env
+
+
+### Markdown Documentation ###
+*.md
+
+### Scripts ###
+*.ps1
