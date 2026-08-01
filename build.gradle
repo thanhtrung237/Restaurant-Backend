@@ -25,10 +25,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-    // Database & Security (uncomment khi có database)
-    // implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    // Database & Security
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     // implementation 'org.springframework.boot:spring-boot-starter-security'
-    // runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'com.mysql:mysql-connector-j'
 
     // Developer tools
     compileOnly 'org.projectlombok:lombok'
