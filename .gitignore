@@ -42,3 +42,7 @@ out/
 ### Documentation (không push lên Git) ###
 *.md
 !README.md
+
+### Scripts ###
+*.ps1
+*.sh
