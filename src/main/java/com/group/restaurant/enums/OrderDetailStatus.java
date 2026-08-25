@@ -3,10 +3,11 @@ package com.group.restaurant.enums;
 import jakarta.persistence.Converter;
 
 public enum OrderDetailStatus implements BaseEnum<OrderDetailStatus> {
-    PENDING(0),
-    PREPARING(1),
-    SERVED(2),
-    CANCELLED(3);
+    PENDING(0),          // CHỜ XÁC NHẬN
+    PREPARING(1),        // ĐANG CHẾ BIẾN
+    SERVED(2),           // ĐÃ PHỤC VỤ
+    CANCELLED(3),        // ĐÃ HỦY
+    PENDING_WEIGHT(4);   // CHỜ CÂN
 
     private final int value;
 

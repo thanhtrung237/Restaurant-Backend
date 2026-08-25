@@ -3,8 +3,13 @@ package com.group.restaurant.enums;
 import jakarta.persistence.Converter;
 
 public enum TableSessionStatus implements BaseEnum<TableSessionStatus> {
-    CLOSED(0),
-    OPEN(1);
+    WAITING_FOR_OPEN(0), // CHỜ MỞ BÀN
+    SERVING(1), // ĐANG PHỤC VỤ
+    WAITING_FOR_PAY(2), // CHỜ THANH TOÁN
+    CLOSED(3), // ĐÃ ĐÓNG
+    CANCELLED(4), // ĐÃ HỦY
+    RESERVED(5), // ĐẶT TRƯỚC
+    MERGED(6); // ĐÃ GỘP (BR-28)
 
     private final int value;
 
