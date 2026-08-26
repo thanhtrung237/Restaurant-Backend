@@ -35,6 +35,23 @@ public abstract class BaseEntity {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
     @Column(name = "deleted_by")
     private String deletedBy;
+
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
+    @PrePersist
+    protected void onPrePersist() {
+        if (this.isDeleted == null) {
+            this.isDeleted = false;
+        }
+    }
+
+    public void softDelete(String deletedBy) {
+        this.isDeleted = true;
+        this.deletedAt = LocalDateTime.now();
+        this.deletedBy = deletedBy;
+    }
 }

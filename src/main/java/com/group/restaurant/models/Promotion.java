@@ -4,10 +4,12 @@ import com.group.restaurant.enums.ApplyLevel;
 import com.group.restaurant.enums.PromotionStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 import java.time.LocalDate;
 
 @Entity
 @Table(name = "promotion")
+@SQLRestriction("is_deleted = false")
 @Getter
 @Setter
 @Builder
@@ -58,4 +60,16 @@ public class Promotion extends BaseEntity {
 
     @Column(name = "code", length = 50)
     private String code;
+
+    @Column(name = "usage_limit")
+    private Integer usageLimit;
+
+    @Column(name = "usage_count", nullable = false)
+    @Builder.Default
+    private int usageCount = 0;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    @Builder.Default
+    private int version = 0;
 }
