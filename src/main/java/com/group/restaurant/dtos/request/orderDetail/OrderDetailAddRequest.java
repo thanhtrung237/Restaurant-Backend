@@ -12,8 +12,8 @@ import java.math.BigDecimal;
 @Setter
 public class OrderDetailAddRequest {
 
-    @NotNull(message = "Menu ID (món ăn) không được để trống")
-    private Long menuId;
+    @NotNull(message = "Dish ID (món ăn) không được để trống")
+    private Long dishId;
 
     private Long promotionId;
 
