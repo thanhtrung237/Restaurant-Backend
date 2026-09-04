@@ -40,8 +40,7 @@ public class PromotionBranchServiceImpl implements PromotionBranchService {
                         "Không tìm thấy khuyến mãi với ID: " + request.getPromotionId()));
 
         if (promotionBranchRepository.existsByBranchIdAndPromotionId(request.getBranchId(), request.getPromotionId())) {
-            throw new ConflictException(
-                    "Khuyến mãi đã được gán cho chi nhánh này");
+            throw new ConflictException("Khuyến mãi này đã được áp dụng cho chi nhánh");
         }
 
         PromotionBranch promotionBranch = PromotionBranch.builder()
@@ -56,8 +55,11 @@ public class PromotionBranchServiceImpl implements PromotionBranchService {
     @Override
     @Transactional(readOnly = true)
     public List<PromotionBranchResponse> getByBranch(Long branchId) {
-        return promotionBranchRepository.findByBranchId(branchId)
-                .stream()
+        if (!branchRepository.existsById(branchId)) {
+            throw new ResourceNotFoundException("Không tìm thấy chi nhánh với ID: " + branchId);
+        }
+
+        return promotionBranchRepository.findByBranchId(branchId).stream()
                 .map(promotionBranchMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -65,8 +67,11 @@ public class PromotionBranchServiceImpl implements PromotionBranchService {
     @Override
     @Transactional(readOnly = true)
     public List<PromotionBranchResponse> getByPromotion(Long promotionId) {
-        return promotionBranchRepository.findByPromotionId(promotionId)
-                .stream()
+        if (!promotionRepository.existsById(promotionId)) {
+            throw new ResourceNotFoundException("Không tìm thấy khuyến mãi với ID: " + promotionId);
+        }
+
+        return promotionBranchRepository.findByPromotionId(promotionId).stream()
                 .map(promotionBranchMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -75,7 +80,9 @@ public class PromotionBranchServiceImpl implements PromotionBranchService {
     public void removePromotionFromBranch(Long id) {
         PromotionBranch promotionBranch = promotionBranchRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy promotion-branch với ID: " + id));
-        promotionBranchRepository.delete(promotionBranch);
+                        "Không tìm thấy liên kết khuyến mãi - chi nhánh với ID: " + id));
+
+        promotionBranch.softDelete(null);
+        promotionBranchRepository.save(promotionBranch);
     }
 }

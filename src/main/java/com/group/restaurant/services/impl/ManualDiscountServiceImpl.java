@@ -82,7 +82,8 @@ public class ManualDiscountServiceImpl implements ManualDiscountService {
     @Override
     public void deleteManualDiscount(Long id) {
         ManualDiscount manualDiscount = findById(id);
-        manualDiscountRepository.delete(manualDiscount);
+        manualDiscount.softDelete(null);
+        manualDiscountRepository.save(manualDiscount);
     }
 
     private ManualDiscount findById(Long id) {

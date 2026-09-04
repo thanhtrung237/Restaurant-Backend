@@ -10,6 +10,7 @@ import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.mappers.PromotionMapper;
 import com.group.restaurant.models.Promotion;
 import com.group.restaurant.models.Restaurant;
+import com.group.restaurant.repositories.PromotionBranchRepository;
 import com.group.restaurant.repositories.PromotionRepository;
 import com.group.restaurant.repositories.RestaurantRepository;
 import com.group.restaurant.services.PromotionService;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 public class PromotionServiceImpl implements PromotionService {
 
     private final PromotionRepository promotionRepository;
+    private final PromotionBranchRepository promotionBranchRepository;
     private final RestaurantRepository restaurantRepository;
     private final PromotionMapper promotionMapper;
 
@@ -110,7 +112,15 @@ public class PromotionServiceImpl implements PromotionService {
     @Override
     public void deletePromotion(Long id) {
         Promotion promotion = findById(id);
-        promotionRepository.delete(promotion);
+
+        // Cascade soft delete: PromotionBranch
+        promotionBranchRepository.findByPromotionId(id).forEach(pb -> {
+            pb.softDelete(null);
+            promotionBranchRepository.save(pb);
+        });
+
+        promotion.softDelete(null);
+        promotionRepository.save(promotion);
     }
 
     private Promotion findById(Long id) {
