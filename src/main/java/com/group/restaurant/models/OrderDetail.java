@@ -1,13 +1,17 @@
 package com.group.restaurant.models;
 
+import com.group.restaurant.enums.CancelReason;
 import com.group.restaurant.enums.OrderDetailStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "order_detail")
+@SQLRestriction("is_deleted = false")
 @Getter
 @Setter
 @Builder
@@ -23,9 +27,13 @@ public class OrderDetail extends BaseEntity {
         @JoinColumn(name = "order_id", nullable = false, foreignKey = @ForeignKey(name = "fk_order_detail_order"))
         private Order order;
 
+        @ManyToOne(fetch = FetchType.LAZY)
+        @JoinColumn(name = "table_session_id", foreignKey = @ForeignKey(name = "fk_order_detail_session"))
+        private TableSession tableSession;
+
         @ManyToOne(fetch = FetchType.LAZY, optional = false)
-        @JoinColumn(name = "menu_id", nullable = false, foreignKey = @ForeignKey(name = "fk_order_detail_menu"))
-        private Menu menu;
+        @JoinColumn(name = "dish_id", nullable = false, foreignKey = @ForeignKey(name = "fk_order_detail_dish"))
+        private Dish dish;
 
         @ManyToOne(fetch = FetchType.LAZY)
         @JoinColumn(name = "promotion_id", foreignKey = @ForeignKey(name = "fk_order_detail_promotion"))
@@ -56,4 +64,21 @@ public class OrderDetail extends BaseEntity {
 
         @Column(name = "price", precision = 12, scale = 2)
         private BigDecimal price;
+
+        @Column(name = "is_printed", nullable = false)
+        @Builder.Default
+        private boolean isPrinted = false;
+
+        @Column(name = "print_count", nullable = false)
+        @Builder.Default
+        private int printCount = 0;
+
+        @Column(name = "cancel_reason")
+        private CancelReason cancelReason;
+
+        @Column(name = "cancelled_at")
+        private LocalDateTime cancelledAt;
+
+        @Column(name = "cancelled_by")
+        private Long cancelledBy;
 }

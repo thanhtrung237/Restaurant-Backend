@@ -15,8 +15,8 @@ public class OrderDetailResponse {
 
     private Long id;
     private Long orderId;
-    private Long menuId;
-    private String menuName;
+    private Long dishId;
+    private String dishName;
     private Long promotionId;
     private String promotionName;
     private Integer quantity;
