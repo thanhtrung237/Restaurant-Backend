@@ -1,0 +1,28 @@
+package com.group.restaurant.dtos.request.diningTable;
+
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class DiningTableAddRequest {
+
+    @NotNull(message = "Branch ID không được để trống")
+    private Long branchId;
+
+    private Long areaId;
+
+    @NotBlank(message = "Tên bàn không được để trống")
+    @Size(max = 50, message = "Tên bàn không được vượt quá 50 ký tự")
+    private String name;
+
+    @Min(value = 1, message = "Số chỗ ngồi phải >= 1")
+    private Integer capacity;
+
+    @Size(max = 200, message = "Mã QR không được vượt quá 200 ký tự")
+    private String qrCode;
+}

@@ -3,12 +3,14 @@ package com.group.restaurant.models;
 import com.group.restaurant.enums.TableSessionStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "table_session")
+@SQLRestriction("is_deleted = false")
 @Getter
 @Setter
 @Builder
@@ -23,6 +25,10 @@ public class TableSession extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "table_id", nullable = false, foreignKey = @ForeignKey(name = "fk_session_table"))
     private DiningTable table;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "branch_id", nullable = false, foreignKey = @ForeignKey(name = "fk_session_branch"))
+    private Branch branch;
 
     @Column(name = "guest_count")
     private Integer guestCount;
@@ -42,7 +48,37 @@ public class TableSession extends BaseEntity {
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 
+    // BR-08: snapshot VAT và phí dịch vụ tại thời điểm mở phiên
+    @Column(name = "vat_rate_at_open", precision = 5, scale = 2)
+    private BigDecimal vatRateAtOpen;
+
+    @Column(name = "service_fee_rate_at_open", precision = 5, scale = 2)
+    private BigDecimal serviceFeeRateAtOpen;
+
     @Column(name = "status", nullable = false)
     @Builder.Default
-    private TableSessionStatus status = TableSessionStatus.OPEN;
+    private TableSessionStatus status = TableSessionStatus.WAITING_FOR_OPEN;
+
+    // === BỔ SUNG CÁC TRƯỜNG BỊ THIẾU DƯỚI ĐÂY ===
+    @Column(name = "customer_name")
+    private String customerName;
+
+    @Column(name = "customer_phone")
+    private String customerPhone;
+
+    @Column(name = "reservation_name", length = 200)
+    private String reservationName;
+
+    @Column(name = "reservation_phone", length = 20)
+    private String reservationPhone;
+
+    @Column(name = "reservation_time")
+    private LocalDateTime reservationTime;
+
+    @Column(name = "reservation_note", length = 500)
+    private String reservationNote;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "merged_into_session_id", foreignKey = @ForeignKey(name = "fk_session_merged_into"))
+    private TableSession mergedIntoSession;
 }
