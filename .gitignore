@@ -46,3 +46,4 @@ out/
 ### Scripts ###
 *.ps1
 *.sh
+*.sql
