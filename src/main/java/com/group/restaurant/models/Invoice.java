@@ -69,6 +69,28 @@ public class Invoice extends BaseEntity {
         @Builder.Default
         private InvoiceStatus status = InvoiceStatus.PENDING;
 
+        // Hóa đơn điện tử chưa chốt nhà cung cấp 
+        // Thời điểm phát hành HĐĐT thành công
+        @Column(name = "e_invoice_issued_at")
+        private java.time.LocalDateTime eInvoiceIssuedAt;
+
+        // Mã tham chiếu từ nhà cung cấp HĐĐT 
+        @Column(name = "e_invoice_ref", length = 100)
+        private String eInvoiceRef;
+
+        // Mã số thuế dùng cho HĐ này 
+        @Column(name = "tax_code_used", length = 50)
+        private String taxCodeUsed;
+
+        // Tên nhà cung cấp HĐĐT đã phát hành (viettel, vnpt, misa, stub...)
+        @Column(name = "e_invoice_provider", length = 50)
+        private String eInvoiceProvider;
+
+        // Lần thử phát hành cuối 
+        @Column(name = "e_invoice_attempt_count", nullable = false)
+        @Builder.Default
+        private int eInvoiceAttemptCount = 0;
+
         @OneToMany(mappedBy = "invoice", cascade = { CascadeType.PERSIST, CascadeType.MERGE })
         @Builder.Default
         private List<Payment> payments = new ArrayList<>();
