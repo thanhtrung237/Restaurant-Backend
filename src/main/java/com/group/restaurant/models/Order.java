@@ -3,12 +3,14 @@ package com.group.restaurant.models;
 import com.group.restaurant.enums.OrderStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Table(name = "orders")
+@SQLRestriction("is_deleted = false")
 @Getter
 @Setter
 @Builder
@@ -34,6 +36,9 @@ public class Order extends BaseEntity {
         @Column(name = "status", nullable = false)
         @Builder.Default
         private OrderStatus status = OrderStatus.PENDING;
+
+        @OneToOne(mappedBy = "order", cascade = CascadeType.ALL)
+        private Invoice invoice;
 
         @OneToMany(mappedBy = "order", cascade = { CascadeType.PERSIST, CascadeType.MERGE })
         @Builder.Default
