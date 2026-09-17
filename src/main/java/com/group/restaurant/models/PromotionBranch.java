@@ -2,11 +2,13 @@ package com.group.restaurant.models;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 @Entity
 @Table(name = "promotion_branch", uniqueConstraints = {
         @UniqueConstraint(name = "uk_promotion_branch", columnNames = {"branch_id", "promotion_id"})
 })
+@SQLRestriction("is_deleted = false")
 @Getter
 @Setter
 @Builder

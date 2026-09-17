@@ -3,12 +3,14 @@ package com.group.restaurant.models;
 import com.group.restaurant.enums.PaymentMethod;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "payment")
+@SQLRestriction("is_deleted = false")
 @Getter
 @Setter
 @Builder
