@@ -25,5 +25,7 @@ public interface OrderDetailMapper {
     @Mapping(target = "dishName", source = "dish.name")
     @Mapping(target = "promotionId", source = "promotion.id")
     @Mapping(target = "promotionName", source = "promotion.name")
+    @Mapping(target = "isBillable", source = "isBillable")
+    @Mapping(target = "options", ignore = true) // Sẽ được set thủ công trong service
     OrderDetailResponse toResponse(OrderDetail orderDetail);
 }
