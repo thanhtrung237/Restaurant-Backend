@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Getter
 @Setter
@@ -27,4 +28,7 @@ public class OrderDetailAddRequest {
     private Boolean isTakeAway;
 
     private String note;
+
+    // Danh sách option item được chọn (BR-07: snapshot giá lúc gọi)
+    private List<Long> optionItemIds;
 }
