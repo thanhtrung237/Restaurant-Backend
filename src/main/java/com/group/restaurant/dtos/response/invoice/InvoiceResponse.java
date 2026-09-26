@@ -2,8 +2,10 @@ package com.group.restaurant.dtos.response.invoice;
 
 import com.group.restaurant.dtos.response.payment.PaymentResponse;
 import com.group.restaurant.enums.InvoiceStatus;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
@@ -13,6 +15,8 @@ import java.util.List;
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class InvoiceResponse {
 
     private Long id;
@@ -35,4 +39,11 @@ public class InvoiceResponse {
     private BigDecimal remainingAmount;
     private LocalDateTime createdAt;
     private LocalDateTime modifiedAt;
+
+    //  Thông tin hóa đơn điện tử
+    private String eInvoiceRef;
+    private LocalDateTime eInvoiceIssuedAt;
+    private String taxCodeUsed;
+    private String eInvoiceProvider;
+    private int eInvoiceAttemptCount;
 }
