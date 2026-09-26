@@ -75,6 +75,15 @@ public class OrderController {
         ));
     }
 
+    @PostMapping("/{id}/confirm")
+    public ResponseEntity<ResponseSuccess<OrderResponse>> confirmOrder(@PathVariable Long id) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Xác nhận order thành công, dòng món chuyển sang ĐANG CHẾ BIẾN",
+                orderService.confirmOrder(id)
+        ));
+    }
+
     @PutMapping("/{id}/status")
     public ResponseEntity<ResponseSuccess<Void>> changeOrderStatus(
             @PathVariable Long id,
