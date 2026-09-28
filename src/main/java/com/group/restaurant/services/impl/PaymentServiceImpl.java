@@ -2,20 +2,14 @@ package com.group.restaurant.services.impl;
 
 import com.group.restaurant.dtos.request.payment.PaymentAddRequest;
 import com.group.restaurant.dtos.response.payment.PaymentResponse;
-import com.group.restaurant.enums.DiningTableStatus;
 import com.group.restaurant.enums.InvoiceStatus;
-import com.group.restaurant.enums.TableSessionStatus;
 import com.group.restaurant.exceptions.ConflictException;
 import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.mappers.PaymentMapper;
-import com.group.restaurant.models.DiningTable;
 import com.group.restaurant.models.Invoice;
 import com.group.restaurant.models.Payment;
-import com.group.restaurant.models.TableSession;
-import com.group.restaurant.repositories.DiningTableRepository;
 import com.group.restaurant.repositories.InvoiceRepository;
 import com.group.restaurant.repositories.PaymentRepository;
-import com.group.restaurant.repositories.TableSessionRepository;
 import com.group.restaurant.services.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -33,8 +27,6 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final InvoiceRepository invoiceRepository;
-    private final TableSessionRepository tableSessionRepository;
-    private final DiningTableRepository diningTableRepository;
     private final PaymentMapper paymentMapper;
 
     @Override
@@ -46,6 +38,9 @@ public class PaymentServiceImpl implements PaymentService {
         if (invoice.getStatus() == InvoiceStatus.PAID) {
             throw new ConflictException("Hóa đơn này đã được thanh toán đầy đủ trước đó");
         }
+        if (invoice.getStatus() == InvoiceStatus.ISSUED) {
+            throw new ConflictException("Hóa đơn này đã được thanh toán và phát hành điện tử, không thể thanh toán thêm");
+        }
         if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
             throw new ConflictException("Hóa đơn này đã bị hủy, không thể thanh toán");
         }
@@ -56,23 +51,17 @@ public class PaymentServiceImpl implements PaymentService {
 
         Payment savedPayment = paymentRepository.save(payment);
 
+        // Kiểm tra đã thu đủ tiền chưa
         BigDecimal totalPaid = paymentRepository.sumAmountByInvoiceId(invoice.getId());
         if (totalPaid != null && totalPaid.compareTo(invoice.getGrandTotal()) >= 0) {
+            // Chuyển invoice → PAID
             invoice.setStatus(InvoiceStatus.PAID);
             invoiceRepository.save(invoice);
 
-            TableSession session = invoice.getTableSession();
-            if (session != null && session.getStatus() != TableSessionStatus.CLOSED && session.getStatus() != TableSessionStatus.CANCELLED) {
-                session.setStatus(TableSessionStatus.CLOSED);
-                session.setClosedAt(LocalDateTime.now());
-                tableSessionRepository.save(session);
-
-                DiningTable table = session.getTable();
-                if (table != null) {
-                    table.setStatus(DiningTableStatus.AVAILABLE);
-                    diningTableRepository.save(table);
-                }
-            }
+            // KHÔNG tự động CLOSE session ở đây.
+            // Session chỉ được đóng sau khi Thu ngân phát hành HĐĐT thành công
+            // qua endpoint POST /invoices/{id}/issue → InvoiceService.issueEInvoice()
+            // Điều này đúng với đặc tả: "Phát hành thất bại → CHẶN đóng bàn"
         }
 
         return buildPaymentResponse(savedPayment);
@@ -97,14 +86,6 @@ public class PaymentServiceImpl implements PaymentService {
         Payment payment = paymentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thanh toán với ID: " + id));
         return buildPaymentResponse(payment);
-    }
-
-    @Override
-    public void deletePayment(Long id) {
-        Payment payment = paymentRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thanh toán với ID: " + id));
-        payment.softDelete(null);
-        paymentRepository.save(payment);
     }
 
     private PaymentResponse buildPaymentResponse(Payment payment) {
