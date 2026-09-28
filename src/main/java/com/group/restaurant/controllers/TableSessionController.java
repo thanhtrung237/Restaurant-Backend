@@ -1,7 +1,6 @@
 package com.group.restaurant.controllers;
 
-import com.group.restaurant.dtos.request.tableSession.TableSessionOpenRequest;
-import com.group.restaurant.dtos.request.tableSession.TableSessionUpdateRequest;
+import com.group.restaurant.dtos.request.tableSession.*;
 import com.group.restaurant.dtos.response.base.ResponseSuccess;
 import com.group.restaurant.dtos.response.tableSession.TableSessionResponse;
 import com.group.restaurant.services.TableSessionService;
@@ -22,7 +21,74 @@ public class TableSessionController {
 
     private final TableSessionService tableSessionService;
 
+    /**
+        Quét QR → tạo phiên WAITING_FOR_OPEN
+        Đặt bàn trước → tạo phiên RESERVED (khi có reservationTime)
+     */
     @PostMapping("")
+    public ResponseEntity<ResponseSuccess<TableSessionResponse>> createSession(
+            @Valid @RequestBody TableSessionCreateRequest request) {
+        return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
+                CREATED,
+                "Tạo phiên bàn thành công",
+                tableSessionService.createSession(request)
+        ));
+    }
+
+    /**
+        Phục vụ xác nhận mở bàn → SERVING
+        Dùng cho cả WAITING_FOR_OPEN và RESERVED
+     */
+    @PostMapping("/{id}/confirm-open")
+    public ResponseEntity<ResponseSuccess<TableSessionResponse>> confirmOpen(
+            @PathVariable Long id,
+            @Valid @RequestBody TableSessionConfirmOpenRequest request) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Mở bàn thành công",
+                tableSessionService.confirmOpen(id, request)
+        ));
+    }
+
+    /**
+     * Hủy đặt bàn trước: RESERVED → CANCELLED
+     */
+    @PostMapping("/{id}/cancel-reservation")
+    public ResponseEntity<ResponseSuccess<TableSessionResponse>> cancelReservation(
+            @PathVariable Long id,
+            @RequestBody(required = false) TableSessionCancelReservationRequest request) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Hủy đặt bàn trước thành công",
+                tableSessionService.cancelReservation(id, request)
+        ));
+    }
+
+    /**
+     * Yêu cầu thanh toán: SERVING → WAITING_FOR_PAY
+     */
+    @PostMapping("/{id}/request-payment")
+    public ResponseEntity<ResponseSuccess<TableSessionResponse>> requestPayment(@PathVariable Long id) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Chuyển bàn sang trạng thái chờ thanh toán thành công",
+                tableSessionService.requestPayment(id)
+        ));
+    }
+
+    /**
+     * QL chi nhánh mở lại bàn: WAITING_FOR_PAY → SERVING
+     */
+    @PostMapping("/{id}/reopen")
+    public ResponseEntity<ResponseSuccess<TableSessionResponse>> reopenSession(@PathVariable Long id) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Mở lại bàn thành công",
+                tableSessionService.reopenSession(id)
+        ));
+    }
+
+    @PostMapping("/legacy")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> openSession(
             @Valid @RequestBody TableSessionOpenRequest request) {
         return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(

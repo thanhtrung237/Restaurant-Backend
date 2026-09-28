@@ -5,10 +5,13 @@ import com.group.restaurant.dtos.request.diningTable.DiningTableReservationReque
 import com.group.restaurant.dtos.request.diningTable.DiningTableUpdateRequest;
 import com.group.restaurant.dtos.response.base.ResponseSuccess;
 import com.group.restaurant.dtos.response.diningTable.DiningTableResponse;
+import com.group.restaurant.dtos.response.diningTable.QrScanResponse;
 import com.group.restaurant.enums.DiningTableStatus;
 import com.group.restaurant.services.DiningTableService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -100,16 +103,65 @@ public class DiningTableController {
                                 null));
         }
 
+        /**
+         * Sinh URL QR cho bàn và lưu vào DB.
+         * Quản lý gọi 1 lần khi setup bàn, hoặc khi cần reset mã.
+         *
+         * @param frontendBaseUrl URL gốc của FE, mặc định http://localhost:5173
+         */
         @PostMapping("/{id}/generate-qr")
-        public ResponseEntity<ResponseSuccess<String>> generateQrCode(@PathVariable Long id) {
+        public ResponseEntity<ResponseSuccess<String>> generateQrCode(
+                        @PathVariable Long id,
+                        @RequestParam(required = false, defaultValue = "http://localhost:5173") String frontendBaseUrl) {
                 return ResponseEntity.ok(new ResponseSuccess<>(
                                 OK,
                                 "Khởi tạo mã QR cho bàn thành công",
-                                diningTableService.generateQrCode(id)));
+                                diningTableService.generateQrCode(id, frontendBaseUrl)));
+        }
+
+        /**
+         * Lấy URL mã QR của bàn để frontend tự sinh hình QR code thật sự.
+         *
+         * @param frontendBaseUrl URL gốc của FE, mặc định http://localhost:5173
+         */
+        @GetMapping("/{id}/qr-url")
+        public ResponseEntity<ResponseSuccess<String>> getQrUrl(
+                        @PathVariable Long id,
+                        @RequestParam(required = false, defaultValue = "http://localhost:5173") String frontendBaseUrl) {
+                return ResponseEntity.ok(new ResponseSuccess<>(
+                                OK,
+                                "Lấy URL mã QR của bàn thành công",
+                                diningTableService.getQrUrl(id, frontendBaseUrl)));
+        }
+
+        /**
+         * Trả về ảnh PNG của QR code bàn (dùng khi client muốn tải trực tiếp ảnh).
+         * @param size kích thước ảnh
+         */
+        @GetMapping("/{id}/qr-image")
+        public ResponseEntity<byte[]> getQrImage(
+                        @PathVariable Long id,
+                        @RequestParam(required = false, defaultValue = "300") int size) {
+                byte[] imageBytes = diningTableService.generateQrImage(id, size);
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION,
+                                "inline; filename=\"table-" + id + "-qr.png\"")
+                        .contentType(MediaType.IMAGE_PNG)
+                        .body(imageBytes);
+        }
+
+       
+        @PostMapping("/scan")
+        public ResponseEntity<ResponseSuccess<QrScanResponse>> scanQr(
+                        @RequestParam Long tableId) {
+                return ResponseEntity.ok(new ResponseSuccess<>(
+                                OK,
+                                "Quét QR thành công",
+                                diningTableService.scanQr(tableId)));
         }
 
         // =========================================================================
-        // 3. NGHIỆP VỤ ĐẶT BÀN TRƯỚC (FR-TBL-03 & BR-29)
+        // NGHIỆP VỤ ĐẶT BÀN TRƯỚC 
         // =========================================================================
 
         @PostMapping("/{id}/reserve")

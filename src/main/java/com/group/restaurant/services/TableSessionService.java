@@ -1,5 +1,8 @@
 package com.group.restaurant.services;
 
+import com.group.restaurant.dtos.request.tableSession.TableSessionCancelReservationRequest;
+import com.group.restaurant.dtos.request.tableSession.TableSessionConfirmOpenRequest;
+import com.group.restaurant.dtos.request.tableSession.TableSessionCreateRequest;
 import com.group.restaurant.dtos.request.tableSession.TableSessionOpenRequest;
 import com.group.restaurant.dtos.request.tableSession.TableSessionUpdateRequest;
 import com.group.restaurant.dtos.response.tableSession.TableSessionResponse;
@@ -7,6 +10,22 @@ import com.group.restaurant.dtos.response.tableSession.TableSessionResponse;
 import java.util.List;
 
 public interface TableSessionService {
+
+    // Quét QR → tạo phiên WAITING_FOR_OPEN
+    // hoặc Đặt bàn trước → tạo phiên RESERVED (khi request.reservationTime != null)
+    TableSessionResponse createSession(TableSessionCreateRequest request);
+
+    // Phục vụ xác nhận mở bàn → SERVING (áp dụng cho cả WAITING_FOR_OPEN và RESERVED)
+    TableSessionResponse confirmOpen(Long id, TableSessionConfirmOpenRequest request);
+
+    // Hủy đặt bàn trước RESERVED → CANCELLED
+    TableSessionResponse cancelReservation(Long id, TableSessionCancelReservationRequest request);
+
+    // Yêu cầu thanh toán → WAITING_FOR_PAY
+    TableSessionResponse requestPayment(Long id);
+
+    // QL chi nhánh mở lại bàn WAITING_FOR_PAY → SERVING
+    TableSessionResponse reopenSession(Long id);
 
     TableSessionResponse openSession(TableSessionOpenRequest request);
 

@@ -13,5 +13,5 @@ public interface PaymentService {
 
     PaymentResponse getPaymentById(Long id);
 
-    void deletePayment(Long id);
+  
 }
