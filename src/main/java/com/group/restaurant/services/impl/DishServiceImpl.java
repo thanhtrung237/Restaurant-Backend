@@ -4,7 +4,10 @@ import com.group.restaurant.dtos.request.dish.DishAddRequest;
 import com.group.restaurant.dtos.request.dish.DishUpdateRequest;
 import com.group.restaurant.dtos.response.base.PageResponse;
 import com.group.restaurant.dtos.response.dish.DishResponse;
+import com.group.restaurant.enums.BranchStatus;
 import com.group.restaurant.enums.DishStatus;
+import com.group.restaurant.enums.StockStatus;
+import com.group.restaurant.exceptions.ConflictException;
 import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.mappers.DishMapper;
 import com.group.restaurant.models.Branch;
@@ -15,8 +18,11 @@ import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.CategoryRepository;
 import com.group.restaurant.repositories.DishOverrideRepository;
 import com.group.restaurant.repositories.DishRepository;
+import com.group.restaurant.repositories.BranchDishStockRepository;
+import com.group.restaurant.repositories.OrderDetailRepository;
 import com.group.restaurant.repositories.RestaurantRepository;
 import com.group.restaurant.services.DishService;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -25,6 +31,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,7 +45,10 @@ public class DishServiceImpl implements DishService {
     private final BranchRepository branchRepository;
     private final CategoryRepository categoryRepository;
     private final DishOverrideRepository dishOverrideRepository;
+    private final BranchDishStockRepository branchDishStockRepository;
+    private final OrderDetailRepository orderDetailRepository;
     private final DishMapper dishMapper;
+    private final TenantGuard tenantGuard;
 
     @Override
     public DishResponse createDish(DishAddRequest request) {
@@ -95,6 +106,7 @@ public class DishServiceImpl implements DishService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<DishResponse> getDishesByRestaurant(Long restaurantId, DishStatus status, Pageable pageable) {
+        tenantGuard.assertRestaurant(restaurantId);
         List<Dish> dishes;
 
         if (status != null) {
@@ -127,6 +139,7 @@ public class DishServiceImpl implements DishService {
     @Override
     @Transactional(readOnly = true)
     public List<DishResponse> getDishesByBranch(Long branchId) {
+        tenantGuard.assertBranch(branchId);
         return dishRepository.findByBranchId(branchId)
                 .stream()
                 .map(dishMapper::toResponse)
@@ -149,15 +162,57 @@ public class DishServiceImpl implements DishService {
         dishRepository.save(dish);
     }
 
+    /**
+     * QĐ-05 — đếm số chi nhánh ĐANG BÁN món này.
+     *
+     * Trước đây hàm này đếm số chi nhánh có bản **đè giá** (`DishOverride`), nên một chi nhánh
+     * bán món mà không đè giá thì không được tính: cảnh báo nhỏ hơn thực tế, người dùng yên tâm
+     * nhầm. FR-MNU-04 nói món ngừng bán ở cấp nhà hàng **biến mất ở mọi chi nhánh**, nên con số
+     * phải là số chi nhánh thật sự đang bán.
+     *
+     * Một chi nhánh KHÔNG được tính khi: bị ẩn món bằng `DishOverride.isHidden`, hoặc đang đánh
+     * dấu hết món (`BranchDishStock.status = OUT_OF_STOCK`), hoặc chi nhánh đang ngừng hoạt động.
+     *
+     * Món RIÊNG của một chi nhánh (`dish.branch != null`) thì chỉ chi nhánh đó bán.
+     */
     @Override
-    public int countBranchesAffectedByDeletion(Long id) {
-        // FR-MNU-04: Đếm số chi nhánh đang có bản đè cho món này → sẽ bị ảnh hưởng
-        return dishOverrideRepository.findByDishId(id).size();
+    public int countBranchesSellingDish(Long id) {
+        Dish dish = findById(id);
+
+        if (dish.getBranch() != null) {
+            return dish.getBranch().getStatus() == BranchStatus.ACTIVE ? 1 : 0;
+        }
+
+        Long restaurantId = dish.getRestaurant() != null ? dish.getRestaurant().getId() : null;
+        if (restaurantId == null) {
+            return 0;
+        }
+
+        Set<Long> hiddenBranchIds = dishOverrideRepository.findByDishId(id).stream()
+                .filter(override -> Boolean.TRUE.equals(override.getIsHidden()))
+                .map(override -> override.getBranch() != null ? override.getBranch().getId() : null)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        return (int) branchRepository.findByRestaurantIdAndStatus(restaurantId, BranchStatus.ACTIVE).stream()
+                .filter(branch -> !hiddenBranchIds.contains(branch.getId()))
+                .filter(branch -> branchDishStockRepository
+                        .findByBranchIdAndDishId(branch.getId(), id)
+                        .map(stock -> stock.getStatus() != StockStatus.OUT_OF_STOCK)
+                        .orElse(true))
+                .count();
     }
 
     @Override
     public void deleteDish(Long id) {
         Dish dish = findById(id);
+
+        // FR-MNU-02 + BR-09: hóa đơn đã phát hành là BẤT BIẾN. Món đã nằm trên một hóa
+        // đơn thì xóa mềm sẽ làm hỏng dữ liệu tra cứu về sau. Xét MỌI trạng thái hóa đơn
+        // và MỌI chi nhánh — món gốc bán ở tất cả chi nhánh.
+        if (orderDetailRepository.existsOnAnyInvoice(id)) {
+            throw new ConflictException("Món đã phát sinh hoá đơn, chỉ có thể ngừng bán");
+        }
 
         // Cascade soft delete: DishOverride
         dishOverrideRepository.findByDishId(id).forEach(dishOverride -> {
@@ -169,8 +224,15 @@ public class DishServiceImpl implements DishService {
         dishRepository.save(dish);
     }
 
+    /**
+      * Chốt tenant tại finder dùng chung: phủ getDishById / updateDish / changeStatus /
+      * deleteDish / countBranchesSellingDish.
+      * No-op với khách ẩn danh (GET /dishes/{id} là endpoint công khai) — xem TenantGuard.
+      */
     private Dish findById(Long id) {
-        return dishRepository.findById(id)
+        Dish dish = dishRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món ăn với ID: " + id));
+        tenantGuard.assertRestaurant(dish.getRestaurant() != null ? dish.getRestaurant().getId() : null);
+        return dish;
     }
 }

@@ -13,6 +13,7 @@ import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.DishOverrideRepository;
 import com.group.restaurant.repositories.DishRepository;
 import com.group.restaurant.services.DishOverrideService;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +30,7 @@ public class DishOverrideServiceImpl implements DishOverrideService {
     private final BranchRepository branchRepository;
     private final DishRepository dishRepository;
     private final DishOverrideMapper dishOverrideMapper;
+    private final TenantGuard tenantGuard;
 
     @Override
     public DishOverrideResponse createDishOverride(DishOverrideAddRequest request) {
@@ -75,6 +77,7 @@ public class DishOverrideServiceImpl implements DishOverrideService {
     @Override
     @Transactional(readOnly = true)
     public List<DishOverrideResponse> getDishOverridesByBranch(Long branchId) {
+        tenantGuard.assertBranch(branchId);
         return dishOverrideRepository.findByBranchId(branchId)
                 .stream()
                 .map(dishOverrideMapper::toResponse)
@@ -97,8 +100,11 @@ public class DishOverrideServiceImpl implements DishOverrideService {
         dishOverrideRepository.save(dishOverride);
     }
 
+    /** Chốt tenant tại finder: phủ getDishOverrideById / updateDishOverride / deleteDishOverride. */
     private DishOverride findById(Long id) {
-        return dishOverrideRepository.findById(id)
+        DishOverride override = dishOverrideRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tùy chỉnh món với ID: " + id));
+        tenantGuard.assertBranch(override.getBranch());
+        return override;
     }
 }

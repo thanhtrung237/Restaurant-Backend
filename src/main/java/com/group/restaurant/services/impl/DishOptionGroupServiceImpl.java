@@ -12,6 +12,7 @@ import com.group.restaurant.repositories.DishOptionGroupRepository;
 import com.group.restaurant.repositories.DishRepository;
 import com.group.restaurant.repositories.OptionGroupRepository;
 import com.group.restaurant.services.DishOptionGroupService;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,7 @@ public class DishOptionGroupServiceImpl implements DishOptionGroupService {
     private final DishRepository dishRepository;
     private final OptionGroupRepository optionGroupRepository;
     private final DishOptionGroupMapper dishOptionGroupMapper;
+    private final TenantGuard tenantGuard;
 
     @Override
     public DishOptionGroupResponse linkDishToOptionGroup(DishOptionGroupAddRequest request) {
@@ -40,6 +42,12 @@ public class DishOptionGroupServiceImpl implements DishOptionGroupService {
         OptionGroup optionGroup = optionGroupRepository.findById(request.getOptionGroupId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy nhóm tùy chọn với ID: " + request.getOptionGroupId()));
+
+        // Món và nhóm tùy chọn phải cùng thuộc nhà hàng của người đăng nhập —
+        // chặn liên kết chéo giữa 2 nhà hàng.
+        tenantGuard.assertRestaurant(dish.getRestaurant() != null ? dish.getRestaurant().getId() : null);
+        tenantGuard.assertRestaurant(
+                optionGroup.getRestaurant() != null ? optionGroup.getRestaurant().getId() : null);
 
         // Check duplicate link
         if (dishOptionGroupRepository.existsByDishIdAndOptionGroupId(
@@ -89,9 +97,14 @@ public class DishOptionGroupServiceImpl implements DishOptionGroupService {
         dishOptionGroupRepository.save(dishOptionGroup);
     }
 
+    /** Chốt tenant tại finder: phủ getDishOptionGroupById / unlinkDishFromOptionGroup. */
     private DishOptionGroup findById(Long id) {
-        return dishOptionGroupRepository.findById(id)
+        DishOptionGroup link = dishOptionGroupRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy liên kết món-nhóm tùy chọn với ID: " + id));
+        Dish dish = link.getDish();
+        tenantGuard.assertRestaurant(
+                dish != null && dish.getRestaurant() != null ? dish.getRestaurant().getId() : null);
+        return link;
     }
 }

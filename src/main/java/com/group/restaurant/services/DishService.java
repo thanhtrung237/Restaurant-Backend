@@ -27,7 +27,11 @@ public interface DishService {
     void changeStatus(Long id, DishStatus status);
 
     // Ngừng bán món gốc — trả về số chi nhánh bị ảnh hưởng (FR-MNU-04)
-    int countBranchesAffectedByDeletion(Long id);
+    /**
+     * QĐ-05 — số chi nhánh ĐANG BÁN món này, dùng cho cảnh báo trước khi ngừng bán / xoá.
+     * Không phải "số chi nhánh đang đè giá" như tên hàm cũ.
+     */
+    int countBranchesSellingDish(Long id);
 
     void deleteDish(Long id);
 }
