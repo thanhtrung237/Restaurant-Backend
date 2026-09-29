@@ -68,6 +68,10 @@ public class Promotion extends BaseEntity {
     @Builder.Default
     private int usageCount = 0;
 
+    @Column(name = "all_branches", nullable = false)
+    @Builder.Default
+    private boolean allBranches = false;
+
     @Version
     @Column(name = "version", nullable = false)
     @Builder.Default
