@@ -13,6 +13,7 @@ import com.group.restaurant.repositories.AreaRepository;
 import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.DiningTableRepository;
 import com.group.restaurant.services.AreaService;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +30,7 @@ public class AreaServiceImpl implements AreaService {
     private final BranchRepository branchRepository;
     private final DiningTableRepository diningTableRepository;
     private final AreaMapper areaMapper;
+    private final TenantGuard tenantGuard;
 
     @Override
     public AreaResponse createArea(AreaAddRequest request) {
@@ -71,6 +73,7 @@ public class AreaServiceImpl implements AreaService {
     @Override
     @Transactional(readOnly = true)
     public List<AreaResponse> getAreasByBranch(Long branchId, AreaStatus status) {
+        tenantGuard.assertBranch(branchId);
         if (!branchRepository.existsById(branchId)) {
             throw new ResourceNotFoundException("Không tìm thấy chi nhánh với ID: " + branchId);
         }
@@ -87,6 +90,19 @@ public class AreaServiceImpl implements AreaService {
     @Override
     @Transactional(readOnly = true)
     public List<AreaResponse> getAllAreas() {
+        // Hàm này không có tham số lọc nào — trả TẤT CẢ khu vực của mọi nhà hàng.
+        // Giới hạn theo nhà hàng của người đăng nhập (Quản trị nền tảng vẫn xem được hết).
+        Long currentRestaurantId = tenantGuard.isPlatformAdmin()
+                ? null
+                : tenantGuard.currentRestaurantIdOrNull();
+        if (currentRestaurantId != null) {
+            return areaRepository.findAll().stream()
+                    .filter(a -> a.getBranch() != null
+                            && a.getBranch().getRestaurant() != null
+                            && currentRestaurantId.equals(a.getBranch().getRestaurant().getId()))
+                    .map(this::buildAreaResponse)
+                    .collect(Collectors.toList());
+        }
         return areaRepository.findAll().stream()
                 .map(this::buildAreaResponse)
                 .collect(Collectors.toList());
@@ -112,9 +128,12 @@ public class AreaServiceImpl implements AreaService {
         areaRepository.save(area);
     }
 
+    /** Chốt tenant tại finder: phủ getAreaById / updateArea / changeStatus / deleteArea. */
     private Area findAreaById(Long id) {
-        return areaRepository.findById(id)
+        Area area = areaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khu vực với ID: " + id));
+        tenantGuard.assertBranch(area.getBranch());
+        return area;
     }
 
     private AreaResponse buildAreaResponse(Area area) {

@@ -11,6 +11,7 @@ import com.group.restaurant.models.OptionItem;
 import com.group.restaurant.repositories.OptionGroupRepository;
 import com.group.restaurant.repositories.OptionItemRepository;
 import com.group.restaurant.services.OptionItemService;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,6 +29,7 @@ public class OptionItemServiceImpl implements OptionItemService {
     private final OptionItemRepository optionItemRepository;
     private final OptionGroupRepository optionGroupRepository;
     private final OptionItemMapper optionItemMapper;
+    private final TenantGuard tenantGuard;
 
     @Override
     public OptionItemResponse createOptionItem(OptionItemAddRequest request) {
@@ -70,6 +72,12 @@ public class OptionItemServiceImpl implements OptionItemService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<OptionItemResponse> getAllOptionItems(Long optionGroupId, String keyword, Pageable pageable) {
+        // optionGroupId đến từ client — nhóm tùy chọn phải thuộc nhà hàng của người đăng nhập.
+        if (optionGroupId != null) {
+            optionGroupRepository.findById(optionGroupId).ifPresent(g ->
+                    tenantGuard.assertRestaurant(
+                            g.getRestaurant() != null ? g.getRestaurant().getId() : null));
+        }
         Page<OptionItem> page;
         
         if (optionGroupId != null && keyword != null && !keyword.trim().isEmpty()) {

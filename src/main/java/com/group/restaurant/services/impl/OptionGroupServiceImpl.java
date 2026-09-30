@@ -16,6 +16,7 @@ import com.group.restaurant.repositories.OptionGroupRepository;
 import com.group.restaurant.repositories.OptionItemRepository;
 import com.group.restaurant.repositories.RestaurantRepository;
 import com.group.restaurant.services.OptionGroupService;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -35,6 +36,7 @@ public class OptionGroupServiceImpl implements OptionGroupService {
     private final OptionItemRepository optionItemRepository;
     private final DishOptionGroupRepository dishOptionGroupRepository;
     private final OptionGroupMapper optionGroupMapper;
+    private final TenantGuard tenantGuard;
 
     @Override
     public OptionGroupResponse createOptionGroup(OptionGroupAddRequest request) {
@@ -102,6 +104,13 @@ public class OptionGroupServiceImpl implements OptionGroupService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<OptionGroupResponse> getAllOptionGroups(Long restaurantId, String keyword, Pageable pageable) {
+        tenantGuard.assertRestaurant(restaurantId);
+        // Bỏ trống restaurantId thì nhánh cuối gọi findAll() — trả nhóm tùy chọn của
+        // MỌI nhà hàng. Mặc định giới hạn vào nhà hàng của người đăng nhập.
+        if (restaurantId == null && !tenantGuard.isPlatformAdmin()) {
+            restaurantId = tenantGuard.currentRestaurantIdOrNull();
+        }
+
         Page<OptionGroup> page;
         
         if (restaurantId != null && keyword != null && !keyword.trim().isEmpty()) {
