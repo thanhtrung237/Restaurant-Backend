@@ -15,6 +15,7 @@ import com.group.restaurant.repositories.AssignmentRepository;
 import com.group.restaurant.repositories.RestaurantRepository;
 import com.group.restaurant.repositories.RoleRepository;
 import com.group.restaurant.services.RoleService;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -33,6 +34,7 @@ public class RoleServiceImpl implements RoleService {
     private final RestaurantRepository restaurantRepository;
     private final AssignmentRepository assignmentRepository;
     private final RoleMapper roleMapper;
+    private final TenantGuard tenantGuard;
 
     @Override
     public RoleResponse createRole(RoleAddRequest request) {
@@ -82,6 +84,14 @@ public class RoleServiceImpl implements RoleService {
             RoleScope scope,
             Pageable pageable
     ) {
+        tenantGuard.assertRestaurant(restaurantId);
+        // Bỏ trống restaurantId thì nhánh cuối gọi findAll() — trả dữ liệu MỌI nhà hàng.
+        // Mặc định giới hạn vào nhà hàng của người đăng nhập; chỉ Quản trị nền tảng
+        // được xem xuyên nhà hàng.
+        if (restaurantId == null && !tenantGuard.isPlatformAdmin()) {
+            restaurantId = tenantGuard.currentRestaurantIdOrNull();
+        }
+
         Page<Role> rolePage;
 
         if (restaurantId != null && scope != null) {
@@ -144,6 +154,7 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional(readOnly = true)
     public List<RoleResponse> getRolesByRestaurant(Long restaurantId) {
+        tenantGuard.assertRestaurant(restaurantId);
         List<Role> roles = roleRepository.findByRestaurantId(restaurantId);
         return roles.stream()
                 .map(this::buildRoleListResponse)
@@ -163,9 +174,12 @@ public class RoleServiceImpl implements RoleService {
         roleRepository.save(role);
     }
 
+    /** Chốt tenant tại finder: phủ getRoleById / updateRole / deleteRole. */
     private Role findRoleById(Long id) {
-        return roleRepository.findById(id)
+        Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy vai trò với ID: " + id));
+        tenantGuard.assertRestaurant(role.getRestaurant() != null ? role.getRestaurant().getId() : null);
+        return role;
     }
 
     private RoleResponse buildRoleResponse(Role role) {
