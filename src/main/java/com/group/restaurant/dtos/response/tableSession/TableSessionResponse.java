@@ -35,6 +35,13 @@ public class TableSessionResponse {
     private LocalDateTime reservationTime;
     private String reservationNote;
 
+    /**
+     * Người MỞ phiên bàn — lấy từ cột audit `create_by` có sẵn trên BaseEntity
+     * (JpaAuditingConfig điền username, hoặc "guest" khi khách tự quét QR).
+     * Là USERNAME, không phải họ tên đầy đủ — xem docs/todo.md.
+     */
+    private String openedBy;
+
     private LocalDateTime createdAt;
     private LocalDateTime modifiedAt;
 }

@@ -23,5 +23,7 @@ public interface TableSessionMapper {
     @Mapping(target = "tableName", source = "table.name")
     @Mapping(target = "branchId", source = "branch.id")
     @Mapping(target = "orderCount", ignore = true)
+    // Người mở phiên lấy từ cột audit có sẵn, không thêm cột mới.
+    @Mapping(target = "openedBy", source = "createBy")
     TableSessionResponse toResponse(TableSession tableSession);
 }
