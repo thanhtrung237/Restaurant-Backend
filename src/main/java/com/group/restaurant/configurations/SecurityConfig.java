@@ -2,8 +2,10 @@ package com.group.restaurant.configurations;
 
 import com.group.restaurant.configurations.jwt.AuthTokenFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -13,6 +15,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -22,34 +25,79 @@ public class SecurityConfig {
 
     private final AuthTokenFilter authTokenFilter;
 
-    private static final String[] PUBLIC_ENDPOINTS = {
-            // Auth endpoints
-            "/api/v1/auth/login",
-            "/api/v1/auth/refresh-token",
+    /**
+     * Prefix API lấy từ cấu hình (`api.prefix`) thay vì hard-code "/api/v1".
+     * Trước đây danh sách public hard-code prefix — đổi API_PREFIX là mọi pattern
+     * hết khớp (may là fail-closed, nhưng vẫn là bẫy cấu hình).
+     */
+    @Value("${api.prefix}")
+    private String apiPrefix;
 
-            //  Quét QR bàn — khách không đăng nhập
-            "/api/v1/tables/scan",
-            //  Xem ảnh QR — public để in
-            //  Xem URL QR và ảnh QR — public để in hoặc quét
-            "/api/v1/tables/*/qr-url",
-            "/api/v1/tables/*/qr-image",
+    /**
+     * ĐƯỜNG DẪN CÔNG KHAI — nguyên tắc: chỉ mở ĐÚNG endpoint mà KHÁCH KHÔNG ĐĂNG NHẬP
+     * cần dùng, theo đúng METHOD, không dùng wildcard `/**` cho cả controller.
+     *
+     * Trước đây danh sách này mở `/orders/**`, `/invoices/**`, `/payments/**`,
+     * `/table-sessions/**`, `/branches/**` → bất kỳ ai cũng gọi được
+     * `POST /payments` (thanh toán khống → hóa đơn tự chuyển PAID),
+     * `POST /invoices/{id}/cancel`, `DELETE /table-sessions/{id}`,
+     * `GET /invoices/branch/{id}` (lộ doanh thu mọi chi nhánh).
+     *
+     * Đối chiếu với FE: xem `src/features/customer/api/index.ts` — 10 bước của luồng khách.
+     */
 
-            // Customer-facing endpoints (không cần đăng nhập)
-            "/api/v1/tables/branch/*/qr/*",              // Lấy thông tin bàn theo QR
-            "/api/v1/table-sessions/**",                 // Quản lý phiên bàn
-            "/api/v1/orders/**",                         // Gọi món
-            "/api/v1/order-details/**",                  // Chi tiết order
-            "/api/v1/dishes/**",                         // Xem món ăn
-            "/api/v1/dish-option-groups/**",             // Option groups của món
-            "/api/v1/option-items/**",                   // Option items
-            "/api/v1/branch-menu/**",                    // Menu chi nhánh
-            "/api/v1/invoices/**",                       // Hóa đơn
-            "/api/v1/payments/**",                       // Thanh toán
-            "/api/v1/categories/**",                     // Danh mục món
-            "/api/v1/branches/**",                       // Thông tin chi nhánh
+    /** GET công khai — chỉ đọc, phục vụ luồng quét QR → xem thực đơn → xem hóa đơn. */
+    private static final String[] PUBLIC_GET = {
+            // Quét QR bàn
+            "/tables/branch/*/qr/*",        // lấy thông tin bàn theo mã QR
+            "/tables/*/qr-url",             // xem URL QR (để in)
+            "/tables/*/qr-image",           // xem ảnh QR (để in / quét)
 
-            // WebSocket / STOMP (A3)
-            "/ws/**",
+            // Phiên bàn của chính khách (theo id phiên / id bàn)
+            "/table-sessions/*",            // theo dõi trạng thái phiên (chờ mở bàn → SERVING)
+            "/table-sessions/table/*/open", // phục hồi phiên khi khách F5 / mở lại link
+
+            // Thực đơn chi nhánh
+            // LƯU Ý: KHÔNG mở "/branches/*" — `BranchController.getBranchById` là
+            // @PreAuthorize("isAuthenticated()") và chỉ màn Thu ngân dùng (useBranch).
+            "/branches/*/menu",
+            "/branches/*/menu/overview",
+            "/dishes/*",
+            "/dishes/branch/*",
+            "/dishes/category/*",
+            "/dish-option-groups/dish/*",
+            "/option-items/group/*",
+            "/branch-dish-stocks/branch/*/out-of-stock",
+
+            // Món đã gọi của phiên
+            "/orders/session/*",
+            "/order-details/session/*",
+            "/table-sessions/*/bill-preview",  // tạm tính theo phiên (BR-13) — cùng nhóm với order-details/session
+
+            // Hóa đơn + QR chuyển khoản của phiên (khách poll chờ Thu ngân xác nhận)
+            "/invoices/*",
+            "/invoices/*/qr-code",
+            "/invoices/session/*",
+            "/invoices/session/*/qr-code",
+
+            // Khuyến mãi chi nhánh (khách quét QR và nhân viên tra cứu)
+            "/promotions/branch/*/active",
+            "/promotions/branch/*/code/*",
+            "/promotion-branches/branch/*",
+    };
+
+    /** POST công khai — các hành động khách tự làm được trên thiết bị của mình. */
+    private static final String[] PUBLIC_POST = {
+            "/auth/login",
+            "/auth/refresh-token",
+
+            "/tables/scan",                     // quét QR
+            "/table-sessions",                  // quét QR → tạo phiên WAITING_FOR_OPEN
+            "/table-sessions/*/request-payment",// khách bấm "Yêu cầu tính tiền"
+            "/table-sessions/*/call-staff",     // khách bấm "Gọi nhân viên"
+            "/orders",                          // khách gửi giỏ hàng
+            "/order-details/*/cancel",          // khách tự hủy món chưa vào bếp
+            "/order-details/*/staff-call",      // khách bấm "Báo nhân viên" (FR-CUS-07)
     };
 
     @Bean
@@ -60,10 +108,21 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        // WebSocket / STOMP handshake (A3)
+                        .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, prefixed(PUBLIC_GET)).permitAll()
+                        .requestMatchers(HttpMethod.POST, prefixed(PUBLIC_POST)).permitAll()
+                        // Mọi thứ còn lại — kể cả POST /payments, POST /invoices,
+                        // /invoices/branch/**, /orders/{id}/cancel, DELETE /** — phải đăng nhập.
                         .anyRequest().authenticated()
                 );
         return http.build();
+    }
+
+    /** Gắn `api.prefix` vào từng pattern tương đối. */
+    private String[] prefixed(String[] paths) {
+        return Arrays.stream(paths).map(p -> apiPrefix + p).toArray(String[]::new);
     }
 
     @Bean
@@ -77,7 +136,10 @@ public class SecurityConfig {
                 "http://127.0.0.1:*"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // "Refresh-Token": AuthController.refreshToken đọc token từ header này.
+        // Thiếu nó trong allowedHeaders → browser chặn ngay ở preflight → luồng
+        // refresh token không bao giờ chạy được từ FE (chỉ chạy khi test bằng Postman).
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Refresh-Token"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

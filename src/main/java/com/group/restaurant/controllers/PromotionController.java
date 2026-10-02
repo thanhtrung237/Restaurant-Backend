@@ -81,4 +81,23 @@ public class PromotionController {
         promotionService.deletePromotion(id);
         return ResponseEntity.ok(new ResponseSuccess<>(OK, "Xóa khuyến mãi thành công", null));
     }
+
+    @GetMapping("/branch/{branchId}/active")
+    public ResponseEntity<ResponseSuccess<java.util.List<PromotionResponse>>> getActivePromotionsByBranch(
+            @PathVariable Long branchId) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK, "Lấy danh sách khuyến mãi đang áp dụng thành công",
+                promotionService.getActivePromotionsByBranch(branchId)
+        ));
+    }
+
+    @GetMapping("/branch/{branchId}/code/{code}")
+    public ResponseEntity<ResponseSuccess<PromotionResponse>> getPromotionByBranchAndCode(
+            @PathVariable Long branchId,
+            @PathVariable String code) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK, "Tra cứu mã khuyến mãi thành công",
+                promotionService.getPromotionByBranchAndCode(branchId, code)
+        ));
+    }
 }

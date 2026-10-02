@@ -9,12 +9,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.TimeZone;
 
-import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-
+// @EnableJpaAuditing đã chuyển sang JpaAuditingConfig để đi kèm bean AuditorAware
+// (trước đây bật ở đây mà không có AuditorAware → create_by/modified_by luôn null).
 @SpringBootApplication
-@EnableJpaAuditing
 @EnableScheduling
 public class RestaurantBackendApplication {
 

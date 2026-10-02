@@ -99,12 +99,12 @@ public class DishController {
         return ResponseEntity.ok(new ResponseSuccess<>(OK, "Thay đổi trạng thái món ăn thành công", null));
     }
 
-    // Kiểm tra số chi nhánh bị ảnh hưởng trước khi xóa
+    // QĐ-05: số chi nhánh ĐANG BÁN món này — dùng cho cảnh báo trước khi ngừng bán / xoá.
     @GetMapping("/{id}/affected-branches")
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
     public ResponseEntity<ResponseSuccess<Integer>> countAffectedBranches(@PathVariable Long id) {
         return ResponseEntity.ok(new ResponseSuccess<>(
-                OK, "Số chi nhánh bị ảnh hưởng", dishService.countBranchesAffectedByDeletion(id)
+                OK, "Số chi nhánh đang bán món", dishService.countBranchesSellingDish(id)
         ));
     }
 

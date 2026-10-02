@@ -7,6 +7,7 @@ import com.group.restaurant.services.PromotionBranchService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +23,7 @@ public class PromotionBranchController {
     private final PromotionBranchService promotionBranchService;
 
     @PostMapping("")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<PromotionBranchResponse>> assignPromotionToBranch(
             @Valid @RequestBody PromotionBranchAddRequest request) {
         return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
@@ -32,6 +34,7 @@ public class PromotionBranchController {
     }
 
     @GetMapping("/branch/{branchId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ResponseSuccess<List<PromotionBranchResponse>>> getByBranch(
             @PathVariable Long branchId) {
         return ResponseEntity.ok(new ResponseSuccess<>(
@@ -42,6 +45,7 @@ public class PromotionBranchController {
     }
 
     @GetMapping("/promotion/{promotionId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ResponseSuccess<List<PromotionBranchResponse>>> getByPromotion(
             @PathVariable Long promotionId) {
         return ResponseEntity.ok(new ResponseSuccess<>(
@@ -52,6 +56,7 @@ public class PromotionBranchController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<Void>> removePromotionFromBranch(@PathVariable Long id) {
         promotionBranchService.removePromotionFromBranch(id);
         return ResponseEntity.ok(new ResponseSuccess<>(
