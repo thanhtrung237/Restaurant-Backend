@@ -15,7 +15,11 @@ import com.group.restaurant.repositories.*;
 import com.group.restaurant.services.KitchenTicketService;
 import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.services.OrderService;
+import com.group.restaurant.services.promotion.PromotionEngine;
+import com.group.restaurant.services.promotion.PromotionResult;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +31,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
@@ -41,6 +46,8 @@ public class OrderServiceImpl implements OrderService {
     private final OrderMapper orderMapper;
     private final KitchenTicketService kitchenTicketService;
     private final OrderNotificationService orderNotificationService;
+    private final PromotionEngine promotionEngine;
+    private final TenantGuard tenantGuard;
 
     @Override
     public OrderResponse createOrder(OrderAddRequest request) {
@@ -161,6 +168,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public List<OrderResponse> getOrdersByBranch(Long branchId, OrderStatus status) {
+        tenantGuard.assertBranch(branchId);
         List<Order> orders = orderRepository.findByBranchIdAndStatus(branchId,
                 status != null ? status : OrderStatus.PENDING);
         return orders.stream().map(orderMapper::toResponse).collect(Collectors.toList());
@@ -213,12 +221,6 @@ public class OrderServiceImpl implements OrderService {
         Dish dish = dishRepository.findById(req.getDishId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với ID: " + req.getDishId()));
 
-        Promotion promotion = null;
-        if (req.getPromotionId() != null) {
-            promotion = promotionRepository.findById(req.getPromotionId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khuyến mãi với ID: " + req.getPromotionId()));
-        }
-
         // ưu tiên giá bản đè chi nhánh
         BigDecimal unitPrice = dishOverrideRepository.findByBranchIdAndDishId(branchId, dish.getId())
                 .filter(ov -> !Boolean.TRUE.equals(ov.getIsHidden()))
@@ -240,23 +242,80 @@ public class OrderServiceImpl implements OrderService {
                 ? OrderDetailStatus.PENDING_WEIGHT
                 : OrderDetailStatus.PENDING;
 
-        // Món cân: chưa biết số cân → tạm price = 0; option extra cũng chưa tính
-        BigDecimal totalPrice = soldByWeight
-                ? BigDecimal.ZERO
-                : unitPrice.add(optionExtraTotal).multiply(BigDecimal.valueOf(req.getQuantity()));
+        // Món cân: chưa biết số cân → tạm price = 0, chưa tính KM
+        if (soldByWeight) {
+            return OrderDetail.builder()
+                    .order(order)
+                    .dish(dish)
+                    .promotion(null)
+                    .quantity(req.getQuantity())
+                    .weightKg(null)
+                    .priceAtOrderTime(unitPrice)
+                    .promotionDiscountAmount(BigDecimal.ZERO)
+                    .isTakeAway(Boolean.TRUE.equals(req.getIsTakeAway()))
+                    .note(req.getNote())
+                    .status(status)
+                    .price(BigDecimal.ZERO)
+                    .isBillable(true)
+                    .build();
+        }
+
+        // Món thường: tính giá trước KM
+        BigDecimal itemSubtotal = unitPrice.add(optionExtraTotal)
+                .multiply(BigDecimal.valueOf(req.getQuantity()));
+
+        // Tính khuyến mãi CẤP MÓN (tự động, không lấy từ client)
+        Long restaurantId = order.getTableSession().getTable().getBranch().getRestaurant().getId();
+
+        PromotionResult promoResult = promotionEngine.calculateItemPromotion(
+                branchId,
+                restaurantId,
+                dish.getId(),
+                dish.getCategory() != null ? dish.getCategory().getId() : null,
+                req.getQuantity(),
+                itemSubtotal.doubleValue()
+        );
+
+        Promotion appliedPromotion = null;
+        BigDecimal discountAmount = BigDecimal.ZERO;
+
+        // Trừ lượt nếu có KM (BR-23)
+        if (promoResult.hasPromotion()) {
+            boolean success = promotionEngine.incrementUsageCount(promoResult.getPromotionId());
+
+            if (success) {
+                // Trừ lượt thành công
+                appliedPromotion = promotionRepository.findById(promoResult.getPromotionId()).orElse(null);
+                discountAmount = promoResult.getDiscountAmount();
+
+                log.info("Applied promotion {} to dish {}: discount = {}",
+                        promoResult.getPromotionName(), dish.getName(), discountAmount);
+            } else {
+                // Hết lượt đúng lúc gọi món (FR-CUS-05, T-09)
+                throw new ConflictException(
+                        String.format("Khuyến mãi '%s' vừa hết lượt. " +
+                                        "Giá mới: %,.0fđ. Vui lòng xác nhận tiếp tục.",
+                                promoResult.getPromotionName(),
+                                itemSubtotal.doubleValue())
+                );
+            }
+        }
+
+        // Giá cuối = subtotal - discount
+        BigDecimal finalPrice = itemSubtotal.subtract(discountAmount);
 
         return OrderDetail.builder()
                 .order(order)
                 .dish(dish)
-                .promotion(promotion)
+                .promotion(appliedPromotion)
                 .quantity(req.getQuantity())
                 .weightKg(null)
                 .priceAtOrderTime(unitPrice)
-                .promotionDiscountAmount(BigDecimal.ZERO)
+                .promotionDiscountAmount(discountAmount)
                 .isTakeAway(Boolean.TRUE.equals(req.getIsTakeAway()))
                 .note(req.getNote())
                 .status(status)
-                .price(totalPrice)
+                .price(finalPrice)
                 .isBillable(true)
                 .build();
     }

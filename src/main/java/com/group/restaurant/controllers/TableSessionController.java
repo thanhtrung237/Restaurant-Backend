@@ -2,11 +2,14 @@ package com.group.restaurant.controllers;
 
 import com.group.restaurant.dtos.request.tableSession.*;
 import com.group.restaurant.dtos.response.base.ResponseSuccess;
+import com.group.restaurant.dtos.response.invoice.BillPreviewResponse;
 import com.group.restaurant.dtos.response.tableSession.TableSessionResponse;
+import com.group.restaurant.services.BillService;
 import com.group.restaurant.services.TableSessionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,10 +23,10 @@ import static org.springframework.http.HttpStatus.OK;
 public class TableSessionController {
 
     private final TableSessionService tableSessionService;
+    private final BillService billService;
 
     /**
-        Quét QR → tạo phiên WAITING_FOR_OPEN
-        Đặt bàn trước → tạo phiên RESERVED (khi có reservationTime)
+     Quét QR → tạo phiên WAITING_FOR_OPEN (public, không cần đăng nhập — FR-CUS-01)
      */
     @PostMapping("")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> createSession(
@@ -36,8 +39,23 @@ public class TableSessionController {
     }
 
     /**
-        Phục vụ xác nhận mở bàn → SERVING
-        Dùng cho cả WAITING_FOR_OPEN và RESERVED
+     * Đặt bàn trước → tạo phiên RESERVED (FR-TBL-03, BR-29)
+     * Chỉ Phục vụ và QL chi nhánh (Bảng 4.2)
+     */
+    @PreAuthorize("hasAnyRole('WAITER', 'BRANCH_MANAGER', 'MANAGER')")
+    @PostMapping("/reserve")
+    public ResponseEntity<ResponseSuccess<TableSessionResponse>> reserveSession(
+            @Valid @RequestBody TableSessionReservationRequest request) {
+        return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
+                CREATED,
+                "Đặt bàn trước thành công",
+                tableSessionService.reserveSession(request)
+        ));
+    }
+
+    /**
+     Phục vụ xác nhận mở bàn → SERVING
+     Dùng cho cả WAITING_FOR_OPEN và RESERVED
      */
     @PostMapping("/{id}/confirm-open")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> confirmOpen(
@@ -77,8 +95,21 @@ public class TableSessionController {
     }
 
     /**
+     * Khách bấm "Gọi nhân viên" hỗ trợ tại bàn (FR-CUS-07)
+     * orderDetailId: truyền kèm nếu khách báo nhân viên từ một món cụ thể đã vào bếp
+     */
+    @PostMapping("/{id}/call-staff")
+    public ResponseEntity<ResponseSuccess<Void>> callStaff(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long orderDetailId) {
+        tableSessionService.callStaff(id, orderDetailId);
+        return ResponseEntity.ok(new ResponseSuccess<>(OK, "Đã gửi yêu cầu gọi nhân viên thành công", null));
+    }
+
+    /**
      * QL chi nhánh mở lại bàn: WAITING_FOR_PAY → SERVING
      */
+    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
     @PostMapping("/{id}/reopen")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> reopenSession(@PathVariable Long id) {
         return ResponseEntity.ok(new ResponseSuccess<>(
@@ -106,6 +137,19 @@ public class TableSessionController {
                 OK,
                 "Cập nhật thông tin phiên làm việc thành công",
                 tableSessionService.updateSession(id, request)
+        ));
+    }
+
+    /**
+     * Xem tạm tính theo phiên (BR-13) — dùng khi CHƯA có hóa đơn; đã có hóa đơn thì trả đúng số
+     * của hóa đơn. Chỉ đọc. Công khai như GET order-details theo phiên (khách chưa đăng nhập).
+     */
+    @GetMapping("/{id}/bill-preview")
+    public ResponseEntity<ResponseSuccess<BillPreviewResponse>> getBillPreview(@PathVariable Long id) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Lấy tạm tính theo phiên thành công",
+                billService.previewByTableSession(id)
         ));
     }
 
@@ -148,7 +192,9 @@ public class TableSessionController {
         ));
     }
 
+    // FR-SRV-02: đóng bàn là việc của Thu ngân / QL chi nhánh (và Quản trị nhà hàng).
     @PostMapping("/{id}/close")
+    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER', 'CASHIER')")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> closeSession(@PathVariable Long id) {
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
@@ -157,12 +203,17 @@ public class TableSessionController {
         ));
     }
 
+    // Bảng 2.2: huỷ phiên là việc của Quản lý chi nhánh (và Quản trị nhà hàng),
+    // BẮT BUỘC nhập lý do, có ghi nhật ký. Thu ngân và Phục vụ KHÔNG được huỷ.
     @PostMapping("/{id}/cancel")
-    public ResponseEntity<ResponseSuccess<TableSessionResponse>> cancelSession(@PathVariable Long id) {
+    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
+    public ResponseEntity<ResponseSuccess<TableSessionResponse>> cancelSession(
+            @PathVariable Long id,
+            @Valid @RequestBody TableSessionCancelRequest request) {
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
                 "Hủy phiên làm việc bàn thành công",
-                tableSessionService.cancelSession(id)
+                tableSessionService.cancelSession(id, request.getReason())
         ));
     }
 

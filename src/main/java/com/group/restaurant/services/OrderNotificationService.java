@@ -12,4 +12,10 @@ public interface OrderNotificationService {
 
     /** Push khi dòng món đổi trạng thái */
     void notifyItemStatusChanged(Long sessionId, Long orderDetailId, OrderDetailStatus newStatus);
+
+    /** Push khi khách bấm "Yêu cầu tính tiền" (FR-CUS-10) */
+    void notifyPaymentRequested(Long branchId, Long sessionId, String tableNo);
+
+    /** Push khi khách bấm "Báo nhân viên" cho món đã vào bếp (FR-CUS-07) */
+    void notifyStaffCall(Long branchId, Long sessionId, Long orderDetailId, String tableNo, String dishName);
 }

@@ -8,6 +8,7 @@ import com.group.restaurant.dtos.response.base.ResponseSuccess;
 import com.group.restaurant.dtos.response.orderDetail.OrderDetailResponse;
 import com.group.restaurant.enums.OrderDetailStatus;
 import com.group.restaurant.services.OrderDetailService;
+import com.group.restaurant.services.impl.OrderDetailServiceImpl;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -138,4 +139,12 @@ public class OrderDetailController {
                 null
         ));
     }
+
+    // FR-CUS-07: Khách bấm "Báo nhân viên" cho món đang PREPARING — public, không cần auth
+    @PostMapping("/{id}/staff-call")
+    public ResponseEntity<ResponseSuccess<Void>> reportToStaff(@PathVariable Long id) {
+        ((OrderDetailServiceImpl) orderDetailService).reportToStaff(id);
+        return ResponseEntity.ok(new ResponseSuccess<>(OK, "Đã gửi yêu cầu hỗ trợ đến nhân viên", null));
+    }
 }
+
