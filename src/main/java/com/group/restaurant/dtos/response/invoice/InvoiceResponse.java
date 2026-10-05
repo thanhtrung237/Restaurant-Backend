@@ -29,10 +29,27 @@ public class InvoiceResponse {
     private String invoiceNumber;
     private String invoiceNote;
     private BigDecimal subTotalBeforeDiscount;
+    private BigDecimal totalPromotionDiscount;
     private BigDecimal totalManualDiscount;
     private BigDecimal serviceFee;
     private BigDecimal vatAmount;
     private BigDecimal grandTotal;
+
+    // ----- Breakdown đầy đủ theo thứ tự BR-13 (cùng bộ field với BillPreviewResponse) -----
+    // Suy ra từ phiên và dòng món, không cần đổi schema. Các field cũ ở trên giữ nguyên để tương thích;
+    // subTotalBeforeDiscount nay chính là grossSubTotal (tiền hàng gốc, chưa trừ KM món).
+    private BigDecimal grossSubTotal;
+    private BigDecimal itemPromotionDiscount;
+    private BigDecimal orderPromotionDiscount;
+    private Long orderPromotionId;
+    private String orderPromotionName;
+    private BigDecimal manualDiscount;
+    /** Tiền sau giảm = gross − KM món − KM đơn − chiết khấu tay. */
+    private BigDecimal amountAfterDiscount;
+    private BigDecimal serviceFeeRate;
+    private BigDecimal vatRate;
+    private boolean vatOnServiceFee;
+    private BigDecimal vatBase;
     private InvoiceStatus status;
     private List<PaymentResponse> payments;
     private BigDecimal totalPaid;

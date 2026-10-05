@@ -10,7 +10,11 @@ import com.group.restaurant.models.Invoice;
 import com.group.restaurant.models.Payment;
 import com.group.restaurant.repositories.InvoiceRepository;
 import com.group.restaurant.repositories.PaymentRepository;
+import com.group.restaurant.services.AuditLogService;
 import com.group.restaurant.services.PaymentService;
+import com.group.restaurant.services.audit.AuditAction;
+import com.group.restaurant.services.audit.AuditEvent;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,12 +32,16 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final InvoiceRepository invoiceRepository;
     private final PaymentMapper paymentMapper;
+    private final AuditLogService auditLogService;
+    private final TenantGuard tenantGuard;
 
     @Override
     public PaymentResponse processPayment(PaymentAddRequest request) {
         Invoice invoice = invoiceRepository.findById(request.getInvoiceId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy hóa đơn với ID: " + request.getInvoiceId()));
+        // invoiceId đến từ client: Thu ngân chỉ được thu tiền hóa đơn của nhà hàng mình.
+        tenantGuard.assertBranch(invoice.getBranch());
 
         if (invoice.getStatus() == InvoiceStatus.PAID) {
             throw new ConflictException("Hóa đơn này đã được thanh toán đầy đủ trước đó");
@@ -53,7 +61,8 @@ public class PaymentServiceImpl implements PaymentService {
 
         // Kiểm tra đã thu đủ tiền chưa
         BigDecimal totalPaid = paymentRepository.sumAmountByInvoiceId(invoice.getId());
-        if (totalPaid != null && totalPaid.compareTo(invoice.getGrandTotal()) >= 0) {
+        boolean fullyPaid = totalPaid != null && totalPaid.compareTo(invoice.getGrandTotal()) >= 0;
+        if (fullyPaid) {
             // Chuyển invoice → PAID
             invoice.setStatus(InvoiceStatus.PAID);
             invoiceRepository.save(invoice);
@@ -64,15 +73,31 @@ public class PaymentServiceImpl implements PaymentService {
             // Điều này đúng với đặc tả: "Phát hành thất bại → CHẶN đóng bàn"
         }
 
+        // FR-LOG-01: mọi lần thu tiền đều phải có vết để đối soát ca/két.
+        auditLogService.record(AuditEvent.builder()
+                .entityType("Payment")
+                .entityId(savedPayment.getId())
+                .actionType(AuditAction.PAYMENT)
+                .branchId(invoice.getBranch() != null ? invoice.getBranch().getId() : null)
+                .valueAfter("invoice=" + invoice.getInvoiceNumber()
+                        + "; method=" + savedPayment.getMethod()
+                        + "; amount=" + savedPayment.getAmount()
+                        + "; totalPaid=" + totalPaid
+                        + "; grandTotal=" + invoice.getGrandTotal()
+                        + "; invoiceStatus=" + invoice.getStatus())
+                .reason(fullyPaid ? "Thu đủ tiền hóa đơn" : "Thu một phần hóa đơn")
+                .build());
+
         return buildPaymentResponse(savedPayment);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<PaymentResponse> getPaymentsByInvoice(Long invoiceId) {
-        if (!invoiceRepository.existsById(invoiceId)) {
-            throw new ResourceNotFoundException("Không tìm thấy hóa đơn với ID: " + invoiceId);
-        }
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy hóa đơn với ID: " + invoiceId));
+        tenantGuard.assertBranch(invoice.getBranch());
 
         List<Payment> payments = paymentRepository.findByInvoiceId(invoiceId);
         return payments.stream()

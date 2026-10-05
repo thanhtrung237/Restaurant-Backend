@@ -4,7 +4,6 @@ import com.group.restaurant.dtos.request.invoice.InvoiceCreateRequest;
 import com.group.restaurant.dtos.response.invoice.InvoiceListResponse;
 import com.group.restaurant.dtos.response.invoice.InvoiceResponse;
 import com.group.restaurant.dtos.response.invoice.QrCodeResponse;
-import com.group.restaurant.enums.DiscountType;
 import com.group.restaurant.enums.DiningTableStatus;
 import com.group.restaurant.enums.InvoiceStatus;
 import com.group.restaurant.enums.OrderDetailStatus;
@@ -15,17 +14,24 @@ import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.mappers.InvoiceMapper;
 import com.group.restaurant.models.*;
 import com.group.restaurant.repositories.*;
+import com.group.restaurant.services.AuditLogService;
 import com.group.restaurant.services.InvoiceService;
+import com.group.restaurant.services.audit.AuditAction;
+import com.group.restaurant.services.audit.AuditEvent;
 import com.group.restaurant.services.einvoice.EInvoiceException;
 import com.group.restaurant.services.einvoice.EInvoiceResult;
 import com.group.restaurant.services.einvoice.InvoiceProvider;
+import com.group.restaurant.services.billing.BillBreakdown;
+import com.group.restaurant.services.billing.BillCalculator;
+import com.group.restaurant.services.billing.BillCalculator.PromotionSelection;
+import com.group.restaurant.services.promotion.PromotionEngine;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -47,12 +53,19 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final DiningTableRepository diningTableRepository;
     private final InvoiceMapper invoiceMapper;
     private final InvoiceProvider invoiceProvider;
+    private final AuditLogService auditLogService;
+    private final TenantGuard tenantGuard;
+    private final PromotionEngine promotionEngine;
+    private final PromotionRepository promotionRepository;
+    private final BillCalculator billCalculator;
 
     @Override
     public InvoiceResponse createInvoice(InvoiceCreateRequest request) {
         Branch branch = branchRepository.findById(request.getBranchId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy chi nhánh với ID: " + request.getBranchId()));
+        // branchId đến từ body của client — phải đối chiếu với nhà hàng của người đăng nhập.
+        tenantGuard.assertBranch(branch);
 
         TableSession session = tableSessionRepository.findById(request.getTableSessionId())
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -65,10 +78,11 @@ public class InvoiceServiceImpl implements InvoiceService {
                             + session.getStatus());
         }
 
-        // Nếu hóa đơn cho phiên làm việc này đã tồn tại, trả về hóa đơn đó (Idempotent)
+        // Nếu hóa đơn cho phiên làm việc này đã tồn tại
         Optional<Invoice> existingOpt = invoiceRepository.findByTableSessionId(request.getTableSessionId());
-        if (existingOpt.isPresent() && existingOpt.get().getStatus() != InvoiceStatus.CANCELLED) {
-            return buildInvoiceResponse(existingOpt.get());
+        Invoice existingInvoice = existingOpt.orElse(null);
+        if (existingInvoice != null && existingInvoice.getStatus() != InvoiceStatus.PENDING) {
+            return buildInvoiceResponse(existingInvoice);
         }
 
         // Lấy tất cả dòng món của phiên
@@ -87,94 +101,169 @@ public class InvoiceServiceImpl implements InvoiceService {
                     "Không thể lập hóa đơn khi còn món đang chờ cân. Vui lòng cân và xác nhận tất cả các món bán theo cân trước.");
         }
 
-        //  Bước 1: subTotal = Σ(đơn giá × số lượng + option extras) chỉ của dòng TÍNH TIỀN
-        // Dòng CANCELLED "lỗi nhà hàng" không tính, dòng CANCELLED "khách đổi ý" vẫn tính
-        // price đã được tính = (unitPrice + optionExtra) * qty trong buildDetail (BR-07, BR-13)
-        BigDecimal subTotal = details.stream()
-                .filter(d -> shouldChargeDetail(d))
-                .map(d -> {
-                    if (d.getPrice() != null) return d.getPrice();
-                    BigDecimal qty = BigDecimal.valueOf(
-                            d.getWeightKg() != null ? d.getWeightKg().doubleValue()
-                                    : (d.getQuantity() != null ? d.getQuantity() : 1));
-                    return d.getPriceAtOrderTime() != null
-                            ? d.getPriceAtOrderTime().multiply(qty)
-                            : BigDecimal.ZERO;
-                })
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        // Bước 2: Khuyến mãi tự động — tạm thời = 0 (implement sau khi có Promotion flow)
-        BigDecimal totalPromotionDiscount = BigDecimal.ZERO;
-
-        // Bước 3: Chiết khấu thủ công từ ManualDiscount gắn với invoice (nếu có)
-        // ManualDiscount được tạo trước khi lập hóa đơn và gắn qua invoice
-        // Ở đây tổng hợp tất cả manual discount của các order trong phiên
+        // Toàn bộ phép tính tiền nằm ở BillCalculator (BR-13) — KHÔNG tính rải rác ở đây nữa.
+        // Thu ngân có thể chọn KM đơn (promotionId); không hợp lệ thì engine tự chọn.
         List<Order> orders = orderRepository.findByTableSessionId(session.getId());
-        BigDecimal totalManualDiscount = orders.stream()
-                .flatMap(o -> manualDiscountRepository.findByOrderId(o.getId()).stream())
-                .map(md -> calculateDiscountAmount(md, subTotal.subtract(totalPromotionDiscount)))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        // Đảm bảo chiết khấu không vượt quá tiền hàng sau khuyến mãi
-        BigDecimal afterPromo = subTotal.subtract(totalPromotionDiscount);
-        if (totalManualDiscount.compareTo(afterPromo) > 0) {
-            totalManualDiscount = afterPromo;
-        }
-
-        //  Bước 4: Phí dịch vụ từ snapshot phiên (BR-08)
-        BigDecimal afterDiscount = afterPromo.subtract(totalManualDiscount);
-        BigDecimal serviceFeeRate = session.getServiceFeeRateAtOpen() != null
-                ? session.getServiceFeeRateAtOpen() : BigDecimal.ZERO;
-        BigDecimal serviceFee = afterDiscount
-                .multiply(serviceFeeRate)
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-
-        // Bước 5: VAT từ snapshot phiên (BR-08)
-        BigDecimal afterServiceFee = afterDiscount.add(serviceFee);
-        BigDecimal vatRate = session.getVatRateAtOpen() != null
-                ? session.getVatRateAtOpen() : BigDecimal.ZERO;
-        BigDecimal vatAmount = afterServiceFee
-                .multiply(vatRate)
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-
-        // Tổng cuối cùng
-        BigDecimal grandTotal = afterServiceFee.add(vatAmount);
-        if (grandTotal.compareTo(BigDecimal.ZERO) < 0) {
-            grandTotal = BigDecimal.ZERO;
-        }
-
-        //  Số hóa đơn đánh riêng theo chi nhánh
-        String invoiceNumber = generateInvoiceNumber(branch);
-
         Order primaryOrder = orders.isEmpty() ? null : orders.get(orders.size() - 1);
+        Long existingInvoiceId = existingInvoice != null ? existingInvoice.getId() : null;
+        List<ManualDiscount> manualDiscounts =
+                billCalculator.loadManualDiscounts(session.getId(), existingInvoiceId);
 
-        Invoice invoice = Invoice.builder()
-                .branch(branch)
-                .tableSession(session)
-                .order(primaryOrder)
-                .invoiceNumber(invoiceNumber)
-                .invoiceNote(request.getInvoiceNote())
-                .subTotalBeforeDiscount(subTotal)
-                .totalPromotionDiscount(totalPromotionDiscount)
-                .totalManualDiscount(totalManualDiscount)
-                .serviceFee(serviceFee)
-                .vatAmount(vatAmount)
-                .grandTotal(grandTotal)
-                .status(InvoiceStatus.PENDING)
-                .build();
+        BillBreakdown bill = billCalculator.calculate(session, branch, details, manualDiscounts,
+                PromotionSelection.prefer(request.getPromotionId()));
 
-        Invoice savedInvoice = invoiceRepository.save(invoice);
+        SavedBill result = saveComputedInvoice(existingInvoice, session, branch, details,
+                manualDiscounts, bill, request.getInvoiceNote(), primaryOrder);
+        Invoice savedInvoice = result.invoice();
+        bill = result.bill();
 
-        // Gắn invoice vào các ManualDiscount đã tạo cho các order
-        orders.stream()
-                .flatMap(o -> manualDiscountRepository.findByOrderId(o.getId()).stream())
-                .filter(md -> md.getInvoice() == null)
-                .forEach(md -> {
-                    md.setInvoice(savedInvoice);
-                    manualDiscountRepository.save(md);
-                });
+        auditLogService.record(AuditEvent.builder()
+                .entityType("Invoice")
+                .entityId(savedInvoice.getId())
+                .actionType(AuditAction.CREATE)
+                .branchId(branch.getId())
+                .restaurantId(branch.getRestaurant().getId())
+                .valueAfter(describeForAudit(savedInvoice.getInvoiceNumber(), bill))
+                .reason("Lập hóa đơn cho phiên bàn #" + session.getId())
+                .build());
 
         return buildInvoiceResponse(savedInvoice);
+    }
+
+    @Override
+    public void recalculatePendingInvoice(Long invoiceId) {
+        Invoice invoice = findInvoiceById(invoiceId);
+        if (invoice.getStatus() != InvoiceStatus.PENDING) {
+            return; // BR-09: PAID / ISSUED bất biến; CANCELLED không còn ý nghĩa
+        }
+        TableSession session = invoice.getTableSession();
+        if (session == null || session.getStatus() != TableSessionStatus.WAITING_FOR_PAY) {
+            return; // phiên đã mở lại — hóa đơn sẽ được lập lại đầy đủ bởi createInvoice
+        }
+        Branch branch = invoice.getBranch();
+        List<OrderDetail> details = orderDetailRepository.findByTableSessionId(session.getId());
+        List<ManualDiscount> manualDiscounts = billCalculator.loadManualDiscounts(session.getId(), invoice.getId());
+
+        // Chi tiết món không đổi khi phiên đang chờ thanh toán nên KM đơn được giữ nguyên số đã chốt.
+        PromotionSelection selection = PromotionSelection.none();
+        Long promoId = invoice.getPromotion() != null ? invoice.getPromotion().getId() : null;
+        if (promoId != null) {
+            BillBreakdown current = billCalculator.describeInvoice(invoice, details);
+            selection = PromotionSelection.locked(promoId, current.getOrderPromotionName(),
+                    current.getOrderPromotionDiscount());
+        }
+        BillBreakdown bill = billCalculator.calculate(session, branch, details, manualDiscounts, selection);
+
+        BigDecimal oldGrandTotal = invoice.getGrandTotal();
+        SavedBill result = saveComputedInvoice(invoice, session, branch, details, manualDiscounts, bill,
+                null, null);
+        Invoice saved = result.invoice();
+
+        auditLogService.record(AuditEvent.builder()
+                .entityType("Invoice")
+                .entityId(saved.getId())
+                .actionType(AuditAction.UPDATE)
+                .branchId(branch != null ? branch.getId() : null)
+                .restaurantId(branch != null && branch.getRestaurant() != null ? branch.getRestaurant().getId() : null)
+                .valueBefore("grandTotal=" + oldGrandTotal)
+                .valueAfter(describeForAudit(saved.getInvoiceNumber(), result.bill()))
+                .reason("Tính lại hóa đơn PENDING do chiết khấu thủ công thay đổi")
+                .build());
+    }
+
+    /**
+     * Hóa đơn đã lưu kèm breakdown thực sự được ghi (có thể khác breakdown truyền vào nếu KM đơn
+     * vừa hết lượt và phải tính lại không KM đơn).
+     */
+    private record SavedBill(Invoice invoice, BillBreakdown bill) {
+    }
+
+    /**
+     * Ghi hóa đơn từ kết quả tính, xử lý lượt KM đơn (trừ lượt KM mới, hoàn lượt KM cũ bị thay)
+     * và gắn chiết khấu tay chưa có hóa đơn vào hóa đơn này.
+     */
+    private SavedBill saveComputedInvoice(Invoice existing, TableSession session, Branch branch,
+                                          List<OrderDetail> details, List<ManualDiscount> manualDiscounts,
+                                          BillBreakdown computed, String invoiceNote, Order primaryOrder) {
+        BillBreakdown bill = computed;
+        Long oldPromoId = existing != null && existing.getPromotion() != null
+                ? existing.getPromotion().getId() : null;
+        Long newPromoId = bill.getOrderPromotionId();
+
+        // BR-23: chỉ trừ lượt khi KM đơn MỚI khác KM đã trừ trước đó trên chính hóa đơn này.
+        if (newPromoId != null && !newPromoId.equals(oldPromoId)) {
+            if (!promotionEngine.incrementUsageCount(newPromoId)) {
+                log.warn("[Promotion] Order promotion {} usage exhausted during invoice creation", newPromoId);
+                bill = billCalculator.calculate(session, branch, details, manualDiscounts,
+                        PromotionSelection.none());
+                newPromoId = null;
+            } else {
+                log.info("[Promotion] Applied order-level promotion '{}' (ID: {}) with discount: {} for session #{}",
+                        bill.getOrderPromotionName(), newPromoId, bill.getOrderPromotionDiscount(), session.getId());
+            }
+        }
+        // KM cũ đã bị thay thế hoặc không còn áp → hoàn lượt
+        if (oldPromoId != null && !oldPromoId.equals(newPromoId)) {
+            promotionEngine.decrementUsageCount(oldPromoId);
+        }
+
+        Promotion promotionEntity;
+        if (newPromoId == null) {
+            promotionEntity = null;
+        } else if (newPromoId.equals(oldPromoId)) {
+            promotionEntity = existing.getPromotion();
+        } else {
+            promotionEntity = promotionRepository.findById(newPromoId).orElse(null);
+        }
+
+        Invoice invoiceToSave;
+        if (existing != null) {
+            invoiceToSave = existing;
+            if (invoiceNote != null) {
+                invoiceToSave.setInvoiceNote(invoiceNote);
+            }
+        } else {
+            invoiceToSave = Invoice.builder()
+                    .branch(branch)
+                    .tableSession(session)
+                    .order(primaryOrder)
+                    .invoiceNumber(generateInvoiceNumber(branch))
+                    .invoiceNote(invoiceNote)
+                    .status(InvoiceStatus.PENDING)
+                    .build();
+        }
+        invoiceToSave.setSubTotalBeforeDiscount(bill.getGrossSubTotal());
+        invoiceToSave.setTotalPromotionDiscount(bill.getTotalPromotionDiscount());
+        invoiceToSave.setPromotion(promotionEntity);
+        invoiceToSave.setTotalManualDiscount(bill.getManualDiscount());
+        invoiceToSave.setServiceFee(bill.getServiceFee());
+        invoiceToSave.setVatAmount(bill.getVatAmount());
+        invoiceToSave.setGrandTotal(bill.getGrandTotal());
+
+        Invoice saved = invoiceRepository.save(invoiceToSave);
+
+        // Gắn hóa đơn vào các chiết khấu tay mới tạo theo order
+        for (ManualDiscount md : manualDiscounts) {
+            if (md.getInvoice() == null) {
+                md.setInvoice(saved);
+                manualDiscountRepository.save(md);
+            }
+        }
+
+        return new SavedBill(saved, bill);
+    }
+
+    private String describeForAudit(String invoiceNumber, BillBreakdown b) {
+        return "invoiceNumber=" + invoiceNumber
+                + "; grossSubTotal=" + b.getGrossSubTotal()
+                + "; itemPromoDiscount=" + b.getItemPromotionDiscount()
+                + "; orderPromoDiscount=" + b.getOrderPromotionDiscount()
+                + (b.getOrderPromotionName() != null ? " (promo: " + b.getOrderPromotionName() + ")" : "")
+                + "; manualDiscount=" + b.getManualDiscount()
+                + "; serviceFee=" + b.getServiceFee() + " (" + b.getServiceFeeRate() + "%)"
+                + "; vat=" + b.getVatAmount() + " (" + b.getVatRate() + "%"
+                + (b.isVatOnServiceFee() ? ", trên cả phí DV" : ", không trên phí DV") + ")"
+                + "; grandTotal=" + b.getGrandTotal();
     }
 
     @Override
@@ -183,34 +272,23 @@ public class InvoiceServiceImpl implements InvoiceService {
         return buildInvoiceResponse(findInvoiceById(id));
     }
 
+    /**
+     * Đọc hóa đơn của một phiên bàn. CHỈ ĐỌC.
+     *
+     * Trước đây phương thức này tự lập hóa đơn và đẩy phiên SERVING sang WAITING_FOR_PAY
+     * (be-issues mục 17). Đây là endpoint mà màn Thanh toán QR của khách poll mỗi 1 giây,
+     * lại nằm trong danh sách GET công khai, nên chỉ cần mở màn đó — hoặc gọi thẳng URL mà
+     * không cần đăng nhập — là bàn bị khóa khỏi trạng thái đang phục vụ và một hóa đơn
+     * ngoài ý muốn được sinh ra. Việc lập hóa đơn nay chỉ do POST /invoices (Thu ngân /
+     * QL chi nhánh) thực hiện — Bảng 4.2 "Thu tiền, đóng bàn".
+     */
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public InvoiceResponse getInvoiceByTableSession(Long tableSessionId) {
-        Optional<Invoice> existingInvoice = invoiceRepository.findByTableSessionId(tableSessionId);
-        if (existingInvoice.isPresent()) {
-            return buildInvoiceResponse(existingInvoice.get());
-        }
-
-        // Tự động tạo hóa đơn nếu phiên bàn đã có món và đang phục vụ / chờ thanh toán
-        TableSession session = tableSessionRepository.findById(tableSessionId)
+        return invoiceRepository.findByTableSessionId(tableSessionId)
+                .map(this::buildInvoiceResponse)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy phiên làm việc ID: " + tableSessionId));
-
-        List<OrderDetail> details = orderDetailRepository.findByTableSessionId(session.getId());
-        if (!details.isEmpty() && (session.getStatus() == TableSessionStatus.WAITING_FOR_PAY
-                || session.getStatus() == TableSessionStatus.SERVING)) {
-            if (session.getStatus() == TableSessionStatus.SERVING) {
-                session.setStatus(TableSessionStatus.WAITING_FOR_PAY);
-                tableSessionRepository.save(session);
-            }
-            InvoiceCreateRequest req = new InvoiceCreateRequest();
-            req.setBranchId(session.getTable().getBranch().getId());
-            req.setTableSessionId(tableSessionId);
-            return createInvoice(req);
-        }
-
-        throw new ResourceNotFoundException(
-                "Không tìm thấy hóa đơn cho phiên làm việc ID: " + tableSessionId);
+                        "Chưa có hóa đơn cho phiên làm việc ID: " + tableSessionId));
     }
 
     @Override
@@ -219,6 +297,10 @@ public class InvoiceServiceImpl implements InvoiceService {
         if (!branchRepository.existsById(branchId)) {
             throw new ResourceNotFoundException("Không tìm thấy chi nhánh với ID: " + branchId);
         }
+        // BR-18 — Bảng 4.2 "Thu tiền, đóng bàn" / "Phát hành hóa đơn điện tử": Thu ngân và
+        // QL chi nhánh. Phục vụ KHÔNG được xem danh sách hoá đơn của chi nhánh.
+        tenantGuard.assertBranchAssigned(branchId,
+                TenantGuard.ROLE_CASHIER, TenantGuard.ROLE_BRANCH_MANAGER);
         List<Invoice> invoices = (status != null)
                 ? invoiceRepository.findByBranchIdAndStatus(branchId, status)
                 : invoiceRepository.findByBranchId(branchId);
@@ -231,27 +313,41 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     public void cancelInvoice(Long id) {
         Invoice invoice = findInvoiceById(id);
+        tenantGuard.assertBranch(invoice.getBranch());
         // BR-09: Hóa đơn đã phát hành là BẤT BIẾN — cả PAID lẫn ISSUED đều không hủy được
         if (invoice.getStatus() == InvoiceStatus.PAID || invoice.getStatus() == InvoiceStatus.ISSUED) {
             throw new ConflictException("Không thể hủy hóa đơn đã thanh toán hoặc đã phát hành điện tử (BR-09)");
         }
+        InvoiceStatus previousStatus = invoice.getStatus();
         invoice.setStatus(InvoiceStatus.CANCELLED);
         invoiceRepository.save(invoice);
+
+        auditLogService.record(AuditEvent.builder()
+                .entityType("Invoice")
+                .entityId(invoice.getId())
+                .actionType(AuditAction.CANCEL)
+                .branchId(invoice.getBranch() != null ? invoice.getBranch().getId() : null)
+                .valueBefore("status=" + previousStatus)
+                .valueAfter("status=" + InvoiceStatus.CANCELLED)
+                .reason("Hủy hóa đơn " + invoice.getInvoiceNumber()
+                        + " (grandTotal=" + invoice.getGrandTotal() + ")")
+                .build());
     }
 
     // Xóa hóa đơn bị cấm — chỉ cho cancel
     // deleteInvoice() đã bị xóa khỏi InvoiceService interface
 
-  
+
     @Override
     public InvoiceResponse issueEInvoice(Long invoiceId) {
         Invoice invoice = findInvoiceById(invoiceId);
+        tenantGuard.assertBranch(invoice.getBranch());
 
         // Chỉ cho phát hành khi đã PAID
         if (invoice.getStatus() != InvoiceStatus.PAID) {
             throw new ConflictException(
-                "Chỉ có thể phát hành hóa đơn điện tử cho hóa đơn đã thanh toán đủ. " +
-                "Trạng thái hiện tại: " + invoice.getStatus());
+                    "Chỉ có thể phát hành hóa đơn điện tử cho hóa đơn đã thanh toán đủ. " +
+                            "Trạng thái hiện tại: " + invoice.getStatus());
         }
 
         // Resolve mã số thuế theo : ưu tiên chi nhánh, nếu không có thì dùng nhà hàng
@@ -271,10 +367,20 @@ public class InvoiceServiceImpl implements InvoiceService {
         } catch (EInvoiceException ex) {
             // FR-PAY-04: Phát hành thất bại → CHẶN đóng bàn, Thu ngân thử lại
             log.error("[FR-PAY-04] Phát hành HĐĐT thất bại cho invoice #{} qua provider '{}': {}",
-                invoiceId, ex.getProviderName(), ex.getMessage());
+                    invoiceId, ex.getProviderName(), ex.getMessage());
+            // Ghi cả lần thất bại: FR-PAY-04 chặn đóng bàn, cần vết để đối soát vì sao bàn treo.
+            auditLogService.record(AuditEvent.builder()
+                    .entityType("Invoice")
+                    .entityId(invoiceId)
+                    .actionType(AuditAction.ISSUE_EINVOICE)
+                    .branchId(branch.getId())
+                    .valueAfter("status=FAILED; attempt=" + invoice.getEInvoiceAttemptCount()
+                            + "; provider=" + ex.getProviderName())
+                    .reason("Phát hành HĐĐT thất bại: " + ex.getMessage())
+                    .build());
             throw new ConflictException(
-                "Phát hành hóa đơn điện tử thất bại (lần thử #" + invoice.getEInvoiceAttemptCount() + "): "
-                + ex.getMessage() + ". Vui lòng thử lại.");
+                    "Phát hành hóa đơn điện tử thất bại (lần thử #" + invoice.getEInvoiceAttemptCount() + "): "
+                            + ex.getMessage() + ". Vui lòng thử lại.");
         }
 
         // Phát hành thành công — cập nhật invoice với đầy đủ thông tin HĐĐT
@@ -303,7 +409,20 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
 
         log.info("[FR-PAY-04] Phát hành HĐĐT thành công: invoice #{} → ref='{}', provider='{}', taxCode='{}'",
-            invoiceId, result.getRef(), result.getProviderName(), taxCode);
+                invoiceId, result.getRef(), result.getProviderName(), taxCode);
+
+        auditLogService.record(AuditEvent.builder()
+                .entityType("Invoice")
+                .entityId(invoiceId)
+                .actionType(AuditAction.ISSUE_EINVOICE)
+                .branchId(branch.getId())
+                .valueBefore("status=" + InvoiceStatus.PAID)
+                .valueAfter("status=" + InvoiceStatus.ISSUED
+                        + "; ref=" + result.getRef()
+                        + "; provider=" + result.getProviderName()
+                        + "; taxCode=" + taxCode)
+                .reason("Phát hành HĐĐT cho hóa đơn " + invoice.getInvoiceNumber())
+                .build());
 
         // Re-fetch từ DB sau saveAndFlush để response trả về đúng data đã persist
         Invoice refreshed = findInvoiceById(invoiceId);
@@ -334,17 +453,22 @@ public class InvoiceServiceImpl implements InvoiceService {
                     .build();
         }
 
-        // Lấy thông tin tài khoản ngân hàng của chi nhánh (fallback nếu chưa cấu hình)
+        // Tài khoản ngân hàng của CHÍNH chi nhánh này — KHÔNG có fallback.
+        //
+        // Trước đây chi nhánh chưa cấu hình thì BE thế bằng số tài khoản cố định
+        // 0071000988888 / "Nhà hàng Phở Việt". Hậu quả: khách quét QR và chuyển tiền
+        // thật vào tài khoản KHÔNG phải của nhà hàng. Thà chặn còn hơn thu nhầm tiền.
         Branch branch = invoice.getBranch();
-        String rawAccountNo = (branch != null && branch.getBankAccountNo() != null && !branch.getBankAccountNo().isBlank())
-                ? branch.getBankAccountNo()
-                : "0071000988888";
-        String bankName = (branch != null && branch.getBankName() != null && !branch.getBankName().isBlank())
-                ? branch.getBankName()
-                : "Vietcombank";
-        String accountName = (branch != null && branch.getName() != null && !branch.getName().isBlank())
+        String rawAccountNo = branch != null ? branch.getBankAccountNo() : null;
+        String rawBankName = branch != null ? branch.getBankName() : null;
+        if (rawAccountNo == null || rawAccountNo.isBlank()
+                || rawBankName == null || rawBankName.isBlank()) {
+            throw new ConflictException("Chi nhánh chưa cấu hình tài khoản ngân hàng");
+        }
+        String bankName = rawBankName;
+        String accountName = (branch.getName() != null && !branch.getName().isBlank())
                 ? branch.getName()
-                : "Nhà hàng Phở Việt";
+                : bankName;
 
         String bankAccountNo = rawAccountNo.replaceAll("\\s+", "");
 
@@ -369,50 +493,39 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .build();
     }
 
+    /**
+     * Lấy mã QR chuyển khoản theo phiên bàn. CHỈ ĐỌC.
+     *
+     * Trước đây phương thức này tự lập hóa đơn và đẩy phiên SERVING sang WAITING_FOR_PAY
+     * (be-issues mục 17) — một GET công khai làm đổi trạng thái nghiệp vụ. Nay hóa đơn
+     * phải do Thu ngân lập trước (POST /invoices); chưa có thì trả 409 để màn của khách
+     * hiện "Đang chờ thu ngân lập hóa đơn" và tiếp tục poll.
+     *
+     * Hóa đơn đã hủy coi như chưa có: không sinh QR cho nó.
+     */
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public QrCodeResponse generateQrCodeByTableSession(Long tableSessionId) {
-        Optional<Invoice> invoiceOpt = invoiceRepository.findByTableSessionId(tableSessionId);
-        if (invoiceOpt.isPresent()) {
-            return generateQrCode(invoiceOpt.get().getId());
-        }
-
-        // Tự động tạo hóa đơn cho phiên bàn nếu phiên bàn có món
-        TableSession session = tableSessionRepository.findById(tableSessionId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy phiên bàn #" + tableSessionId));
-
-        List<OrderDetail> details = orderDetailRepository.findByTableSessionId(session.getId());
-        if (!details.isEmpty() && (session.getStatus() == TableSessionStatus.WAITING_FOR_PAY
-                || session.getStatus() == TableSessionStatus.SERVING)) {
-            if (session.getStatus() == TableSessionStatus.SERVING) {
-                session.setStatus(TableSessionStatus.WAITING_FOR_PAY);
-                tableSessionRepository.save(session);
-            }
-            InvoiceCreateRequest req = new InvoiceCreateRequest();
-            req.setBranchId(session.getTable().getBranch().getId());
-            req.setTableSessionId(tableSessionId);
-            InvoiceResponse created = createInvoice(req);
-            return generateQrCode(created.getId());
-        }
-
-        throw new ResourceNotFoundException(
-                "Không tìm thấy hóa đơn cho phiên bàn #" + tableSessionId);
+        Invoice invoice = invoiceRepository.findByTableSessionId(tableSessionId)
+                .filter(i -> i.getStatus() != InvoiceStatus.CANCELLED)
+                .orElseThrow(() -> new ConflictException(
+                        "Chưa có hóa đơn, vui lòng chờ thu ngân"));
+        return generateQrCode(invoice.getId());
     }
 
     private String buildVietQrUrl(String bankName, String accountNo,
-            BigDecimal amount, String addInfo, String accountName) {
+                                  BigDecimal amount, String addInfo, String accountName) {
         String bankId = normalizeBankId(bankName);
         String baseAccountNo = (accountNo != null) ? accountNo : "0000000000";
 
         return "https://img.vietqr.io/image/"
                 + bankId + "-" + baseAccountNo + "-compact2.png"
-                + "?amount=" + amount.longValue()
+                + "?amount=" + amount.setScale(0, java.math.RoundingMode.HALF_UP).longValue()
                 + "&addInfo=" + encode(addInfo)
                 + "&accountName=" + encode(accountName);
     }
 
-   
+
     private String normalizeBankId(String bankName) {
         if (bankName == null) return "VCB";
         return switch (bankName.toUpperCase().trim()) {
@@ -449,20 +562,6 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     /**
-     * Xác định dòng món có tính tiền không.
-     * Dựa trực tiếp vào flag isBillable được set khi hủy:
-     *  - cancelBeforeKitchen → isBillable = false → không tính
-     *  - cancelAfterKitchen lỗi nhà hàng → isBillable = false → không tính
-     *  - cancelAfterKitchen khách đổi ý → isBillable = true → vẫn tính (BR-24)
-     */
-    private boolean shouldChargeDetail(OrderDetail d) {
-        if (d.getStatus() != OrderDetailStatus.CANCELLED) {
-            return true;
-        }
-        return Boolean.TRUE.equals(d.getIsBillable());
-    }
-
-    /**
      *  Số hóa đơn riêng theo chi nhánh
      */
     private String generateInvoiceNumber(Branch branch) {
@@ -480,18 +579,6 @@ public class InvoiceServiceImpl implements InvoiceService {
         return invoiceNumber;
     }
 
-    /**
-     * Tính số tiền chiết khấu từ ManualDiscount
-     */
-    private BigDecimal calculateDiscountAmount(ManualDiscount md, BigDecimal base) {
-        if (md.getValue() == null) return BigDecimal.ZERO;
-        if (md.getType() == DiscountType.PERCENTAGE) {
-            return base.multiply(md.getValue())
-                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-        }
-        return md.getValue(); // FIXED_AMOUNT
-    }
-
     private InvoiceResponse buildInvoiceResponse(Invoice invoice) {
         InvoiceResponse response = invoiceMapper.toResponse(invoice);
 
@@ -503,6 +590,23 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         response.setTotalPaid(totalPaid);
         response.setRemainingAmount(remainingAmount);
+
+        // Breakdown đầy đủ (BR-13), suy ra từ số đã lưu của hóa đơn + dòng món của phiên.
+        Long sessionId = invoice.getTableSession() != null ? invoice.getTableSession().getId() : null;
+        List<OrderDetail> details = sessionId != null
+                ? orderDetailRepository.findByTableSessionId(sessionId) : List.of();
+        BillBreakdown b = billCalculator.describeInvoice(invoice, details);
+        response.setGrossSubTotal(b.getGrossSubTotal());
+        response.setItemPromotionDiscount(b.getItemPromotionDiscount());
+        response.setOrderPromotionDiscount(b.getOrderPromotionDiscount());
+        response.setOrderPromotionId(b.getOrderPromotionId());
+        response.setOrderPromotionName(b.getOrderPromotionName());
+        response.setManualDiscount(b.getManualDiscount());
+        response.setAmountAfterDiscount(b.getAmountAfterDiscount());
+        response.setServiceFeeRate(b.getServiceFeeRate());
+        response.setVatRate(b.getVatRate());
+        response.setVatOnServiceFee(b.isVatOnServiceFee());
+        response.setVatBase(b.getVatBase());
         return response;
     }
 }
