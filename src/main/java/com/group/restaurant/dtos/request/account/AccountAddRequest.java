@@ -18,9 +18,8 @@ public class AccountAddRequest {
     @Size(max = 100, message = "Họ tên không được vượt quá 100 ký tự")
     private String fullName;
 
-    @NotBlank(message = "Mã nhân viên không được để trống")
-    @Size(max = 20, message = "Mã nhân viên không được vượt quá 20 ký tự")
-    private String employeeCode;
+    // QĐ-03: mã nhân viên do BACKEND tự sinh (NV + số tăng dần theo nhà hàng).
+    // Client KHÔNG gửi — gửi cũng bị bỏ qua. Xem AccountServiceImpl.generateEmployeeCode.
 
     @NotBlank(message = "Tên đăng nhập không được để trống")
     @Size(max = 50, message = "Tên đăng nhập không được vượt quá 50 ký tự")

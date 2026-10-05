@@ -7,6 +7,7 @@ import com.group.restaurant.services.AssignmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,7 +22,11 @@ public class AssignmentController {
 
     private final AssignmentService assignmentService;
 
+    // Bảng 4.3 — "Quản lý nhân viên" / "Cấu hình vai trò & quyền": chỉ Quản trị nhà hàng.
+    // Trước đây endpoint này KHÔNG có chốt quyền: bất kỳ tài khoản đã đăng nhập nào cũng
+    // tự gán được vai trò MANAGER cho chính mình (leo quyền trong cùng nhà hàng).
     @PostMapping("")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<AssignmentResponse>> createAssignment(
             @Valid @RequestBody AssignmentAddRequest request) {
         return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
@@ -32,6 +37,7 @@ public class AssignmentController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<AssignmentResponse>> getAssignmentById(@PathVariable Long id) {
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
@@ -40,7 +46,11 @@ public class AssignmentController {
         ));
     }
 
+    // NGOẠI LỆ CÓ CHỦ Ý: màn đăng nhập và thanh đổi chi nhánh của MỌI vai trò đều gọi
+    // endpoint này cho CHÍNH MÌNH (LoginResponse không trả branchId). Khoá về MANAGER
+    // là gãy đăng nhập của Phục vụ / Thu ngân / QL chi nhánh.
     @GetMapping("/account/{accountId}")
+    @PreAuthorize("hasRole('MANAGER') or @tenantGuard.isSelf(#accountId)")
     public ResponseEntity<ResponseSuccess<List<AssignmentResponse>>> getAssignmentsByAccount(
             @PathVariable Long accountId) {
         return ResponseEntity.ok(new ResponseSuccess<>(
@@ -51,6 +61,7 @@ public class AssignmentController {
     }
 
     @GetMapping("/role/{roleId}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<List<AssignmentResponse>>> getAssignmentsByRole(
             @PathVariable Long roleId) {
         return ResponseEntity.ok(new ResponseSuccess<>(
@@ -60,7 +71,10 @@ public class AssignmentController {
         ));
     }
 
+    // Danh sách nhân sự của một chi nhánh. Chốt BR-18 nằm ở service (chỉ QL chi nhánh của
+    // đúng chi nhánh đó, hoặc Quản trị nhà hàng).
     @GetMapping("/branch/{branchId}")
+    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
     public ResponseEntity<ResponseSuccess<List<AssignmentResponse>>> getAssignmentsByBranch(
             @PathVariable Long branchId) {
         return ResponseEntity.ok(new ResponseSuccess<>(
@@ -71,6 +85,7 @@ public class AssignmentController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<Void>> deleteAssignment(@PathVariable Long id) {
         assignmentService.deleteAssignment(id);
         return ResponseEntity.ok(new ResponseSuccess<>(

@@ -46,8 +46,11 @@ public class AccountController {
         ));
     }
 
+    // Màn đăng nhập gọi cho CHÍNH MÌNH (LoginResponse không trả đủ thông tin tài khoản),
+    // nên không khoá được về MANAGER. Nhưng "mọi user đã đăng nhập" là quá rộng: Phục vụ
+    // đọc được hồ sơ của Quản trị nhà hàng.
     @GetMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")  // Cho phép mọi user đã đăng nhập
+    @PreAuthorize("hasRole('MANAGER') or @tenantGuard.isSelf(#id)")
     public ResponseEntity<ResponseSuccess<AccountResponse>> getAccountById(@PathVariable Long id) {
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK, "Lấy tài khoản thành công", accountService.getAccountById(id)
@@ -96,8 +99,10 @@ public class AccountController {
     }
 
     // Tự đổi mật khẩu (bất kỳ nhân viên nào)
+    // Tự đổi mật khẩu của CHÍNH MÌNH. Trước đây mọi tài khoản đã đăng nhập đều gọi được
+    // cho id bất kỳ — chỉ chặn ở chỗ phải biết mật khẩu cũ.
     @PutMapping("/{id}/change-password")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('MANAGER') or @tenantGuard.isSelf(#id)")
     public ResponseEntity<ResponseSuccess<Void>> changePassword(
             @PathVariable Long id,
             @RequestParam String oldPassword,
