@@ -1,6 +1,8 @@
 package com.group.restaurant.services.impl;
 
 import com.group.restaurant.dtos.response.branch.BranchMenuItemResponse;
+import com.group.restaurant.enums.CategoryStatus;
+import com.group.restaurant.enums.DishStatus;
 import com.group.restaurant.enums.StockStatus;
 import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.models.Branch;
@@ -11,6 +13,7 @@ import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.DishOverrideRepository;
 import com.group.restaurant.repositories.DishRepository;
 import com.group.restaurant.services.BranchMenuService;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,13 +30,16 @@ import java.util.stream.Collectors;
 public class BranchMenuServiceImpl implements BranchMenuService {
 
     private final BranchRepository branchRepository;
+    private final TenantGuard tenantGuard;
     private final DishRepository dishRepository;
     private final DishOverrideRepository dishOverrideRepository;
     private final BranchDishStockRepository stockRepository;
 
     @Override
     public List<BranchMenuItemResponse> getMenuForCustomer(Long branchId) {
-        List<BranchMenuItemResponse> allItems = buildMenuItems(branchId);
+        tenantGuard.assertBranch(branchId);
+        // onlyActive = true: lọc ngay ở truy vấn theo Dish.status và Category.status.
+        List<BranchMenuItemResponse> allItems = buildMenuItems(branchId, true);
 
         // Customer chỉ thấy: không bị ẩn + còn hàng (BR-05)
         return allItems.stream()
@@ -44,12 +50,18 @@ public class BranchMenuServiceImpl implements BranchMenuService {
 
     @Override
     public List<BranchMenuItemResponse> getMenuOverviewForAdmin(Long branchId) {
-        // Admin thấy tất cả (cả ẩn, cả hết hàng)
-        return buildMenuItems(branchId);
+        tenantGuard.assertBranch(branchId);
+        // Admin thấy tất cả (cả ẩn, cả hết hàng, cả món đã ngừng bán)
+        return buildMenuItems(branchId, false);
     }
 
    
-    private List<BranchMenuItemResponse> buildMenuItems(Long branchId) {
+    /**
+     * @param onlyActive true ⇒ chỉ món ĐANG BÁN thuộc danh mục ĐANG HIỆN (thực đơn cho
+     *                   khách và màn "Thêm món" của nhân viên).
+     *                   false ⇒ lấy tất cả, cho màn quản trị.
+     */
+    private List<BranchMenuItemResponse> buildMenuItems(Long branchId, boolean onlyActive) {
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy chi nhánh với ID: " + branchId));
@@ -68,8 +80,11 @@ public class BranchMenuServiceImpl implements BranchMenuService {
         List<BranchMenuItemResponse> result = new ArrayList<>();
 
     
-        List<Dish> restaurantDishes = dishRepository
-                .findByRestaurantIdAndBranchIsNull(branch.getRestaurant().getId());
+        Long restaurantId = branch.getRestaurant().getId();
+        List<Dish> restaurantDishes = onlyActive
+                ? dishRepository.findActiveRestaurantDishes(
+                        restaurantId, DishStatus.ACTIVE, CategoryStatus.ACTIVE)
+                : dishRepository.findByRestaurantIdAndBranchIsNull(restaurantId);
 
         for (Dish dish : restaurantDishes) {
             DishOverride override = overrideMap.get(dish.getId());
@@ -109,7 +124,10 @@ public class BranchMenuServiceImpl implements BranchMenuService {
         }
 
 
-        List<Dish> branchSpecificDishes = dishRepository.findByBranchId(branchId);
+        List<Dish> branchSpecificDishes = onlyActive
+                ? dishRepository.findActiveBranchDishes(
+                        branchId, DishStatus.ACTIVE, CategoryStatus.ACTIVE)
+                : dishRepository.findByBranchId(branchId);
 
         for (Dish dish : branchSpecificDishes) {
             StockStatus stock = stockMap.getOrDefault(dish.getId(), StockStatus.AVAILABLE);
@@ -128,7 +146,10 @@ public class BranchMenuServiceImpl implements BranchMenuService {
                     .effectivePrice(dish.getBasePrice())
                     .priceDifference(BigDecimal.ZERO)
                     .hasOverride(false)
-                    .isHidden(false)
+                    // Món riêng chi nhánh không có DishOverride nên trước đây bị gán cứng
+                    // false ⇒ KHÔNG có đường nào ẩn được nó. Trạng thái thật nằm ở
+                    // chính Dish.status.
+                    .isHidden(dish.getStatus() != DishStatus.ACTIVE)
                     .stockStatus(stock)
                     .isBranchSpecific(true)
                     .build());

@@ -18,4 +18,7 @@ public class BranchListResponse {
     private String phone;
     private BranchStatus status;
     private Integer tableCount;
+    private String taxCode;
+    private String managerName;
+    private String openingHours; // Format: "HH:mm - HH:mm"
 }

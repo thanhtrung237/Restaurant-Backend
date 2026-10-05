@@ -20,7 +20,11 @@ import com.group.restaurant.repositories.DiningTableRepository;
 import com.group.restaurant.repositories.DishOverrideRepository;
 import com.group.restaurant.repositories.RestaurantRepository;
 import com.group.restaurant.repositories.TableSessionRepository;
+import com.group.restaurant.services.AuditLogService;
+import com.group.restaurant.services.audit.AuditAction;
+import com.group.restaurant.services.audit.AuditEvent;
 import com.group.restaurant.services.BranchService;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -43,9 +47,12 @@ public class BranchServiceImpl implements BranchService {
     private final DishOverrideRepository dishOverrideRepository;
     private final TableSessionRepository tableSessionRepository;
     private final BranchMapper branchMapper;
+    private final AuditLogService auditLogService;
+    private final TenantGuard tenantGuard;
 
     @Override
     public BranchResponse createBranch(BranchAddRequest request) {
+        tenantGuard.assertRestaurant(request.getRestaurantId());
         Restaurant restaurant = restaurantRepository.findById(request.getRestaurantId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy nhà hàng với ID: " + request.getRestaurantId()));
@@ -57,6 +64,10 @@ public class BranchServiceImpl implements BranchService {
         Branch branch = branchMapper.toEntity(request);
         branch.setRestaurant(restaurant);
         branch.setStatus(BranchStatus.ACTIVE);
+        // QĐ-17 (câu #7): phí dịch vụ CHỊU VAT — giá tính thuế gồm cả khoản phụ thu/phí thu thêm
+        // (TT 219/2013 Điều 7). `BranchAddRequest` không có trường này, nên đặt mặc định ở đây thay
+        // vì sửa giá trị khởi tạo trong @Entity. Chi nhánh đã tồn tại KHÔNG bị đụng tới.
+        branch.setVatAppliedOnServiceFee(Boolean.TRUE);
 
         Branch savedBranch = branchRepository.save(branch);
         return buildBranchResponse(savedBranch);
@@ -82,6 +93,7 @@ public class BranchServiceImpl implements BranchService {
     @Override
     @Transactional(readOnly = true)
     public BranchResponse getBranchByCode(Long restaurantId, String code) {
+        tenantGuard.assertRestaurant(restaurantId);
         Branch branch = branchRepository.findByRestaurantIdAndCode(restaurantId, code)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy chi nhánh với mã: " + code + " trong nhà hàng ID: " + restaurantId));
@@ -95,6 +107,14 @@ public class BranchServiceImpl implements BranchService {
             BranchStatus status,
             Pageable pageable
     ) {
+        tenantGuard.assertRestaurant(restaurantId);
+        // Bỏ trống restaurantId thì nhánh cuối gọi findAll() — trả dữ liệu MỌI nhà hàng.
+        // Mặc định giới hạn vào nhà hàng của người đăng nhập; chỉ Quản trị nền tảng
+        // được xem xuyên nhà hàng.
+        if (restaurantId == null && !tenantGuard.isPlatformAdmin()) {
+            restaurantId = tenantGuard.currentRestaurantIdOrNull();
+        }
+
         List<Branch> branches;
 
         if (restaurantId != null && status != null) {
@@ -142,13 +162,18 @@ public class BranchServiceImpl implements BranchService {
     @Override
     @Transactional(readOnly = true)
     public List<BranchListResponse> getBranchesByRestaurant(Long restaurantId) {
+        tenantGuard.assertRestaurant(restaurantId);
         if (!restaurantRepository.existsById(restaurantId)) {
             throw new ResourceNotFoundException("Không tìm thấy nhà hàng với ID: " + restaurantId);
         }
 
         List<Branch> branches = branchRepository.findByRestaurantId(restaurantId);
         return branches.stream()
-                .map(branchMapper::toListResponse)
+                .map(branch -> {
+                    BranchListResponse response = branchMapper.toListResponse(branch);
+                    enrichBranchListResponse(response, branch);
+                    return response;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -188,21 +213,43 @@ public class BranchServiceImpl implements BranchService {
     @Override
     public BranchResponse updateManagerConfig(Long id, BranchManagerConfigRequest request) {
         Branch branch = findBranchById(id);
+        String configBefore = managerConfigSnapshot(branch);
 
         if (request.getOpeningTime() != null) branch.setOpeningTime(request.getOpeningTime());
         if (request.getClosingTime() != null) branch.setClosingTime(request.getClosingTime());
-        if (request.getBusinessDayStartTime() != null) branch.setBusinessDayStartTime(request.getBusinessDayStartTime());
-        if (request.getBankAccountNo() != null) branch.setBankAccountNo(request.getBankAccountNo());
-        if (request.getBankName() != null) branch.setBankName(request.getBankName());
+        // 3 field dưới đây XÓA TRẮNG được: gửi null (hoặc chuỗi rỗng) là gỡ cấu hình.
+        // "Không gửi field" vẫn giữ nguyên giá trị cũ — xem BranchManagerConfigRequest.
+        if (request.isBusinessDayStartTimeProvided()) {
+            branch.setBusinessDayStartTime(request.getBusinessDayStartTime());
+        }
+        if (request.isBankAccountNoProvided()) {
+            branch.setBankAccountNo(blankToNull(request.getBankAccountNo()));
+        }
+        if (request.isBankNameProvided()) {
+            branch.setBankName(blankToNull(request.getBankName()));
+        }
         if (request.getPendingConfirmTimeoutMinutes() != null) branch.setPendingConfirmTimeoutMinutes(request.getPendingConfirmTimeoutMinutes());
         if (request.getReservationHoldMinutes() != null) branch.setReservationHoldMinutes(request.getReservationHoldMinutes());
 
-        return buildBranchResponse(branchRepository.save(branch));
+        BranchResponse managerConfigResponse = buildBranchResponse(branchRepository.save(branch));
+
+        auditLogService.record(AuditEvent.builder()
+                .entityType("Branch")
+                .entityId(branch.getId())
+                .actionType(AuditAction.CONFIG_CHANGE)
+                .branchId(branch.getId())
+                .valueBefore(configBefore)
+                .valueAfter(managerConfigSnapshot(branch))
+                .reason("QL chi nhánh đổi cấu hình vận hành chi nhánh")
+                .build());
+
+        return managerConfigResponse;
     }
 
     @Override
     public BranchResponse updateAdminConfig(Long id, BranchAdminConfigRequest request) {
         Branch branch = findBranchById(id);
+        String configBefore = adminConfigSnapshot(branch);
 
         boolean vatOrFeeChanging = (request.getVatRate() != null || request.getServiceFeeRate() != null);
         int openSessionCount = 0;
@@ -227,7 +274,42 @@ public class BranchServiceImpl implements BranchService {
             response.setHasOpenSessionWarning(true);
             response.setOpenSessionCount(openSessionCount);
         }
+
+        // VAT / phí dịch vụ / ngưỡng duyệt chiết khấu / MST đều ảnh hưởng trực tiếp tới
+        // tiền khách phải trả — đổi ở đây bắt buộc có vết (FR-LOG-01).
+        auditLogService.record(AuditEvent.builder()
+                .entityType("Branch")
+                .entityId(branch.getId())
+                .actionType(AuditAction.CONFIG_CHANGE)
+                .branchId(branch.getId())
+                .valueBefore(configBefore)
+                .valueAfter(adminConfigSnapshot(branch))
+                .reason(openSessionCount > 0
+                        ? "Quản trị NH đổi cấu hình thuế/phí khi còn " + openSessionCount + " phiên đang mở (BR-08)"
+                        : "Quản trị NH đổi cấu hình thuế/phí chi nhánh")
+                .build());
+
         return response;
+    }
+
+    /** Ảnh cấu hình cấp QL chi nhánh, để so sánh trước/sau trong nhật ký. */
+    private String managerConfigSnapshot(Branch b) {
+        return "openingTime=" + b.getOpeningTime()
+                + "; closingTime=" + b.getClosingTime()
+                + "; businessDayStartTime=" + b.getBusinessDayStartTime()
+                + "; bankName=" + b.getBankName()
+                + "; bankAccountNo=" + b.getBankAccountNo()
+                + "; pendingConfirmTimeoutMinutes=" + b.getPendingConfirmTimeoutMinutes()
+                + "; reservationHoldMinutes=" + b.getReservationHoldMinutes();
+    }
+
+    /** Ảnh cấu hình cấp Quản trị nhà hàng (thuế/phí/ngưỡng duyệt). */
+    private String adminConfigSnapshot(Branch b) {
+        return "vatRate=" + b.getVatRate()
+                + "; serviceFeeRate=" + b.getServiceFeeRate()
+                + "; vatAppliedOnServiceFee=" + b.getVatAppliedOnServiceFee()
+                + "; discountApprovalThreshold=" + b.getDiscountApprovalThreshold()
+                + "; taxCode=" + b.getTaxCode();
     }
 
     @Override
@@ -257,9 +339,22 @@ public class BranchServiceImpl implements BranchService {
         return buildBranchResponse(branchRepository.save(target));
     }
 
+    /**
+      * Mọi thao tác trên 1 chi nhánh đều đi qua đây, nên đặt chốt tenant tại chỗ này
+      * phủ được cả updateBranch / getBranchById / changeStatus / deleteBranch /
+      * updateManagerConfig / updateAdminConfig / copyConfigFromBranch — thay vì rải
+      * lời gọi guard ra 7 method và rủi ro bỏ sót method thêm sau này.
+      */
+    /** Chuỗi rỗng và null đều là "chưa cấu hình" — lưu thống nhất thành null. */
+    private String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value.trim();
+    }
+
     private Branch findBranchById(Long id) {
-        return branchRepository.findById(id)
+        Branch branch = branchRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với ID: " + id));
+        tenantGuard.assertBranch(branch);
+        return branch;
     }
 
     private BranchResponse buildBranchResponse(Branch branch) {
@@ -267,5 +362,18 @@ public class BranchServiceImpl implements BranchService {
         response.setTableCount(0);
         response.setActiveSessionCount(0);
         return response;
+    }
+
+    /**
+     * Enrich BranchListResponse với tableCount và managerName
+     */
+    private void enrichBranchListResponse(BranchListResponse response, Branch branch) {
+        // Set table count
+        long tableCount = diningTableRepository.countByBranchId(branch.getId());
+        response.setTableCount((int) tableCount);
+
+        // Set manager name - TODO: cần join với Account/Assignment để lấy tên người quản lý
+        // Hiện tại để null, frontend sẽ hiển thị "Chưa phân công"
+        response.setManagerName(null);
     }
 }
