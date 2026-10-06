@@ -65,4 +65,7 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // Bat profile `test` de nap src/test/resources/application-test.properties.
+    // Can thiet vi .env chi duoc nap trong main(), ma @SpringBootTest khong goi main().
+    systemProperty 'spring.profiles.active', 'test'
 }

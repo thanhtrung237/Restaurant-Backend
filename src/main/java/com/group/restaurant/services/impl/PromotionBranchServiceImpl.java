@@ -12,6 +12,7 @@ import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.PromotionBranchRepository;
 import com.group.restaurant.repositories.PromotionRepository;
 import com.group.restaurant.services.PromotionBranchService;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,7 @@ public class PromotionBranchServiceImpl implements PromotionBranchService {
     private final BranchRepository branchRepository;
     private final PromotionRepository promotionRepository;
     private final PromotionBranchMapper promotionBranchMapper;
+    private final TenantGuard tenantGuard;
 
     @Override
     public PromotionBranchResponse assignPromotionToBranch(PromotionBranchAddRequest request) {
@@ -38,6 +40,14 @@ public class PromotionBranchServiceImpl implements PromotionBranchService {
         Promotion promotion = promotionRepository.findById(request.getPromotionId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy khuyến mãi với ID: " + request.getPromotionId()));
+
+        // Kiểm tra cùng nhà hàng
+        if (!branch.getRestaurant().getId().equals(promotion.getRestaurant().getId())) {
+            throw new ConflictException("Chi nhánh và khuyến mãi không cùng nhà hàng");
+        }
+        
+        // Kiểm tra quyền
+        tenantGuard.assertRestaurant(promotion.getRestaurant().getId());
 
         if (promotionBranchRepository.existsByBranchIdAndPromotionId(request.getBranchId(), request.getPromotionId())) {
             throw new ConflictException("Khuyến mãi này đã được áp dụng cho chi nhánh");
@@ -55,6 +65,7 @@ public class PromotionBranchServiceImpl implements PromotionBranchService {
     @Override
     @Transactional(readOnly = true)
     public List<PromotionBranchResponse> getByBranch(Long branchId) {
+        tenantGuard.assertBranch(branchId);
         if (!branchRepository.existsById(branchId)) {
             throw new ResourceNotFoundException("Không tìm thấy chi nhánh với ID: " + branchId);
         }

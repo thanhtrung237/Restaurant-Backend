@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Getter
 @Setter
@@ -40,4 +41,10 @@ public class PromotionUpdateRequest {
 
     @Size(max = 50, message = "Code không được vượt quá 50 ký tự")
     private String code;
+
+    private Integer usageLimit;
+
+    private Boolean allBranches;
+
+    private List<Long> branchIds;
 }

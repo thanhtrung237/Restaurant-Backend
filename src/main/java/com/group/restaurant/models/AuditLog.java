@@ -42,6 +42,14 @@ public class AuditLog extends BaseEntity {
     @Column(name = "entity_type", nullable = false, length = 50)
     private String entityType;
 
+    /**
+     * ID của bản ghi bị tác động (invoice nào, order-detail nào...).
+     * Thiếu cột này thì nhật ký chỉ nói "có ai đó hủy một hóa đơn" mà không truy được
+     * hóa đơn nào — không dùng được để đối soát.
+     */
+    @Column(name = "entity_id")
+    private Long entityId;
+
     // FR-LOG-01: loại hành động để lọc nhật ký (STATUS_CHANGE, CREATE, UPDATE, DELETE...)
     @Column(name = "action_type", length = 50)
     private String actionType;

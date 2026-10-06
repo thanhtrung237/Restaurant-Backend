@@ -39,6 +39,9 @@ out/
 ### Environment ###
 .env
 
+
+### Markdown Documentation ###
+*.md
 ### Documentation (không push lên Git) ###
 *.md
 !README.md

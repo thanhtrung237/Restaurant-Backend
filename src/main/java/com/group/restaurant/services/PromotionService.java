@@ -22,4 +22,8 @@ public interface PromotionService {
     void changeStatus(Long id, PromotionStatus status);
 
     void deletePromotion(Long id);
+
+    List<PromotionResponse> getActivePromotionsByBranch(Long branchId);
+
+    PromotionResponse getPromotionByBranchAndCode(Long branchId, String code);
 }

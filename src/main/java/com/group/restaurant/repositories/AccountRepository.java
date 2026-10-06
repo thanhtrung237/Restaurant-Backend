@@ -27,7 +27,30 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
             @Param("restaurantCode") String restaurantCode,
             @Param("username") String username);
 
-    boolean existsByUsername(String username);
+    /**
+     * Nhận diện người dùng theo khóa chính, kèm assignments + role + branch.
+     *
+     * Khác `findByIdWithAssignments` (chỉ fetch assignments): {@code AccountUserDetails
+     * .getAuthorities()} đọc `role.getCode()` SAU khi transaction đã đóng, nên role
+     * bắt buộc phải được fetch sẵn, không để lazy.
+     */
+    @Query("SELECT DISTINCT a FROM Account a " +
+           "JOIN FETCH a.restaurant " +
+           "LEFT JOIN FETCH a.assignments ass " +
+           "LEFT JOIN FETCH ass.role " +
+           "LEFT JOIN FETCH ass.branch " +
+           "WHERE a.id = :id")
+    Optional<Account> findByIdForAuthentication(@Param("id") Long id);
+
+    /**
+     * `username` chỉ unique theo từng nhà hàng (`uk_account_restaurant_username`),
+     * nên kiểm tra trùng tên đăng nhập PHẢI kèm restaurantId.
+     * `existsByUsername` cũ chặn cả trường hợp hợp lệ: nhà hàng B không tạo được
+     * tài khoản "admin" chỉ vì nhà hàng A đã có.
+     */
+    boolean existsByRestaurantIdAndUsername(Long restaurantId, String username);
+
+    Optional<Account> findByRestaurantIdAndUsername(Long restaurantId, String username);
 
 
 

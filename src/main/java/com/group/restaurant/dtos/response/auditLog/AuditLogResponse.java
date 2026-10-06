@@ -27,8 +27,11 @@ public class AuditLogResponse {
     private String approvedByName;
     
     private LocalDateTime occurredAt;
-    
+
     private String entityType;
+    private Long entityId;
+    /** FR-LOG-01: CREATE / UPDATE / DELETE / STATUS_CHANGE / CANCEL / PAYMENT / DISCOUNT ... */
+    private String actionType;
     private String valueBefore;
     private String valueAfter;
     private String reason;

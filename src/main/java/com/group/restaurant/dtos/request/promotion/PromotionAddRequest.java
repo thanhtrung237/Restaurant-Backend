@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Getter
 @Setter
@@ -46,4 +47,16 @@ public class PromotionAddRequest {
 
     @Size(max = 50, message = "Code không được vượt quá 50 ký tự")
     private String code;
+
+    /** Giới hạn lượt sử dụng (BR-23) — null nghĩa là không giới hạn */
+    private Integer usageLimit;
+
+    /** Áp dụng toàn hệ thống (chi nhánh mở sau này tự động được áp) */
+    private Boolean allBranches;
+
+    /** Danh sách ID chi nhánh được áp — bỏ qua nếu allBranches = true */
+    private List<Long> branchIds;
+
+    /** Trạng thái kích hoạt ngay — nếu false thì status = INACTIVE */
+    private Boolean isActiveNow;
 }

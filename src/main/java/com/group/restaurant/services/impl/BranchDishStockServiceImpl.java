@@ -11,6 +11,7 @@ import com.group.restaurant.repositories.BranchDishStockRepository;
 import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.DishRepository;
 import com.group.restaurant.services.BranchDishStockService;
+import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,9 +30,11 @@ public class BranchDishStockServiceImpl implements BranchDishStockService {
     private final BranchRepository branchRepository;
     private final DishRepository dishRepository;
     private final BranchDishStockMapper stockMapper;
+    private final TenantGuard tenantGuard;
 
     @Override
     public BranchDishStockResponse toggleStock(Long branchId, Long dishId) {
+        tenantGuard.assertBranch(branchId);
         // Lấy hoặc tạo mới bản ghi stock
         BranchDishStock stock = stockRepository.findByBranchIdAndDishId(branchId, dishId)
                 .orElseGet(() -> createNewStock(branchId, dishId));
@@ -52,6 +55,7 @@ public class BranchDishStockServiceImpl implements BranchDishStockService {
     @Override
     @Transactional(readOnly = true)
     public List<BranchDishStockResponse> getOutOfStockByBranch(Long branchId) {
+        tenantGuard.assertBranch(branchId);
         return stockRepository.findByBranchIdAndStatus(branchId, StockStatus.OUT_OF_STOCK)
                 .stream()
                 .map(stockMapper::toResponse)
@@ -61,6 +65,7 @@ public class BranchDishStockServiceImpl implements BranchDishStockService {
     @Override
     @Transactional(readOnly = true)
     public List<BranchDishStockResponse> getAllStockByBranch(Long branchId) {
+        tenantGuard.assertBranch(branchId);
         return stockRepository.findByBranchId(branchId)
                 .stream()
                 .map(stockMapper::toResponse)
@@ -69,6 +74,7 @@ public class BranchDishStockServiceImpl implements BranchDishStockService {
 
     @Override
     public int restoreAllStock(Long branchId) {
+        tenantGuard.assertBranch(branchId);
         // FR-MNU-03: Mở bán lại tất cả món đang hết tại chi nhánh
         int count = stockRepository.resetStockForBranch(branchId);
         log.info("Restored {} dishes to AVAILABLE at branch {}", count, branchId);

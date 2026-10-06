@@ -14,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -28,7 +27,7 @@ import java.util.Date;
 public class AuthTokenFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    private final UserDetailsService userDetailsService;
+    private final AccountUserDetailsService accountUserDetailsService;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -39,8 +38,18 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             String jwt = parseJwt(request);
             if (jwt != null) {
                 jwtUtil.validateToken(jwt, TokenType.ACCESS_TOKEN);
-                String username = jwtUtil.getUsernameFromToken(jwt, TokenType.ACCESS_TOKEN);
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+                // Nhận diện theo claim `accountId` (khóa chính), KHÔNG theo `subject` (username).
+                // `username` chỉ unique trong 1 nhà hàng, nên nhận diện theo username có thể
+                // trả về tài khoản của nhà hàng khác — hoặc ném lỗi khi có 2 hàng trùng tên.
+                Long accountId = jwtUtil.getAccountIdFromToken(jwt, TokenType.ACCESS_TOKEN);
+                if (accountId == null) {
+                    // Token cũ (phát hành trước khi có claim accountId) — buộc đăng nhập lại
+                    // thay vì đoán danh tính theo username.
+                    sendError(response, request, "Token không hợp lệ, vui lòng đăng nhập lại");
+                    return;
+                }
+                UserDetails userDetails = accountUserDetailsService.loadByAccountId(accountId);
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());

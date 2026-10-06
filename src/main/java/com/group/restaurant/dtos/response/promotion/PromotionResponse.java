@@ -8,6 +8,7 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -28,6 +29,10 @@ public class PromotionResponse {
     private Integer priority;
     private PromotionStatus status;
     private String code;
+    private Integer usageLimit;
+    private Integer usageCount;
+    private Boolean allBranches;
+    private List<Long> branchIds;
     private LocalDateTime createdAt;
     private LocalDateTime modifiedAt;
 }

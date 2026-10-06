@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,7 +27,10 @@ public class RoleController {
 
     private final RoleService roleService;
 
+    // Bảng 4.3 — "Cấu hình vai trò & quyền": chỉ Quản trị nhà hàng.
+    // Trước đây toàn bộ controller này KHÔNG có chốt quyền nào.
     @PostMapping("")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<RoleResponse>> createRole(
             @Valid @RequestBody RoleAddRequest request) {
         return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
@@ -37,6 +41,7 @@ public class RoleController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<RoleResponse>> updateRole(
             @PathVariable Long id,
             @Valid @RequestBody RoleUpdateRequest request) {
@@ -48,6 +53,7 @@ public class RoleController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<RoleResponse>> getRoleById(@PathVariable Long id) {
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
@@ -57,6 +63,7 @@ public class RoleController {
     }
 
     @GetMapping("/code/{code}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<RoleResponse>> getRoleByCode(@PathVariable String code) {
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
@@ -66,6 +73,7 @@ public class RoleController {
     }
 
     @GetMapping("")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<PageResponse<RoleResponse>>> getAllRoles(
             @RequestParam(required = false) Long restaurantId,
             @RequestParam(required = false) RoleScope scope,
@@ -80,6 +88,7 @@ public class RoleController {
     }
 
     @GetMapping("/restaurant/{restaurantId}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<List<RoleResponse>>> getRolesByRestaurant(
             @PathVariable Long restaurantId) {
         return ResponseEntity.ok(new ResponseSuccess<>(
@@ -90,6 +99,7 @@ public class RoleController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<Void>> deleteRole(@PathVariable Long id) {
         roleService.deleteRole(id);
         return ResponseEntity.ok(new ResponseSuccess<>(

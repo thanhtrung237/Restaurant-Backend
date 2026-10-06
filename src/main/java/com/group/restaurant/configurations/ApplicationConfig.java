@@ -1,9 +1,5 @@
 package com.group.restaurant.configurations;
 
-import com.group.restaurant.configurations.jwt.AccountUserDetails;
-import com.group.restaurant.exceptions.ResourceNotFoundException;
-import com.group.restaurant.models.Account;
-import com.group.restaurant.repositories.AccountRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,16 +17,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @RequiredArgsConstructor
 public class ApplicationConfig {
 
-    private final AccountRepository accountRepository;
-
-    @Bean
-    public UserDetailsService userDetailsService() {
-        return username -> {
-            Account account = accountRepository.findByUsernameWithAssignments(username)
-                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản: " + username));
-            return new AccountUserDetails(account);
-        };
-    }
+    // Bean UserDetailsService đã chuyển sang AccountUserDetailsService (một @Service riêng),
+    // ở đó có thêm loadByAccountId() để AuthTokenFilter nhận diện theo khóa chính.
+    private final UserDetailsService userDetailsService;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -40,7 +29,7 @@ public class ApplicationConfig {
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService());
+        provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder());
         return provider;
     }

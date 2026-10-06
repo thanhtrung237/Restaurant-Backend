@@ -10,18 +10,23 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 import org.mapstruct.ReportingPolicy;
+import org.mapstruct.AfterMapping;
+
+import java.time.format.DateTimeFormatter;
 
 @Mapper(
     componentModel = "spring", 
     unmappedTargetPolicy = ReportingPolicy.IGNORE,
     nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE
 )
-public interface BranchMapper {
+public abstract class BranchMapper {
+
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     @Mapping(target = "restaurant.id", source = "restaurantId")
-    Branch toEntity(BranchAddRequest request);
+    public abstract Branch toEntity(BranchAddRequest request);
 
-    void updateEntity(@MappingTarget Branch branch, BranchUpdateRequest request);
+    public abstract void updateEntity(@MappingTarget Branch branch, BranchUpdateRequest request);
 
     @Mapping(target = "restaurantId", source = "restaurant.id")
     @Mapping(target = "restaurantName", source = "restaurant.name")
@@ -30,8 +35,19 @@ public interface BranchMapper {
     @Mapping(target = "activeSessionCount", ignore = true)
     @Mapping(target = "hasOpenSessionWarning", ignore = true)
     @Mapping(target = "openSessionCount", ignore = true)
-    BranchResponse toResponse(Branch branch);
+    public abstract BranchResponse toResponse(Branch branch);
 
     @Mapping(target = "tableCount", ignore = true)
-    BranchListResponse toListResponse(Branch branch);
+    @Mapping(target = "managerName", ignore = true)
+    @Mapping(target = "openingHours", ignore = true)
+    public abstract BranchListResponse toListResponse(Branch branch);
+
+    @AfterMapping
+    protected void setOpeningHours(@MappingTarget BranchListResponse response, Branch branch) {
+        if (branch.getOpeningTime() != null && branch.getClosingTime() != null) {
+            String opening = branch.getOpeningTime().format(TIME_FORMATTER);
+            String closing = branch.getClosingTime().format(TIME_FORMATTER);
+            response.setOpeningHours(opening + " - " + closing);
+        }
+    }
 }

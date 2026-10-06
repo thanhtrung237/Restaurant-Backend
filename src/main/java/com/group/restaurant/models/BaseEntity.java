@@ -49,6 +49,27 @@ public abstract class BaseEntity {
         }
     }
 
+    /**
+     * Bù `deletedBy`/`deletedAt` cho các lời gọi {@code softDelete(null)} rải khắp
+     * tầng service (30 chỗ) — thay vì sửa từng chỗ, lấy luôn người thao tác mà
+     * {@code AuditingEntityListener} vừa ghi vào `modifiedBy`.
+     *
+     * Theo đặc tả JPA, callback của entity listener (`AuditingEntityListener`) chạy TRƯỚC
+     * callback khai báo trong chính entity, nên tới đây `modifiedBy` đã có giá trị
+     * (xem {@code JpaAuditingConfig#auditorProvider}).
+     */
+    @PreUpdate
+    protected void onPreUpdate() {
+        if (Boolean.TRUE.equals(this.isDeleted)) {
+            if (this.deletedBy == null) {
+                this.deletedBy = this.modifiedBy;
+            }
+            if (this.deletedAt == null) {
+                this.deletedAt = LocalDateTime.now();
+            }
+        }
+    }
+
     public void softDelete(String deletedBy) {
         this.isDeleted = true;
         this.deletedAt = LocalDateTime.now();

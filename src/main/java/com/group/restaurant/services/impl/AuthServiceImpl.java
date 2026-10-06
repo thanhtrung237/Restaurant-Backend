@@ -7,6 +7,9 @@ import com.group.restaurant.dtos.response.auth.RefreshTokenResponse;
 import com.group.restaurant.enums.AccountStatus;
 import com.group.restaurant.enums.TokenType;
 import com.group.restaurant.exceptions.InvalidParamException;
+import com.group.restaurant.services.AuditLogService;
+import com.group.restaurant.services.audit.AuditAction;
+import com.group.restaurant.services.audit.AuditEvent;
 import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.models.Account;
 import com.group.restaurant.models.RefreshToken;
@@ -36,18 +39,28 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final AuditLogService auditLogService;
 
     @Override
     public LoginResponse login(LoginRequest request) {
         Account account = accountRepository
                 .findByRestaurantCodeAndUsername(request.getRestaurantCode(), request.getUsername())
-                .orElseThrow(() -> new BadCredentialsException("Sai tên đăng nhập hoặc mật khẩu"));
+                .orElse(null);
+
+        // FR-ADM-04: "Ghi nhật ký: thời điểm, thành công hay thất bại."
+        // record() chạy REQUIRES_NEW nên dòng log vẫn commit dù sau đó ném exception.
+        if (account == null) {
+            recordLoginAttempt(request, null, false, "Không tìm thấy tài khoản");
+            throw new BadCredentialsException("Sai tên đăng nhập hoặc mật khẩu");
+        }
 
         if (!passwordEncoder.matches(request.getPassword(), account.getPasswordHash())) {
+            recordLoginAttempt(request, account, false, "Sai mật khẩu");
             throw new BadCredentialsException("Sai tên đăng nhập hoặc mật khẩu");
         }
 
         if (account.getStatus() != AccountStatus.ACTIVE) {
+            recordLoginAttempt(request, account, false, "Tài khoản đã bị vô hiệu hóa");
             throw new DisabledException("Tài khoản đã bị vô hiệu hóa");
         }
 
@@ -70,6 +83,8 @@ public class AuthServiceImpl implements AuthService {
                     .map(a -> a.getRole().getCode())
                     .collect(Collectors.toList());
         }
+
+        recordLoginAttempt(request, account, true, null);
 
         return LoginResponse.builder()
                 .accessToken(accessToken)
@@ -126,6 +141,36 @@ public class AuthServiceImpl implements AuthService {
             token.setRevoked(true);
             refreshTokenRepository.save(token);
         });
+
+        // Người thực hiện lấy từ SecurityContext (đây là request đã xác thực).
+        auditLogService.record(AuditEvent.builder()
+                .entityType("Account")
+                .actionType(AuditAction.LOGOUT)
+                .reason("Đăng xuất")
+                .build());
+    }
+
+    /**
+     * Ghi nhật ký một lần đăng nhập (FR-ADM-04, FR-LOG-01).
+     *
+     * TUYỆT ĐỐI không ghi mật khẩu — nhật ký là dữ liệu mọi quản trị viên đọc được.
+     * Chỉ ghi tên đăng nhập đã nhập và mã nhà hàng.
+     */
+    private void recordLoginAttempt(LoginRequest request, Account account,
+                                    boolean success, String failureReason) {
+        String attempted = "restaurantCode=" + request.getRestaurantCode()
+                + "; username=" + request.getUsername();
+        auditLogService.record(AuditEvent.builder()
+                .entityType("Account")
+                .entityId(account != null ? account.getId() : null)
+                .actionType(AuditAction.LOGIN)
+                .restaurantId(account != null && account.getRestaurant() != null
+                        ? account.getRestaurant().getId() : null)
+                .performedByAccountId(account != null ? account.getId() : null)
+                .valueAfter(success ? "result=SUCCESS; " + attempted
+                                    : "result=FAILURE; " + attempted)
+                .reason(success ? "Đăng nhập thành công" : "Đăng nhập thất bại: " + failureReason)
+                .build());
     }
 
     private String getRefreshTokenFromRequest(HttpServletRequest request) {
