@@ -27,6 +27,8 @@ public interface InvoiceMapper {
     @Mapping(target = "payments", source = "payments")
     @Mapping(target = "totalPaid", ignore = true)
     @Mapping(target = "remainingAmount", ignore = true)
+    // MapStruct tự map eInvoiceRef, eInvoiceIssuedAt, taxCodeUsed,
+    //            eInvoiceProvider, eInvoiceAttemptCount vì tên field khớp
     InvoiceResponse toResponse(Invoice invoice);
 
     @Mapping(target = "branchName", source = "branch.name")

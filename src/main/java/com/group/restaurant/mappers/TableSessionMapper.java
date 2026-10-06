@@ -21,6 +21,7 @@ public interface TableSessionMapper {
 
     @Mapping(target = "tableId", source = "table.id")
     @Mapping(target = "tableName", source = "table.name")
+    @Mapping(target = "branchId", source = "branch.id")
     @Mapping(target = "orderCount", ignore = true)
     TableSessionResponse toResponse(TableSession tableSession);
 }

@@ -50,13 +50,4 @@ public class PaymentController {
         ));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ResponseSuccess<Void>> deletePayment(@PathVariable Long id) {
-        paymentService.deletePayment(id);
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Xóa giao dịch thanh toán thành công",
-                null
-        ));
-    }
 }

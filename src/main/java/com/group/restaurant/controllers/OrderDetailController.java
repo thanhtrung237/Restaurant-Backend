@@ -1,6 +1,8 @@
 package com.group.restaurant.controllers;
 
 import com.group.restaurant.dtos.request.orderDetail.OrderDetailAddRequest;
+import com.group.restaurant.dtos.request.orderDetail.OrderDetailCancelRequest;
+import com.group.restaurant.dtos.request.orderDetail.OrderDetailConfirmWeightRequest;
 import com.group.restaurant.dtos.request.orderDetail.OrderDetailUpdateRequest;
 import com.group.restaurant.dtos.response.base.ResponseSuccess;
 import com.group.restaurant.dtos.response.orderDetail.OrderDetailResponse;
@@ -80,10 +82,50 @@ public class OrderDetailController {
             @PathVariable Long id,
             @RequestParam OrderDetailStatus status) {
         orderDetailService.changeOrderDetailStatus(id, status);
+        return ResponseEntity.ok(new ResponseSuccess<>(OK, "Thay đổi trạng thái món ăn trong đơn thành công", null));
+    }
+
+    // Phục vụ nhập số cân: PENDING_WEIGHT → PREPARING
+    @PostMapping("/{id}/confirm-weight")
+    public ResponseEntity<ResponseSuccess<OrderDetailResponse>> confirmWeight(
+            @PathVariable Long id,
+            @Valid @RequestBody OrderDetailConfirmWeightRequest request) {
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
-                "Thay đổi trạng thái món ăn trong đơn thành công",
-                null
+                "Nhập số cân thành công, món chuyển sang ĐANG CHẾ BIẾN",
+                orderDetailService.confirmWeight(id, request)
+        ));
+    }
+
+    // Phục vụ xác nhận đã mang món ra: PREPARING → SERVED
+    @PostMapping("/{id}/mark-served")
+    public ResponseEntity<ResponseSuccess<OrderDetailResponse>> markAsServed(@PathVariable Long id) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Xác nhận đã phục vụ món thành công",
+                orderDetailService.markAsServed(id)
+        ));
+    }
+
+    // Hủy trước bếp: PENDING / PENDING_WEIGHT → CANCELLED, không tính tiền
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<ResponseSuccess<OrderDetailResponse>> cancelBeforeKitchen(@PathVariable Long id) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Hủy món thành công",
+                orderDetailService.cancelBeforeKitchen(id)
+        ));
+    }
+
+    // Hủy sau bếp: PREPARING / SERVED → CANCELLED với lý do 
+    @PostMapping("/{id}/cancel-after-kitchen")
+    public ResponseEntity<ResponseSuccess<OrderDetailResponse>> cancelAfterKitchen(
+            @PathVariable Long id,
+            @Valid @RequestBody OrderDetailCancelRequest request) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Hủy món sau bếp thành công",
+                orderDetailService.cancelAfterKitchen(id, request)
         ));
     }
 

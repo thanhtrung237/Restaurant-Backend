@@ -29,4 +29,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             @Param("to") LocalDateTime to);
 
     boolean existsByInvoiceNumber(String invoiceNumber);
+
+    // BR-19: Đếm số hóa đơn của chi nhánh để tạo số thứ tự
+    @Query("SELECT COUNT(i) FROM Invoice i WHERE i.branch.id = :branchId")
+    long countByBranchId(@Param("branchId") Long branchId);
 }

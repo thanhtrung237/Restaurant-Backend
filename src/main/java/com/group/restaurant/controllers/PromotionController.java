@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import static org.springframework.http.HttpStatus.CREATED;
@@ -24,37 +25,36 @@ public class PromotionController {
 
     private final PromotionService promotionService;
 
+    // Quản trị nhà hàng quản lý khuyến mãi (FR-PRO-01)
     @PostMapping("")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<PromotionResponse>> createPromotion(
             @Valid @RequestBody PromotionAddRequest request) {
         return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
-                CREATED,
-                "Tạo khuyến mãi thành công",
-                promotionService.createPromotion(request)
+                CREATED, "Tạo khuyến mãi thành công", promotionService.createPromotion(request)
         ));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<PromotionResponse>> updatePromotion(
-            @PathVariable Long id,
-            @Valid @RequestBody PromotionUpdateRequest request) {
+            @PathVariable Long id, @Valid @RequestBody PromotionUpdateRequest request) {
         return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Cập nhật khuyến mãi thành công",
-                promotionService.updatePromotion(id, request)
+                OK, "Cập nhật khuyến mãi thành công", promotionService.updatePromotion(id, request)
         ));
     }
 
+    // Tất cả nhân viên xem khuyến mãi (để hiển thị trên menu)
     @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ResponseSuccess<PromotionResponse>> getPromotionById(@PathVariable Long id) {
         return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy khuyến mãi thành công",
-                promotionService.getPromotionById(id)
+                OK, "Lấy khuyến mãi thành công", promotionService.getPromotionById(id)
         ));
     }
 
     @GetMapping("/restaurant/{restaurantId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ResponseSuccess<PageResponse<PromotionResponse>>> getPromotionsByRestaurant(
             @PathVariable Long restaurantId,
             @RequestParam(required = false) PromotionStatus status,
@@ -62,31 +62,23 @@ public class PromotionController {
             @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy danh sách khuyến mãi thành công",
+                OK, "Lấy danh sách khuyến mãi thành công",
                 promotionService.getPromotionsByRestaurant(restaurantId, status, pageable)
         ));
     }
 
     @PutMapping("/{id}/status")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<Void>> changeStatus(
-            @PathVariable Long id,
-            @RequestParam PromotionStatus status) {
+            @PathVariable Long id, @RequestParam PromotionStatus status) {
         promotionService.changeStatus(id, status);
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Thay đổi trạng thái khuyến mãi thành công",
-                null
-        ));
+        return ResponseEntity.ok(new ResponseSuccess<>(OK, "Thay đổi trạng thái khuyến mãi thành công", null));
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<Void>> deletePromotion(@PathVariable Long id) {
         promotionService.deletePromotion(id);
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Xóa khuyến mãi thành công",
-                null
-        ));
+        return ResponseEntity.ok(new ResponseSuccess<>(OK, "Xóa khuyến mãi thành công", null));
     }
 }

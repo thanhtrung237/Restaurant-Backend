@@ -4,6 +4,7 @@ import com.group.restaurant.dtos.request.invoice.InvoiceCreateRequest;
 import com.group.restaurant.dtos.response.base.ResponseSuccess;
 import com.group.restaurant.dtos.response.invoice.InvoiceListResponse;
 import com.group.restaurant.dtos.response.invoice.InvoiceResponse;
+import com.group.restaurant.dtos.response.invoice.QrCodeResponse;
 import com.group.restaurant.enums.InvoiceStatus;
 import com.group.restaurant.services.InvoiceService;
 import jakarta.validation.Valid;
@@ -73,13 +74,32 @@ public class InvoiceController {
         ));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ResponseSuccess<Void>> deleteInvoice(@PathVariable Long id) {
-        invoiceService.deleteInvoice(id);
+  
+    @PostMapping("/{id}/issue")
+    public ResponseEntity<ResponseSuccess<InvoiceResponse>> issueEInvoice(@PathVariable Long id) {
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
-                "Xóa hóa đơn thành công",
-                null
+                "Phát hành hóa đơn điện tử thành công",
+                invoiceService.issueEInvoice(id)
+        ));
+    }
+
+    @GetMapping("/{id}/qr-code")
+    public ResponseEntity<ResponseSuccess<QrCodeResponse>> generateQrCode(@PathVariable Long id) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Sinh QR thanh toán thành công",
+                invoiceService.generateQrCode(id)
+        ));
+    }
+    
+    @GetMapping("/session/{tableSessionId}/qr-code")
+    public ResponseEntity<ResponseSuccess<QrCodeResponse>> generateQrCodeByTableSession(
+            @PathVariable Long tableSessionId) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Lấy mã QR thanh toán theo phiên bàn thành công",
+                invoiceService.generateQrCodeByTableSession(tableSessionId)
         ));
     }
 }

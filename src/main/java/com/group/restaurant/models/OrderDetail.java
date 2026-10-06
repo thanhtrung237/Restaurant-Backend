@@ -81,4 +81,9 @@ public class OrderDetail extends BaseEntity {
 
         @Column(name = "cancelled_by")
         private Long cancelledBy;
+
+        // true = dòng món đã hủy nhưng vẫn tính tiền (lý do: khách đổi ý)
+        @Column(name = "is_billable", nullable = false)
+        @Builder.Default
+        private Boolean isBillable = true;
 }
