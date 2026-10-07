@@ -1,0 +1,53 @@
+package com.group.restaurant.models;
+
+import com.group.restaurant.enums.AccountStatus;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "account", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_account_restaurant_username", columnNames = {"restaurant_id", "username"})
+})
+@SQLRestriction("is_deleted = false")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Account extends BaseEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "restaurant_id", nullable = false)
+    private Restaurant restaurant;
+
+    @Column(name = "full_name", nullable = false, length = 100)
+    private String fullName;
+
+    @Column(name = "employee_code", nullable = false, length = 20)
+    private String employeeCode;
+
+    @Column(nullable = false, length = 50)
+    private String username;
+
+    @Column(name = "password_hash", nullable = false)
+    private String passwordHash;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private AccountStatus status = AccountStatus.ACTIVE;
+
+    @Column(length = 100)
+    private String email;
+
+    @OneToMany(mappedBy = "account", cascade = { CascadeType.PERSIST, CascadeType.MERGE })
+    @Builder.Default
+    private List<Assignment> assignments = new ArrayList<>();
+}
