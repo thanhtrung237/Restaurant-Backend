@@ -1,1 +1,1 @@
-Back-end-Booking-Service
+Restaurant-Backend
