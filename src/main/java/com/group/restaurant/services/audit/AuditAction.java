@@ -34,4 +34,6 @@ public final class AuditAction {
     public static final String LOGIN = "LOGIN";
     /** Đăng xuất (FR-ADM-04). */
     public static final String LOGOUT = "LOGOUT";
+    /** Xuất báo cáo / dữ liệu (FR-RPT-05, FR-LOG-01, QD-19). */
+    public static final String EXPORT = "EXPORT";
 }
