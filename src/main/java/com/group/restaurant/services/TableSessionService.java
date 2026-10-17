@@ -1,11 +1,6 @@
 package com.group.restaurant.services;
 
-import com.group.restaurant.dtos.request.tableSession.TableSessionCancelReservationRequest;
-import com.group.restaurant.dtos.request.tableSession.TableSessionConfirmOpenRequest;
-import com.group.restaurant.dtos.request.tableSession.TableSessionCreateRequest;
-import com.group.restaurant.dtos.request.tableSession.TableSessionOpenRequest;
-import com.group.restaurant.dtos.request.tableSession.TableSessionReservationRequest;
-import com.group.restaurant.dtos.request.tableSession.TableSessionUpdateRequest;
+import com.group.restaurant.dtos.request.tableSession.*;
 import com.group.restaurant.dtos.response.tableSession.TableSessionResponse;
 
 import java.util.List;
@@ -51,4 +46,10 @@ public interface TableSessionService {
     // Khách gọi nhân viên hỗ trợ tại bàn (FR-CUS-07)
     // orderDetailId: ID dòng món cụ thể nếu khách báo từ món đã vào bếp, null nếu gọi nhân viên chung
     void callStaff(Long id, Long orderDetailId);
+
+    // Chuyển bàn (FR-SRV-06, BR-28)
+    TableSessionResponse transferTable(Long sessionId, TableSessionTransferRequest request);
+
+    // Gộp bàn (FR-SRV-06, BR-26, BR-28)
+    TableSessionResponse mergeTable(TableSessionMergeRequest request);
 }
