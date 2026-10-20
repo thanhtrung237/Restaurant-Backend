@@ -226,4 +226,33 @@ public class TableSessionController {
                 null
         ));
     }
+
+    /**
+     * Chuyển bàn: di chuyển phiên sang bàn trống khác (FR-SRV-06, BR-28)
+     */
+    @PreAuthorize("hasAnyRole('WAITER', 'CASHIER', 'BRANCH_MANAGER', 'MANAGER')")
+    @PostMapping("/{id}/transfer")
+    public ResponseEntity<ResponseSuccess<TableSessionResponse>> transferTable(
+            @PathVariable Long id,
+            @Valid @RequestBody TableSessionTransferRequest request) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Chuyển bàn thành công",
+                tableSessionService.transferTable(id, request)
+        ));
+    }
+
+    /**
+     * Gộp bàn: gộp phiên nguồn vào phiên đích (FR-SRV-06, BR-26, BR-28)
+     */
+    @PreAuthorize("hasAnyRole('WAITER', 'CASHIER', 'BRANCH_MANAGER', 'MANAGER')")
+    @PostMapping("/merge")
+    public ResponseEntity<ResponseSuccess<TableSessionResponse>> mergeTable(
+            @Valid @RequestBody TableSessionMergeRequest request) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Gộp bàn thành công",
+                tableSessionService.mergeTable(request)
+        ));
+    }
 }
