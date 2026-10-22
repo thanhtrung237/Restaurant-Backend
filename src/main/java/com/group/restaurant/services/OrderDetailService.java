@@ -35,5 +35,8 @@ public interface OrderDetailService {
 
     void changeOrderDetailStatus(Long id, OrderDetailStatus status);
 
+    // Xác nhận hàng loạt món chờ chế biến (PENDING → PREPARING)
+    List<OrderDetailResponse> batchConfirm(com.group.restaurant.dtos.request.orderDetail.OrderDetailBatchConfirmRequest request);
+
     void deleteOrderDetail(Long id);
 }

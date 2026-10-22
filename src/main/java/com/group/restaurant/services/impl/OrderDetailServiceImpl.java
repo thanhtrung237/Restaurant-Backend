@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 
@@ -353,6 +354,56 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         OrderDetail detail = findById(id);
         detail.setStatus(status);
         orderDetailRepository.save(detail);
+
+        Long sessionId = detail.getOrder() != null && detail.getOrder().getTableSession() != null
+                ? detail.getOrder().getTableSession().getId()
+                : null;
+        if (sessionId != null) {
+            orderNotificationService.notifyItemStatusChanged(sessionId, id, status);
+        }
+    }
+
+    @Override
+    public List<OrderDetailResponse> batchConfirm(OrderDetailBatchConfirmRequest request) {
+        if (request == null || request.getOrderDetailIds() == null || request.getOrderDetailIds().isEmpty()) {
+            return List.of();
+        }
+
+        List<OrderDetailResponse> responses = new java.util.ArrayList<>();
+        List<OrderDetail> newlyConfirmedDetails = new java.util.ArrayList<>();
+
+        for (Long id : request.getOrderDetailIds()) {
+            OrderDetail detail = findById(id);
+            // Chỉ xác nhận các món đang ở trạng thái PENDING
+            if (detail.getStatus() == OrderDetailStatus.PENDING) {
+                detail.setStatus(OrderDetailStatus.PREPARING);
+                OrderDetail saved = orderDetailRepository.save(detail);
+                responses.add(toResponseWithOptions(saved));
+                newlyConfirmedDetails.add(saved);
+
+                Long sessionId = saved.getOrder() != null && saved.getOrder().getTableSession() != null
+                        ? saved.getOrder().getTableSession().getId()
+                        : null;
+                if (sessionId != null) {
+                    orderNotificationService.notifyItemStatusChanged(sessionId, saved.getId(), OrderDetailStatus.PREPARING);
+                }
+            } else {
+                responses.add(toResponseWithOptions(detail));
+            }
+        }
+
+        // FR-SRV-07: In phiếu bếp cho các món vừa được xác nhận (gom theo từng order)
+        if (!newlyConfirmedDetails.isEmpty()) {
+            Map<Long, List<OrderDetail>> byOrder = newlyConfirmedDetails.stream()
+                    .filter(d -> d.getOrder() != null && d.getOrder().getId() != null)
+                    .collect(Collectors.groupingBy(d -> d.getOrder().getId()));
+
+            byOrder.forEach((orderId, items) -> {
+                kitchenTicketService.printKitchenTickets(orderId, items);
+            });
+        }
+
+        return responses;
     }
 
     @Override
