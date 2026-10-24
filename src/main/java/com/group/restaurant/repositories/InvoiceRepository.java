@@ -2,6 +2,8 @@ package com.group.restaurant.repositories;
 
 import com.group.restaurant.enums.InvoiceStatus;
 import com.group.restaurant.models.Invoice;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -189,4 +191,30 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             @Param("statuses")   List<InvoiceStatus> statuses,
             @Param("from")       LocalDateTime from,
             @Param("to")         LocalDateTime to);
+
+    // ═══════════════════════════════════════════════════════════════════
+    // FR-RPT-05: Xuất chi tiết hóa đơn theo phân trang/chunking
+    // ═══════════════════════════════════════════════════════════════════
+
+    @Query(value = """
+        SELECT i FROM Invoice i
+        JOIN FETCH i.branch
+        LEFT JOIN FETCH i.tableSession
+        WHERE i.branch.id IN :branchIds
+          AND i.status IN :statuses
+          AND i.createdAt BETWEEN :from AND :to
+        ORDER BY i.createdAt ASC
+        """,
+        countQuery = """
+        SELECT COUNT(i) FROM Invoice i
+        WHERE i.branch.id IN :branchIds
+          AND i.status IN :statuses
+          AND i.createdAt BETWEEN :from AND :to
+        """)
+    Page<Invoice> findInvoicesForReport(
+            @Param("branchIds")  List<Long> branchIds,
+            @Param("statuses")   List<InvoiceStatus> statuses,
+            @Param("from")       LocalDateTime from,
+            @Param("to")         LocalDateTime to,
+            Pageable pageable);
 }

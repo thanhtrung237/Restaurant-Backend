@@ -86,6 +86,16 @@ public class OrderDetailController {
         return ResponseEntity.ok(new ResponseSuccess<>(OK, "Thay đổi trạng thái món ăn trong đơn thành công", null));
     }
 
+    @PostMapping("/batch-confirm")
+    public ResponseEntity<ResponseSuccess<List<OrderDetailResponse>>> batchConfirm(
+            @Valid @RequestBody com.group.restaurant.dtos.request.orderDetail.OrderDetailBatchConfirmRequest request) {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Xác nhận các món thành công",
+                orderDetailService.batchConfirm(request)
+        ));
+    }
+
     // Phục vụ nhập số cân: PENDING_WEIGHT → PREPARING
     @PostMapping("/{id}/confirm-weight")
     public ResponseEntity<ResponseSuccess<OrderDetailResponse>> confirmWeight(
