@@ -24,10 +24,11 @@ public class Account extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+   
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "restaurant_id", nullable = false)
+    @JoinColumn(name = "restaurant_id", nullable = true) // nullable=true để hỗ trợ Platform Admin (không thuộc nhà hàng nào)
     private Restaurant restaurant;
-
+    
     @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
 

@@ -24,10 +24,11 @@ public class Role extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+   
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "restaurant_id", nullable = false)
+    @JoinColumn(name = "restaurant_id", nullable = true) // nullable=true để hỗ trợ Platform role (scope=PLATFORM)
     private Restaurant restaurant;
-
+    
     @Column(nullable = false, length = 50)
     private String name;
 

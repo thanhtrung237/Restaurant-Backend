@@ -73,3 +73,17 @@ tasks.named('test') {
     // Can thiet vi .env chi duoc nap trong main(), ma @SpringBootTest khong goi main().
     systemProperty 'spring.profiles.active', 'test'
 }
+
+// Task to hash password using BCrypt
+tasks.register('hashPassword', JavaExec) {
+    group = 'application'
+    description = 'Hash a password using BCrypt - Usage: ./gradlew hashPassword -Ppassword=yourpassword'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.group.restaurant.utils.PasswordHasher'
+    
+    if (project.hasProperty('password')) {
+        args project.property('password')
+    } else {
+        println 'Usage: ./gradlew hashPassword -Ppassword=yourpassword'
+    }
+}
