@@ -54,6 +54,32 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             @Param("to")         LocalDateTime to);
 
     @Query("""
+        SELECT COALESCE(SUM(COALESCE(i.subTotalBeforeDiscount, i.grandTotal)), 0)
+        FROM Invoice i
+        WHERE i.branch.id IN :branchIds
+          AND i.status IN :statuses
+          AND i.createdAt BETWEEN :from AND :to
+        """)
+    java.math.BigDecimal sumGrossRevenue(
+            @Param("branchIds")  List<Long> branchIds,
+            @Param("statuses")   List<InvoiceStatus> statuses,
+            @Param("from")       LocalDateTime from,
+            @Param("to")         LocalDateTime to);
+
+    @Query("""
+        SELECT COALESCE(SUM(COALESCE(i.totalPromotionDiscount, 0) + COALESCE(i.totalManualDiscount, 0)), 0)
+        FROM Invoice i
+        WHERE i.branch.id IN :branchIds
+          AND i.status IN :statuses
+          AND i.createdAt BETWEEN :from AND :to
+        """)
+    java.math.BigDecimal sumDiscount(
+            @Param("branchIds")  List<Long> branchIds,
+            @Param("statuses")   List<InvoiceStatus> statuses,
+            @Param("from")       LocalDateTime from,
+            @Param("to")         LocalDateTime to);
+
+    @Query("""
         SELECT COUNT(i)
         FROM Invoice i
         WHERE i.branch.id IN :branchIds

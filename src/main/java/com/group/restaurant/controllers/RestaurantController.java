@@ -36,9 +36,9 @@ public class RestaurantController {
         ));
     }
 
-    // Quản trị nhà hàng cập nhật thông tin (FR-ADM-03)
+    // Quản trị nhà hàng cập nhật thông tin (FR-ADM-03), Quản trị nền tảng cập nhật (FR-TEN-01)
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<RestaurantResponse>> updateRestaurant(
             @PathVariable Long id,
             @Valid @RequestBody RestaurantUpdateRequest request) {

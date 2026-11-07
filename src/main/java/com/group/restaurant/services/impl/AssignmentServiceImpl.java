@@ -105,9 +105,49 @@ public class AssignmentServiceImpl implements AssignmentService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<AssignmentResponse> getAssignmentsByAccount(Long accountId) {
         List<Assignment> assignments = assignmentRepository.findByAccountId(accountId);
+        if (assignments.isEmpty()) {
+            Account account = accountRepository.findById(accountId).orElse(null);
+            if (account != null && account.getRestaurant() == null) {
+                Role platformRole = roleRepository.findByCode("PLATFORM_ADMIN").orElseGet(() -> {
+                    Role newRole = Role.builder()
+                            .code("PLATFORM_ADMIN")
+                            .name("Platform Admin")
+                            .scope(RoleScope.PLATFORM)
+                            .restaurant(null)
+                            .build();
+                    return roleRepository.save(newRole);
+                });
+                Assignment newAssignment = Assignment.builder()
+                        .account(account)
+                        .role(platformRole)
+                        .branch(null)
+                        .build();
+                Assignment saved = assignmentRepository.save(newAssignment);
+                return List.of(buildAssignmentResponse(saved));
+            } else if (account != null && account.getRestaurant() != null) {
+                // Tự động cấp vai trò Quản trị nhà hàng (MANAGER) cho chủ nhà hàng nếu chưa có phân công
+                Long restaurantId = account.getRestaurant().getId();
+                Role managerRole = roleRepository.findByRestaurantIdAndCode(restaurantId, "MANAGER").orElseGet(() -> {
+                    Role newRole = Role.builder()
+                            .code("MANAGER")
+                            .name("Quản trị nhà hàng")
+                            .scope(RoleScope.RESTAURANT)
+                            .restaurant(account.getRestaurant())
+                            .build();
+                    return roleRepository.save(newRole);
+                });
+                Assignment newAssignment = Assignment.builder()
+                        .account(account)
+                        .role(managerRole)
+                        .branch(null)
+                        .build();
+                Assignment saved = assignmentRepository.save(newAssignment);
+                return List.of(buildAssignmentResponse(saved));
+            }
+        }
         return assignments.stream()
                 .map(this::buildAssignmentResponse)
                 .collect(Collectors.toList());

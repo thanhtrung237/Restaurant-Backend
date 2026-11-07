@@ -29,7 +29,7 @@ public class AuditLogController {
     // hàng xem toàn bộ nhà hàng." Phục vụ / Thu ngân KHÔNG có quyền xem nhật ký.
     // Giới hạn theo chi nhánh được phân công nằm ở service.
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<AuditLogResponse>> getAuditLogById(@PathVariable Long id) {
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
@@ -39,7 +39,7 @@ public class AuditLogController {
     }
 
     @GetMapping("")
-    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<PageResponse<AuditLogResponse>>> getAllAuditLogs(
             @RequestParam(required = false) Long restaurantId,
             @RequestParam(required = false) Long branchId,
@@ -47,20 +47,40 @@ public class AuditLogController {
             // be-issues 22 / FR-LOG-01: loc theo loai hanh dong, nhan mot hoac nhieu gia tri
             // (?actionType=LOGIN&actionType=LOGOUT). Bo trong = khong loc.
             @RequestParam(required = false) List<String> actionType,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         // Nhật ký luôn đọc theo thứ tự MỚI NHẤT TRƯỚC. Thiếu sort thì thứ tự do DB quyết
         // định (thực tế ra cũ-nhất-trước), nên trang 1 của màn Nhật ký toàn bản ghi cũ
         // nhất — người dùng tưởng hệ thống không ghi gì thêm.
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "occurredAt"));
+        LocalDateTime start = parseDateTime(startDate);
+        LocalDateTime end = parseDateTime(endDate);
+
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
                 "Lấy danh sách nhật ký thành công",
                 auditLogService.getAllAuditLogs(
-                        restaurantId, branchId, entityType, actionType, startDate, endDate, pageable)
+                        restaurantId, branchId, entityType, actionType, start, end, pageable)
         ));
+    }
+
+    private LocalDateTime parseDateTime(String str) {
+        if (str == null || str.isBlank()) {
+            return null;
+        }
+        try {
+            return java.time.Instant.parse(str)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDateTime();
+        } catch (Exception ignored) {
+            try {
+                return LocalDateTime.parse(str);
+            } catch (Exception e) {
+                return null;
+            }
+        }
     }
 
     @GetMapping("/restaurant/{restaurantId}")

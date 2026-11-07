@@ -10,12 +10,15 @@ import com.group.restaurant.exceptions.ConflictException;
 import com.group.restaurant.exceptions.InvalidParamException;
 import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.mappers.AccountMapper;
+import com.group.restaurant.enums.RoleScope;
 import com.group.restaurant.models.Account;
 import com.group.restaurant.models.Assignment;
 import com.group.restaurant.models.Restaurant;
+import com.group.restaurant.models.Role;
 import com.group.restaurant.repositories.AccountRepository;
 import com.group.restaurant.repositories.AssignmentRepository;
 import com.group.restaurant.repositories.RestaurantRepository;
+import com.group.restaurant.repositories.RoleRepository;
 import com.group.restaurant.services.AuditLogService;
 import com.group.restaurant.services.audit.AuditAction;
 import com.group.restaurant.services.audit.AuditEvent;
@@ -40,6 +43,7 @@ public class AccountServiceImpl implements AccountService {
     private final AccountRepository accountRepository;
     private final RestaurantRepository restaurantRepository;
     private final AssignmentRepository assignmentRepository;
+    private final RoleRepository roleRepository;
     private final AccountMapper accountMapper;
     private final AuditLogService auditLogService;
     private final TenantGuard tenantGuard;
@@ -75,6 +79,30 @@ public class AccountServiceImpl implements AccountService {
             account.setEmployeeCode(generateEmployeeCode(restaurant.getId()));
             savedAccount = accountRepository.save(account);
         }
+
+        // Tự động phân quyền MANAGER cho tài khoản chủ nhà hàng vừa tạo bởi Platform Admin.
+        // Tìm role MANAGER theo restaurant_id để đúng với unique constraint (restaurant_id, code).
+        // Nếu chưa có role MANAGER trong nhà hàng này thì tạo mới.
+        List<Assignment> existing = assignmentRepository.findByAccountId(savedAccount.getId());
+        if (existing.isEmpty()) {
+            Role managerRole = roleRepository.findByRestaurantIdAndCode(restaurant.getId(), "MANAGER")
+                    .orElseGet(() -> {
+                        Role newRole = Role.builder()
+                                .code("MANAGER")
+                                .name("Quản trị nhà hàng")
+                                .scope(RoleScope.RESTAURANT)
+                                .restaurant(restaurant)
+                                .build();
+                        return roleRepository.save(newRole);
+                    });
+            Assignment assignment = Assignment.builder()
+                    .account(savedAccount)
+                    .role(managerRole)
+                    .branch(null)
+                    .build();
+            assignmentRepository.save(assignment);
+        }
+
         return buildAccountResponse(savedAccount);
     }
 
@@ -199,6 +227,15 @@ public class AccountServiceImpl implements AccountService {
     public List<AccountResponse> getAccountsByRestaurant(Long restaurantId) {
         tenantGuard.assertRestaurant(restaurantId);
         List<Account> accounts = accountRepository.findByRestaurantId(restaurantId);
+        return accounts.stream()
+                .map(this::buildAccountResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AccountResponse> getPlatformAdmins() {
+        List<Account> accounts = accountRepository.findPlatformAdmins();
         return accounts.stream()
                 .map(this::buildAccountResponse)
                 .collect(Collectors.toList());
