@@ -35,13 +35,18 @@ public class JwtUtil {
     public String generateAccessToken(Account account) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("accountId", account.getId());
-        claims.put("restaurantId", account.getRestaurant().getId());
+        if (account.getRestaurant() != null) {
+            claims.put("restaurantId", account.getRestaurant().getId());
+        }
         return buildToken(claims, account.getUsername(), jwtAccessExpirationMs, getSignKey(TokenType.ACCESS_TOKEN));
     }
 
     public String generateRefreshToken(Account account) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("accountId", account.getId());
+        if (account.getRestaurant() != null) {
+            claims.put("restaurantId", account.getRestaurant().getId());
+        }
         return buildToken(claims, account.getUsername(), (long) jwtRefreshExpirationDays * 24 * 60 * 60 * 1000,
                 getSignKey(TokenType.REFRESH_TOKEN));
     }

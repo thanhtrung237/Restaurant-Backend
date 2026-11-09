@@ -57,9 +57,12 @@ public class TenantGuard {
             return false;
         }
         Account account = details.getAccount();
+        if (account.getRestaurant() == null) {
+            return true;
+        }
         return account.getAssignments() != null && account.getAssignments().stream()
                 .map(Assignment::getRole)
-                .anyMatch(role -> role != null && role.getScope() == RoleScope.PLATFORM);
+                .anyMatch(role -> role != null && (role.getScope() == RoleScope.PLATFORM || "PLATFORM_ADMIN".equals(role.getCode())));
     }
 
     /**

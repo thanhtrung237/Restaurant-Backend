@@ -15,7 +15,9 @@ import java.util.Map;
 public class RevenueReportResponse {
 
     // ── Tổng quan ───────────────────────────────────────────────────────
-    private BigDecimal totalRevenue;         // Tổng doanh thu
+    private BigDecimal totalRevenue;         // Tổng doanh thu thực nhận (Net Revenue)
+    private BigDecimal totalGrossRevenue;    // Tổng doanh thu gộp (Gross - trước giảm giá)
+    private BigDecimal totalDiscount;        // Tổng tiền khuyến mãi & chiết khấu
     private Long totalInvoices;              // Số hóa đơn
     private Long totalGuests;                // Số khách (từ guest_count)
     private BigDecimal avgRevenuePerInvoice; // Giá trị TB / hóa đơn

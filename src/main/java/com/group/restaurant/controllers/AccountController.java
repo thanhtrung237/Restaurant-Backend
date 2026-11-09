@@ -27,9 +27,9 @@ public class AccountController {
 
     private final AccountService accountService;
 
-    // Quản trị nhà hàng quản lý nhân viên (FR-ADM-01)
+    // Quản trị nhà hàng quản lý nhân viên (FR-ADM-01); PLATFORM_ADMIN tạo tài khoản chủ nhà hàng khi onboard (FR-TEN-02)
     @PostMapping("")
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<AccountResponse>> createAccount(
             @Valid @RequestBody AccountAddRequest request) {
         return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
@@ -38,7 +38,7 @@ public class AccountController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<AccountResponse>> updateAccount(
             @PathVariable Long id, @Valid @RequestBody AccountUpdateRequest request) {
         return ResponseEntity.ok(new ResponseSuccess<>(
@@ -50,7 +50,7 @@ public class AccountController {
     // nên không khoá được về MANAGER. Nhưng "mọi user đã đăng nhập" là quá rộng: Phục vụ
     // đọc được hồ sơ của Quản trị nhà hàng.
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('MANAGER') or @tenantGuard.isSelf(#id)")
+    @PreAuthorize("hasAnyRole('MANAGER', 'PLATFORM_ADMIN') or @tenantGuard.isSelf(#id)")
     public ResponseEntity<ResponseSuccess<AccountResponse>> getAccountById(@PathVariable Long id) {
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK, "Lấy tài khoản thành công", accountService.getAccountById(id)
@@ -58,7 +58,7 @@ public class AccountController {
     }
 
     @GetMapping("/username/{username}")
-    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<AccountResponse>> getAccountByUsername(@PathVariable String username) {
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK, "Lấy tài khoản thành công", accountService.getAccountByUsername(username)
@@ -66,7 +66,7 @@ public class AccountController {
     }
 
     @GetMapping("")
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<PageResponse<AccountResponse>>> getAllAccounts(
             @RequestParam(required = false) Long restaurantId,
             @RequestParam(required = false) AccountStatus status,
@@ -80,12 +80,21 @@ public class AccountController {
     }
 
     @GetMapping("/restaurant/{restaurantId}")
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<List<AccountResponse>>> getAccountsByRestaurant(
             @PathVariable Long restaurantId) {
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK, "Lấy danh sách tài khoản theo nhà hàng thành công",
                 accountService.getAccountsByRestaurant(restaurantId)
+        ));
+    }
+
+    @GetMapping("/platform-admins")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public ResponseEntity<ResponseSuccess<List<AccountResponse>>> getPlatformAdmins() {
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK, "Lấy danh sách quản trị viên nền tảng thành công",
+                accountService.getPlatformAdmins()
         ));
     }
 

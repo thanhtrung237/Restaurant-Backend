@@ -70,7 +70,7 @@ public class BranchController {
     }
 
     @GetMapping("")
-    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<PageResponse<BranchListResponse>>> getAllBranches(
             @RequestParam(required = false) Long restaurantId,
             @RequestParam(required = false) BranchStatus status,
@@ -84,7 +84,7 @@ public class BranchController {
     }
 
     @GetMapping("/restaurant/{restaurantId}")
-    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<List<BranchListResponse>>> getBranchesByRestaurant(
             @PathVariable Long restaurantId) {
         return ResponseEntity.ok(new ResponseSuccess<>(

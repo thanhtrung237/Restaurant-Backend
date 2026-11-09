@@ -8,7 +8,7 @@ import lombok.Setter;
 @Setter
 public class LoginRequest {
 
-    @NotBlank(message = "Mã nhà hàng không được để trống")
+    // Platform Admin không cần restaurantCode (để null), nhân viên nhà hàng cần
     private String restaurantCode;
 
     @NotBlank(message = "Tên đăng nhập không được để trống")

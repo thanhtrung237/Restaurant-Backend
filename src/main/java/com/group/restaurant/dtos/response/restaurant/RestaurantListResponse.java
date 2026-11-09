@@ -14,6 +14,8 @@ public class RestaurantListResponse {
     private Long id;
     private String code;
     private String name;
+    private String taxCode;
+    private String address;
     private String phone;
     private RestaurantStatus status;
     private Integer branchCount;

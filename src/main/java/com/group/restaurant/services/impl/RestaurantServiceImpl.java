@@ -132,7 +132,11 @@ public class RestaurantServiceImpl implements RestaurantService {
 
         List<RestaurantListResponse> responses = restaurantPage.getContent().stream()
                 .filter(r -> currentRestaurantId == null || currentRestaurantId.equals(r.getId()))
-                .map(restaurantMapper::toListResponse)
+                .map(r -> {
+                    RestaurantListResponse resp = restaurantMapper.toListResponse(r);
+                    resp.setBranchCount((int) branchRepository.countByRestaurantId(r.getId()));
+                    return resp;
+                })
                 .collect(Collectors.toList());
 
         return PageResponse.<RestaurantListResponse>builder()

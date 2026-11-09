@@ -22,10 +22,18 @@ public class AccountUserDetails implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return account.getAssignments().stream()
-                .map(Assignment::getRole)
-                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getCode()))
-                .collect(Collectors.toSet());
+        java.util.Set<GrantedAuthority> authorities = new java.util.HashSet<>();
+        if (account.getAssignments() != null) {
+            authorities.addAll(account.getAssignments().stream()
+                    .filter(a -> a.getRole() != null && a.getRole().getCode() != null)
+                    .map(Assignment::getRole)
+                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getCode()))
+                    .collect(Collectors.toSet()));
+        }
+        if (account.getRestaurant() == null) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
+        }
+        return authorities;
     }
 
     @Override
@@ -63,6 +71,6 @@ public class AccountUserDetails implements UserDetails {
     }
 
     public Long getRestaurantId() {
-        return account.getRestaurant().getId();
+        return account.getRestaurant() != null ? account.getRestaurant().getId() : null;
     }
 }

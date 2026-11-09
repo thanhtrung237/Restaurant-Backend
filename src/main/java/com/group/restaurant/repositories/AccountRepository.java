@@ -27,15 +27,19 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
             @Param("restaurantCode") String restaurantCode,
             @Param("username") String username);
 
+    // Tìm Platform Admin (không có restaurant)
+    @Query("SELECT DISTINCT a FROM Account a LEFT JOIN FETCH a.assignments ass LEFT JOIN FETCH ass.role LEFT JOIN FETCH ass.branch WHERE a.restaurant IS NULL AND a.username = :username")
+    Optional<Account> findPlatformAdminByUsername(@Param("username") String username);
+
+    @Query("SELECT DISTINCT a FROM Account a LEFT JOIN FETCH a.assignments ass LEFT JOIN FETCH ass.role WHERE a.restaurant IS NULL")
+    List<Account> findPlatformAdmins();
+
     /**
      * Nhận diện người dùng theo khóa chính, kèm assignments + role + branch.
-     *
-     * Khác `findByIdWithAssignments` (chỉ fetch assignments): {@code AccountUserDetails
-     * .getAuthorities()} đọc `role.getCode()` SAU khi transaction đã đóng, nên role
-     * bắt buộc phải được fetch sẵn, không để lazy.
+     * Dùng LEFT JOIN FETCH cho restaurant để hỗ trợ cả Platform Admin (restaurant IS NULL).
      */
     @Query("SELECT DISTINCT a FROM Account a " +
-           "JOIN FETCH a.restaurant " +
+           "LEFT JOIN FETCH a.restaurant " +
            "LEFT JOIN FETCH a.assignments ass " +
            "LEFT JOIN FETCH ass.role " +
            "LEFT JOIN FETCH ass.branch " +

@@ -59,6 +59,12 @@ public class ReportServiceImpl implements ReportService {
         BigDecimal totalRevenue = invoiceRepository.sumRevenue(branchIds, PAID_STATUSES, from, to);
         if (totalRevenue == null) totalRevenue = BigDecimal.ZERO;
 
+        BigDecimal totalGrossRevenue = invoiceRepository.sumGrossRevenue(branchIds, PAID_STATUSES, from, to);
+        if (totalGrossRevenue == null) totalGrossRevenue = totalRevenue;
+
+        BigDecimal totalDiscount = invoiceRepository.sumDiscount(branchIds, PAID_STATUSES, from, to);
+        if (totalDiscount == null) totalDiscount = BigDecimal.ZERO;
+
         long totalInvoices = invoiceRepository.countInvoices(branchIds, PAID_STATUSES, from, to);
         long totalGuests   = invoiceRepository.sumGuests(branchIds, PAID_STATUSES, from, to);
 
@@ -109,6 +115,8 @@ public class ReportServiceImpl implements ReportService {
 
         return RevenueReportResponse.builder()
                 .totalRevenue(totalRevenue)
+                .totalGrossRevenue(totalGrossRevenue)
+                .totalDiscount(totalDiscount)
                 .totalInvoices(totalInvoices)
                 .totalGuests(totalGuests)
                 .avgRevenuePerInvoice(avgPerInvoice)

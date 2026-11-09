@@ -26,7 +26,7 @@ public class AssignmentController {
     // Trước đây endpoint này KHÔNG có chốt quyền: bất kỳ tài khoản đã đăng nhập nào cũng
     // tự gán được vai trò MANAGER cho chính mình (leo quyền trong cùng nhà hàng).
     @PostMapping("")
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<AssignmentResponse>> createAssignment(
             @Valid @RequestBody AssignmentAddRequest request) {
         return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
@@ -50,7 +50,7 @@ public class AssignmentController {
     // endpoint này cho CHÍNH MÌNH (LoginResponse không trả branchId). Khoá về MANAGER
     // là gãy đăng nhập của Phục vụ / Thu ngân / QL chi nhánh.
     @GetMapping("/account/{accountId}")
-    @PreAuthorize("hasRole('MANAGER') or @tenantGuard.isSelf(#accountId)")
+    @PreAuthorize("hasAnyRole('MANAGER', 'PLATFORM_ADMIN') or @tenantGuard.isSelf(#accountId)")
     public ResponseEntity<ResponseSuccess<List<AssignmentResponse>>> getAssignmentsByAccount(
             @PathVariable Long accountId) {
         return ResponseEntity.ok(new ResponseSuccess<>(

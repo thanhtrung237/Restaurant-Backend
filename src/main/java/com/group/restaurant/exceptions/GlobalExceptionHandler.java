@@ -91,6 +91,20 @@ public class GlobalExceptionHandler {
                 .build();
     }
 
+    @ExceptionHandler({org.springframework.security.authentication.BadCredentialsException.class, 
+                       org.springframework.security.authentication.DisabledException.class})
+    @ResponseStatus(UNAUTHORIZED)
+    public ResponseError handleAuthenticationException(Exception e, WebRequest request) {
+        log.warn("Authentication failed at {}: {}", request.getDescription(false), e.getMessage());
+        return ResponseError.builder()
+                .timestamp(new Date())
+                .status(UNAUTHORIZED.value())
+                .error(UNAUTHORIZED.getReasonPhrase())
+                .message(e.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     @ResponseStatus(FORBIDDEN)
     public ResponseError handleAccessDeniedException(AccessDeniedException e, WebRequest request) {

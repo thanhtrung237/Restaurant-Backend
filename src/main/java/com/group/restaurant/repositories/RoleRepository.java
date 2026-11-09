@@ -13,6 +13,10 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
 
     Optional<Role> findByCode(String code);
 
+    Optional<Role> findByRestaurantIdAndCode(Long restaurantId, String code);
+
+    List<Role> findByScope(RoleScope scope);
+
     List<Role> findByRestaurantId(Long restaurantId);
 
     List<Role> findByRestaurantIdAndScope(Long restaurantId, RoleScope scope);

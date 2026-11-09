@@ -27,6 +27,8 @@ public interface AccountService {
 
     List<AccountResponse> getAccountsByRestaurant(Long restaurantId);
 
+    List<AccountResponse> getPlatformAdmins();
+
     void changeStatus(Long id, AccountStatus status);
 
     void changePassword(Long id, String oldPassword, String newPassword);
