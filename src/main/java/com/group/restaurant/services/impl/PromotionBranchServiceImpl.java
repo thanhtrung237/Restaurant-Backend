@@ -53,6 +53,9 @@ public class PromotionBranchServiceImpl implements PromotionBranchService {
             throw new ConflictException("Khuyến mãi này đã được áp dụng cho chi nhánh");
         }
 
+        // Xóa bản ghi cũ nếu còn tồn tại trong DB để tránh lỗi duplicate constraint
+        promotionBranchRepository.hardDeleteByBranchIdAndPromotionId(request.getBranchId(), request.getPromotionId());
+
         PromotionBranch promotionBranch = PromotionBranch.builder()
                 .branch(branch)
                 .promotion(promotion)
@@ -89,11 +92,11 @@ public class PromotionBranchServiceImpl implements PromotionBranchService {
 
     @Override
     public void removePromotionFromBranch(Long id) {
-        PromotionBranch promotionBranch = promotionBranchRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy liên kết khuyến mãi - chi nhánh với ID: " + id));
+        if (!promotionBranchRepository.existsById(id)) {
+            throw new ResourceNotFoundException(
+                    "Không tìm thấy liên kết khuyến mãi - chi nhánh với ID: " + id);
+        }
 
-        promotionBranch.softDelete(null);
-        promotionBranchRepository.save(promotionBranch);
+        promotionBranchRepository.hardDeleteById(id);
     }
 }

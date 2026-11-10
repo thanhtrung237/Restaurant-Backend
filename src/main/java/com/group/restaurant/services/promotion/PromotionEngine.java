@@ -180,6 +180,7 @@ public class PromotionEngine {
                                                    double orderSubtotal) {
         List<Promotion> orderPromotions = getActivePromotions(branchId, restaurantId).stream()
                 .filter(p -> p.getApplyLevel() == ApplyLevel.INVOICE)
+                .filter(p -> p.getCode() == null || p.getCode().isBlank())
                 .filter(p -> isPromotionStillHasUsage(p))
                 .collect(Collectors.toList());
 
