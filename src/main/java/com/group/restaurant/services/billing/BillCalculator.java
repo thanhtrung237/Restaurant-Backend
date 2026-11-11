@@ -53,8 +53,11 @@ public class BillCalculator {
             return new PromotionSelection(Mode.AUTO, null, null, null);
         }
 
-        /** Ưu tiên KM Thu ngân chọn; không hợp lệ thì rơi về tự chọn. */
+        /** Ưu tiên KM Thu ngân chọn; promotionId <= 0 là chỉ định không áp KM; null thì rơi về tự chọn. */
         public static PromotionSelection prefer(Long promotionId) {
+            if (promotionId != null && promotionId <= 0L) {
+                return none();
+            }
             return promotionId == null ? auto()
                     : new PromotionSelection(Mode.PREFER, promotionId, null, null);
         }
@@ -297,9 +300,8 @@ public class BillCalculator {
         Long restaurantId = branch.getRestaurant().getId();
         double base = afterItemPromo.doubleValue();
         if (sel.mode == PromotionSelection.Mode.PREFER) {
-            PromotionResult preferred = promotionEngine.calculateOrderPromotionById(
+            return promotionEngine.calculateOrderPromotionById(
                     branchId, restaurantId, sel.promotionId, base);
-            if (preferred.hasPromotion()) return preferred;
         }
         return promotionEngine.calculateOrderPromotion(branchId, restaurantId, base);
     }

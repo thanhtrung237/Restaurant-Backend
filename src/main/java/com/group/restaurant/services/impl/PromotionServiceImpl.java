@@ -171,19 +171,41 @@ public class PromotionServiceImpl implements PromotionService {
         }
 
         promotionMapper.updateEntity(promotion, request);
+
+        // Cho phép xóa trắng mã code (để chuyển thành khuyến mãi tự động áp dụng)
+        if (request.getCode() == null || request.getCode().trim().isEmpty()) {
+            promotion.setCode(null);
+        } else {
+            promotion.setCode(request.getCode().trim().toUpperCase());
+        }
+
+        // Cho phép xóa trắng mô tả
+        if (request.getDescription() == null || request.getDescription().trim().isEmpty()) {
+            promotion.setDescription(null);
+        } else {
+            promotion.setDescription(request.getDescription().trim());
+        }
+
+        // Cho phép gỡ bỏ giới hạn lượt dùng (null = không giới hạn)
+        promotion.setUsageLimit(request.getUsageLimit());
+
+        // Cho phép gỡ bỏ khung giờ và ngày trong tuần
+        if (request.getTimeWindow() == null || request.getTimeWindow().trim().isEmpty()) {
+            promotion.setTimeWindow(null);
+        }
+        if (request.getDaysOfWeek() == null || request.getDaysOfWeek().trim().isEmpty()) {
+            promotion.setDaysOfWeek(null);
+        }
         
         // Xử lý thay đổi allBranches và branchIds
         if (request.getAllBranches() != null) {
             promotion.setAllBranches(request.getAllBranches());
             
+            // Xóa sạch toàn bộ gán cũ (hard delete native để tránh lỗi trùng lặp uk_promotion_branch)
+            promotionBranchRepository.hardDeleteByPromotionId(id);
+
             if (request.getAllBranches()) {
-                // Chuyển sang toàn hệ thống: xóa gán cũ, gán lại toàn bộ
-                List<PromotionBranch> oldAssignments = promotionBranchRepository.findByPromotionId(id);
-                for (PromotionBranch pb : oldAssignments) {
-                    pb.softDelete(null);
-                    promotionBranchRepository.save(pb);
-                }
-                
+                // Toàn hệ thống: gán cho tất cả chi nhánh hiện có của nhà hàng
                 List<Branch> branches = branchRepository.findByRestaurantId(promotion.getRestaurant().getId());
                 for (Branch branch : branches) {
                     PromotionBranch pb = PromotionBranch.builder()
@@ -192,14 +214,8 @@ public class PromotionServiceImpl implements PromotionService {
                             .build();
                     promotionBranchRepository.save(pb);
                 }
-            } else if (request.getBranchIds() != null) {
-                // Chuyển sang chi nhánh cụ thể: xóa gán cũ, gán lại theo danh sách
-                List<PromotionBranch> oldAssignments = promotionBranchRepository.findByPromotionId(id);
-                for (PromotionBranch pb : oldAssignments) {
-                    pb.softDelete(null);
-                    promotionBranchRepository.save(pb);
-                }
-                
+            } else if (request.getBranchIds() != null && !request.getBranchIds().isEmpty()) {
+                // Gán chi nhánh cụ thể
                 for (Long branchId : request.getBranchIds()) {
                     Branch branch = branchRepository.findById(branchId)
                             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với ID: " + branchId));
@@ -217,11 +233,7 @@ public class PromotionServiceImpl implements PromotionService {
             }
         } else if (request.getBranchIds() != null && !promotion.isAllBranches()) {
             // Chỉ cập nhật branchIds (không đổi allBranches)
-            List<PromotionBranch> oldAssignments = promotionBranchRepository.findByPromotionId(id);
-            for (PromotionBranch pb : oldAssignments) {
-                pb.softDelete(null);
-                promotionBranchRepository.save(pb);
-            }
+            promotionBranchRepository.hardDeleteByPromotionId(id);
             
             for (Long branchId : request.getBranchIds()) {
                 Branch branch = branchRepository.findById(branchId)
@@ -343,11 +355,8 @@ public class PromotionServiceImpl implements PromotionService {
             throw new InvalidParamException("Khuyến mãi đã có " + promotion.getUsageCount() + " lượt sử dụng không thể xóa, vui lòng chuyển trạng thái sang ngưng hoạt động");
         }
 
-        // Cascade soft delete: PromotionBranch
-        promotionBranchRepository.findByPromotionId(id).forEach(pb -> {
-            pb.softDelete(null);
-            promotionBranchRepository.save(pb);
-        });
+        // Cascade hard delete liên kết chi nhánh
+        promotionBranchRepository.hardDeleteByPromotionId(id);
 
         promotion.softDelete(null);
         promotionRepository.save(promotion);
