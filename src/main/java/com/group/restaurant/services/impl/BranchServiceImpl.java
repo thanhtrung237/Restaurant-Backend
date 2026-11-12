@@ -1,4 +1,5 @@
 package com.group.restaurant.services.impl;
+import com.group.restaurant.services.guest.GeofenceService;
 
 import com.group.restaurant.dtos.request.branch.BranchAddRequest;
 import com.group.restaurant.dtos.request.branch.BranchAdminConfigRequest;
@@ -250,6 +251,12 @@ public class BranchServiceImpl implements BranchService {
     public BranchResponse updateAdminConfig(Long id, BranchAdminConfigRequest request) {
         Branch branch = findBranchById(id);
         String configBefore = adminConfigSnapshot(branch);
+        if (request.getLatitude() != null) branch.setLatitude(request.getLatitude());
+        if (request.getLongitude() != null) branch.setLongitude(request.getLongitude());
+        if (request.getGeofenceEnabled() != null) branch.setGeofenceEnabled(request.getGeofenceEnabled());
+        if (request.getGeofenceRadiusMeters() != null) branch.setGeofenceRadiusMeters(request.getGeofenceRadiusMeters());
+        if (request.getGeofenceMaxAccuracyMeters() != null) branch.setGeofenceMaxAccuracyMeters(request.getGeofenceMaxAccuracyMeters());
+        GeofenceService.validateConfiguration(branch);
 
         boolean vatOrFeeChanging = (request.getVatRate() != null || request.getServiceFeeRate() != null);
         int openSessionCount = 0;
@@ -305,7 +312,10 @@ public class BranchServiceImpl implements BranchService {
 
     /** Ảnh cấu hình cấp Quản trị nhà hàng (thuế/phí/ngưỡng duyệt). */
     private String adminConfigSnapshot(Branch b) {
-        return "vatRate=" + b.getVatRate()
+        return "geofenceEnabled=" + b.isGeofenceEnabled()
+                + "; latitude=" + b.getLatitude() + "; longitude=" + b.getLongitude()
+                + "; radius=" + b.getGeofenceRadiusMeters() + "; maxAccuracy=" + b.getGeofenceMaxAccuracyMeters()
+                + "; vatRate=" + b.getVatRate()
                 + "; serviceFeeRate=" + b.getServiceFeeRate()
                 + "; vatAppliedOnServiceFee=" + b.getVatAppliedOnServiceFee()
                 + "; discountApprovalThreshold=" + b.getDiscountApprovalThreshold()

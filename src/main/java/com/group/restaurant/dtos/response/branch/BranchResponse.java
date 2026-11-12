@@ -14,6 +14,12 @@ import java.time.LocalTime;
 @Setter
 @Builder
 public class BranchResponse {
+    private Double latitude;
+    private Double longitude;
+    private boolean geofenceEnabled;
+    private int geofenceRadiusMeters;
+    private int geofenceMaxAccuracyMeters;
+
 
     private Long id;
     private Long restaurantId;

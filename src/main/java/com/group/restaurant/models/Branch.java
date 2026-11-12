@@ -22,6 +22,18 @@ import java.time.LocalTime;
 @AllArgsConstructor
 public class Branch extends BaseEntity {
 
+    @Column(name = "latitude")
+    private Double latitude;
+    @Column(name = "longitude")
+    private Double longitude;
+    @Column(name = "geofence_enabled", nullable = false)
+    private boolean geofenceEnabled = false;
+    @Column(name = "geofence_radius_meters", nullable = false)
+    private int geofenceRadiusMeters = 150;
+    @Column(name = "geofence_max_accuracy_meters", nullable = false)
+    private int geofenceMaxAccuracyMeters = 100;
+
+
         @Id
         @GeneratedValue(strategy = GenerationType.IDENTITY)
         private Long id;
