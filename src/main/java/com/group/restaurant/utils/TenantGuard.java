@@ -47,6 +47,9 @@ public class TenantGuard {
      */
     public Long currentRestaurantIdOrNull() {
         AccountUserDetails details = currentUserOrNull();
+        if (details != null && details.getRestaurantId() == null && !isPlatformAdmin()) {
+            throw new AccessDeniedException("Tài khoản chưa được gán nhà hàng hoặc quyền nền tảng hợp lệ.");
+        }
         return details != null ? details.getRestaurantId() : null;
     }
 
@@ -57,9 +60,6 @@ public class TenantGuard {
             return false;
         }
         Account account = details.getAccount();
-        if (account.getRestaurant() == null) {
-            return true;
-        }
         return account.getAssignments() != null && account.getAssignments().stream()
                 .map(Assignment::getRole)
                 .anyMatch(role -> role != null && (role.getScope() == RoleScope.PLATFORM || "PLATFORM_ADMIN".equals(role.getCode())));

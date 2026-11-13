@@ -30,9 +30,6 @@ public class AccountUserDetails implements UserDetails {
                     .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getCode()))
                     .collect(Collectors.toSet()));
         }
-        if (account.getRestaurant() == null) {
-            authorities.add(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
-        }
         return authorities;
     }
 
