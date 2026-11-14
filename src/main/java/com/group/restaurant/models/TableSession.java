@@ -17,6 +17,11 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TableSession extends BaseEntity {
+    @Column(name = "guest_access_version", length = 36)
+    private String guestAccessVersion;
+    @Column(name = "guest_join_code", length = 8)
+    private String guestJoinCode;
+
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
