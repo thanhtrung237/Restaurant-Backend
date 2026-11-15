@@ -35,6 +35,9 @@ public class SecurityConfig {
     @Value("${api.prefix}")
     private String apiPrefix;
 
+    @Value("${app.cors.allowed-origin-patterns:http://localhost:*,http://192.168.1.*:*,http://127.0.0.1:*}")
+    private String allowedOriginPatterns;
+
     /**
      * ĐƯỜNG DẪN CÔNG KHAI — nguyên tắc: chỉ mở ĐÚNG endpoint mà KHÁCH KHÔNG ĐĂNG NHẬP
      * cần dùng, theo đúng METHOD, không dùng wildcard `/**` cho cả controller.
@@ -50,6 +53,7 @@ public class SecurityConfig {
 
     /** GET công khai — chỉ đọc, phục vụ luồng quét QR → xem thực đơn → xem hóa đơn. */
     private static final String[] PUBLIC_GET = {
+            "/guest/table",
             // Quét QR bàn
             "/tables/branch/*/qr/*",        // lấy thông tin bàn theo mã QR
             "/tables/*/qr-url",             // xem URL QR (để in)
@@ -93,8 +97,8 @@ public class SecurityConfig {
             "/auth/login",
             "/auth/refresh-token",
 
-            "/tables/scan",                     // quét QR
-            "/table-sessions",                  // quét QR → tạo phiên WAITING_FOR_OPEN
+            "/guest/access",                     // quét QR
+            // Staff use POST /table-sessions; guests use POST /guest/access.
             "/table-sessions/*/request-payment",// khách bấm "Yêu cầu tính tiền"
             "/table-sessions/*/call-staff",     // khách bấm "Gọi nhân viên"
             "/orders",                          // khách gửi giỏ hàng
@@ -134,16 +138,13 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
         // Cho phép tất cả IP trong mạng local (development only)
-        config.setAllowedOriginPatterns(List.of(
-                "http://localhost:*",
-                "http://192.168.1.*:*",
-                "http://127.0.0.1:*"
-        ));
+        config.setAllowedOriginPatterns(Arrays.stream(allowedOriginPatterns.split(","))
+                .map(String::trim).filter(origin -> !origin.isEmpty()).toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         // "Refresh-Token": AuthController.refreshToken đọc token từ header này.
         // Thiếu nó trong allowedHeaders → browser chặn ngay ở preflight → luồng
         // refresh token không bao giờ chạy được từ FE (chỉ chạy khi test bằng Postman).
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Refresh-Token"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Refresh-Token", "X-Guest-Token"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

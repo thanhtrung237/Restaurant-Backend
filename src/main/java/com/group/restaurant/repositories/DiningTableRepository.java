@@ -12,6 +12,10 @@ import java.util.Optional;
 
 @Repository
 public interface DiningTableRepository extends JpaRepository<DiningTable, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from DiningTable t where t.id = :id")
+    Optional<DiningTable> findForGuestAdmission(@Param("id") Long id);
+
 
     List<DiningTable> findByBranchId(Long branchId);
 

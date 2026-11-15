@@ -50,13 +50,16 @@ public class TableSessionServiceImpl implements TableSessionService {
     private final TenantGuard tenantGuard;
     private final OrderNotificationService orderNotificationService;
 
-    // Tạo phiên mới từ quét QR → WAITING_FOR_OPEN (public, FR-CUS-01)
+    // Staff API or validated guest admission creates WAITING_FOR_OPEN (FR-CUS-01).
     @Override
     public TableSessionResponse createSession(TableSessionCreateRequest request) {
         DiningTable table = findTable(request.getTableId());
 
+        tenantGuard.assertBranchAssigned(table.getBranch().getId());
+        // Serialize staff and guest requests on the same table row.
+        diningTableRepository.findForGuestAdmission(table.getId()).orElseThrow();
         // chặn nếu bàn đã có phiên đang hoạt động
-        tableSessionRepository.findActiveSessionByTableId(table.getId()).ifPresent(existing -> {
+        tableSessionRepository.findActiveForGuestAdmission(table.getId()).ifPresent(existing -> {
             throw new ConflictException("Bàn " + table.getName() + " đang có phiên hoạt động chưa kết thúc");
         });
 
@@ -80,7 +83,9 @@ public class TableSessionServiceImpl implements TableSessionService {
         tenantGuard.assertBranch(table.getBranch());
 
         // chặn nếu bàn đã có phiên đang hoạt động (BR-01, BR-29)
-        tableSessionRepository.findActiveSessionByTableId(table.getId()).ifPresent(existing -> {
+        tenantGuard.assertBranchAssigned(table.getBranch().getId());
+        diningTableRepository.findForGuestAdmission(table.getId()).orElseThrow();
+        tableSessionRepository.findActiveForGuestAdmission(table.getId()).ifPresent(existing -> {
             throw new ConflictException("Bàn " + table.getName() + " đang có phiên hoạt động chưa kết thúc");
         });
 
@@ -248,7 +253,9 @@ public class TableSessionServiceImpl implements TableSessionService {
     public TableSessionResponse openSession(TableSessionOpenRequest request) {
         DiningTable table = findTable(request.getTableId());
 
-        tableSessionRepository.findActiveSessionByTableId(table.getId()).ifPresent(existing -> {
+        tenantGuard.assertBranchAssigned(table.getBranch().getId());
+        diningTableRepository.findForGuestAdmission(table.getId()).orElseThrow();
+        tableSessionRepository.findActiveForGuestAdmission(table.getId()).ifPresent(existing -> {
             throw new ConflictException("Bàn " + table.getName() + " đang có phiên hoạt động chưa kết thúc");
         });
 

@@ -19,6 +19,16 @@ import static org.springframework.http.HttpStatus.*;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public org.springframework.http.ResponseEntity<ResponseError> handleStatus(
+            org.springframework.web.server.ResponseStatusException ex, WebRequest request) {
+        var body = ResponseError.builder().timestamp(new Date()).status(ex.getStatusCode().value())
+                .error(ex.getStatusCode().toString()).message(ex.getReason())
+                .path(request.getDescription(false).replace("uri=", "")).build();
+        return org.springframework.http.ResponseEntity.status(ex.getStatusCode())
+                .header("Cache-Control", "no-store").body(body);
+    }
+
 
     @ExceptionHandler(ResourceNotFoundException.class)
     @ResponseStatus(NOT_FOUND)

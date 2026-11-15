@@ -1,4 +1,9 @@
 package com.group.restaurant.services.impl;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.AccessDeniedException;
+import com.group.restaurant.configurations.jwt.AccountUserDetails;
+import com.group.restaurant.services.guest.GuestRateLimiter;
+import com.group.restaurant.services.guest.GuestSessionGuard;
 
 import com.group.restaurant.dtos.request.order.OrderAddRequest;
 import com.group.restaurant.dtos.request.order.OrderUpdateRequest;
@@ -48,9 +53,13 @@ public class OrderServiceImpl implements OrderService {
     private final OrderNotificationService orderNotificationService;
     private final PromotionEngine promotionEngine;
     private final TenantGuard tenantGuard;
+    private final GuestSessionGuard guestSessionGuard;
+    private final GuestRateLimiter guestRateLimiter;
 
     @Override
     public OrderResponse createOrder(OrderAddRequest request) {
+        guestSessionGuard.require(request.getTableSessionId(), true);
+        guestRateLimiter.check("order-session:" + request.getTableSessionId(), 30, 60_000);
         TableSession session = tableSessionRepository.findById(request.getTableSessionId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy phiên làm việc với ID: " + request.getTableSessionId()));
@@ -68,6 +77,12 @@ public class OrderServiceImpl implements OrderService {
         }
 
         Account orderedBy = null;
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof AccountUserDetails staff) {
+            request.setOrderedById(staff.getAccountId());
+        } else {
+            request.setOrderedById(null);
+        }
         if (request.getOrderedById() != null) {
             orderedBy = accountRepository.findById(request.getOrderedById())
                     .orElseThrow(() -> new ResourceNotFoundException(
@@ -221,6 +236,11 @@ public class OrderServiceImpl implements OrderService {
         Dish dish = dishRepository.findById(req.getDishId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với ID: " + req.getDishId()));
 
+        Branch orderingBranch = order.getTableSession().getBranch();
+        if (!dish.getRestaurant().getId().equals(orderingBranch.getRestaurant().getId())
+                || (dish.getBranch() != null && !branchId.equals(dish.getBranch().getId()))) {
+            throw new AccessDeniedException("Món không thuộc thực đơn chi nhánh này.");
+        }
         // ưu tiên giá bản đè chi nhánh
         BigDecimal unitPrice = dishOverrideRepository.findByBranchIdAndDishId(branchId, dish.getId())
                 .filter(ov -> !Boolean.TRUE.equals(ov.getIsHidden()))

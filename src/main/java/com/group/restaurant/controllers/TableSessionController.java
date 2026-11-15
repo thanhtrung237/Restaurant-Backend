@@ -28,6 +28,7 @@ public class TableSessionController {
     /**
      Quét QR → tạo phiên WAITING_FOR_OPEN (public, không cần đăng nhập — FR-CUS-01)
      */
+    @PreAuthorize("hasAnyRole('WAITER','CASHIER','BRANCH_MANAGER','MANAGER')")
     @PostMapping("")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> createSession(
             @Valid @RequestBody TableSessionCreateRequest request) {

@@ -12,6 +12,14 @@ import java.util.Optional;
 
 @Repository
 public interface TableSessionRepository extends JpaRepository<TableSession, Long> {
+        @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+        @Query("select s from TableSession s where s.table.id = :tableId and s.status not in (com.group.restaurant.enums.TableSessionStatus.CLOSED, com.group.restaurant.enums.TableSessionStatus.CANCELLED, com.group.restaurant.enums.TableSessionStatus.MERGED)")
+        Optional<TableSession> findActiveForGuestAdmission(@Param("tableId") Long tableId);
+
+        @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+        @Query("select s from TableSession s where s.id = :id")
+        Optional<TableSession> findForGuestCode(@Param("id") Long id);
+
 
         List<TableSession> findByTableId(Long tableId);
 
