@@ -32,6 +32,7 @@ public class ReportController {
 
     private final ReportService reportService;
     private final ReportExportService reportExportService;
+    private final com.group.restaurant.services.AnomalyDetectionService anomalyDetectionService;
 
     /**
      * FR-RPT-01: Doanh thu ngày/tháng/năm.
@@ -118,6 +119,22 @@ public class ReportController {
                 OK,
                 "Lấy báo cáo so sánh chi nhánh thành công",
                 reportService.getBranchComparison(restaurantId, from, to)));
+    }
+
+    /**
+     * AI-ANOMALY: Phát hiện hành vi bất thường & cảnh báo rủi ro vận hành / gian lận.
+     * Tích hợp thuật toán thống kê phân tích độ lệch & Gemini AI cố vấn điều hành.
+     */
+    @GetMapping("/anomalies")
+    public ResponseEntity<ResponseSuccess<AnomalyReportResponse>> getAnomalyReport(
+            @RequestParam List<Long> branchIds,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+
+        return ResponseEntity.ok(new ResponseSuccess<>(
+                OK,
+                "Quét phát hiện bất thường AI thành công",
+                anomalyDetectionService.detectAnomalies(branchIds, from, to)));
     }
 
     /**

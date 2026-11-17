@@ -97,6 +97,57 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, Long> 
             @Param("from")      java.time.LocalDateTime from,
             @Param("to")        java.time.LocalDateTime to);
 
+    /**
+     * AI Anomaly: Tìm các phiên bàn có từ 2 lần hủy món trở lên.
+     * Trả về: [sessionId, branchId, tableName, cancelCount, cancelAmount]
+     */
+    @Query(value = """
+        SELECT ts.id AS sessionId,
+               ts.branch_id AS branchId,
+               COALESCE(dt.name, CONCAT('Bàn ', ts.table_id)) AS tableName,
+               COUNT(od.id) AS cancelCount,
+               COALESCE(SUM(od.price_at_order_time * od.quantity), 0) AS cancelAmount
+        FROM order_detail od
+        JOIN table_session ts ON ts.id = od.table_session_id
+        LEFT JOIN dining_table dt ON dt.id = ts.table_id
+        WHERE ts.branch_id IN :branchIds
+          AND od.status = 3
+          AND od.is_deleted = false
+          AND ts.created_at BETWEEN :from AND :to
+        GROUP BY ts.id, ts.branch_id, dt.name, ts.table_id
+        HAVING COUNT(od.id) >= 2
+        ORDER BY cancelCount DESC
+        LIMIT 10
+        """, nativeQuery = true)
+    List<Object[]> findSessionsWithMultipleCancellations(
+            @Param("branchIds") List<Long> branchIds,
+            @Param("from")      java.time.LocalDateTime from,
+            @Param("to")        java.time.LocalDateTime to);
+
+    /**
+     * AI Anomaly: Tìm khung giờ có đột biến hủy món (>= 2 món trong 1 khung giờ).
+     * Trả về: [branchId, hour, cancelCount]
+     */
+    @Query(value = """
+        SELECT ts.branch_id AS branchId,
+               HOUR(od.created_at) AS hr,
+               COUNT(od.id) AS cancelCount
+        FROM order_detail od
+        JOIN table_session ts ON ts.id = od.table_session_id
+        WHERE ts.branch_id IN :branchIds
+          AND od.status = 3
+          AND od.is_deleted = false
+          AND ts.created_at BETWEEN :from AND :to
+        GROUP BY ts.branch_id, HOUR(od.created_at)
+        HAVING COUNT(od.id) >= 2
+        ORDER BY cancelCount DESC
+        LIMIT 5
+        """, nativeQuery = true)
+    List<Object[]> findHourlyCancellationSpikes(
+            @Param("branchIds") List<Long> branchIds,
+            @Param("from")      java.time.LocalDateTime from,
+            @Param("to")        java.time.LocalDateTime to);
+
     /** Tổng dòng món tính tiền (SERVED + CANCELLED billable) theo chi nhánh — làm mẫu số tỷ lệ hủy.
      *  Loại trừ PENDING_WEIGHT(4) vì chưa có giá chính thức.
      */

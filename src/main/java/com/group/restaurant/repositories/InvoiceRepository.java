@@ -79,6 +79,23 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             @Param("from")       LocalDateTime from,
             @Param("to")         LocalDateTime to);
 
+    /**
+     * AI Anomaly: Tìm các hóa đơn có chiết khấu thủ công (manual discount).
+     */
+    @Query("""
+        SELECT i FROM Invoice i
+        WHERE i.branch.id IN :branchIds
+          AND i.status IN :statuses
+          AND i.totalManualDiscount > 0
+          AND i.createdAt BETWEEN :from AND :to
+        ORDER BY i.totalManualDiscount DESC
+        """)
+    List<Invoice> findInvoicesWithManualDiscount(
+            @Param("branchIds")  List<Long> branchIds,
+            @Param("statuses")   List<InvoiceStatus> statuses,
+            @Param("from")       LocalDateTime from,
+            @Param("to")         LocalDateTime to);
+
     @Query("""
         SELECT COUNT(i)
         FROM Invoice i
