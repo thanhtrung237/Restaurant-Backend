@@ -19,6 +19,15 @@ import static org.springframework.http.HttpStatus.*;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    @ResponseStatus(NOT_FOUND)
+    public ResponseError handleMissingResource(
+            org.springframework.web.servlet.resource.NoResourceFoundException ex, WebRequest request) {
+        return ResponseError.builder().timestamp(new Date()).status(NOT_FOUND.value())
+                .error(NOT_FOUND.getReasonPhrase()).message("Không tìm thấy API hoặc tài nguyên được yêu cầu.")
+                .path(request.getDescription(false).replace("uri=", "")).build();
+    }
+
     @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
     public org.springframework.http.ResponseEntity<ResponseError> handleStatus(
             org.springframework.web.server.ResponseStatusException ex, WebRequest request) {
