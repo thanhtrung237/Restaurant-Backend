@@ -94,6 +94,8 @@ public class SecurityConfig {
 
     /** POST công khai — các hành động khách tự làm được trên thiết bị của mình. */
     private static final String[] PUBLIC_POST = {
+            "/invoices/session/*/qr-opened",
+            "/webhooks/sepay",
             "/auth/login",
             "/auth/refresh-token",
 

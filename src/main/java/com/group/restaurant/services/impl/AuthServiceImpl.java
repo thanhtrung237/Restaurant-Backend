@@ -115,29 +115,6 @@ public class AuthServiceImpl implements AuthService {
             }
         }
 
-        // Đảm bảo tài khoản nhà hàng luôn có ít nhất vai trò MANAGER.
-        // Xử lý các tài khoản chủ nhà hàng được tạo trước khi có logic auto-assign.
-        if (account.getRestaurant() != null && currentAssignments.isEmpty()) {
-            Long restaurantId = account.getRestaurant().getId();
-            Role managerRole = roleRepository.findByRestaurantIdAndCode(restaurantId, "MANAGER")
-                    .orElseGet(() -> {
-                        Role newRole = Role.builder()
-                                .code("MANAGER")
-                                .name("Quản trị nhà hàng")
-                                .scope(RoleScope.RESTAURANT)
-                                .restaurant(account.getRestaurant())
-                                .build();
-                        return roleRepository.save(newRole);
-                    });
-            Assignment assignment = Assignment.builder()
-                    .account(account)
-                    .role(managerRole)
-                    .branch(null)
-                    .build();
-            assignment = assignmentRepository.save(assignment);
-            currentAssignments = List.of(assignment);
-        }
-
         String accessToken = jwtUtil.generateAccessToken(account);
         String refreshTokenStr = jwtUtil.generateRefreshToken(account);
         LocalDate expiryDate = jwtUtil.getExpirationDate(refreshTokenStr, TokenType.REFRESH_TOKEN);

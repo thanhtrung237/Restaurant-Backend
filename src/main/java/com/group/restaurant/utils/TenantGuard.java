@@ -15,6 +15,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -122,6 +123,27 @@ public class TenantGuard {
     public static final String ROLE_WAITER = "WAITER";
     public static final String ROLE_CASHIER = "CASHIER";
 
+    /** FR-MNU-02/04: chỉ quản trị nhà hàng sửa món chung, quản lý chi nhánh sửa món riêng được phân công. */
+    public void assertMenuDishWrite(Long restaurantId, Branch branch) {
+        assertRestaurant(restaurantId);
+        if (branch != null && (branch.getRestaurant() == null
+                || !Objects.equals(restaurantId, branch.getRestaurant().getId()))) {
+            throw new AccessDeniedException("Chi nhánh không thuộc nhà hàng của món");
+        }
+
+        AccountUserDetails details = currentUserOrNull();
+        if (details != null && details.getAuthorities().stream()
+                .anyMatch(authority -> ("ROLE_" + ROLE_MANAGER).equals(authority.getAuthority()))) {
+            return;
+        }
+        if (details != null && details.getAccount().getAssignments() != null && branch != null
+                && assignmentsMatching(details, new String[]{ROLE_BRANCH_MANAGER})
+                .anyMatch(branch.getId()::equals)) {
+            return;
+        }
+        throw new AccessDeniedException("Bạn chỉ được quản lý món riêng của chi nhánh được phân công");
+    }
+
     /**
      * true nếu {@code accountId} chính là người đang đăng nhập.
      *
@@ -169,6 +191,14 @@ public class TenantGuard {
         if (!assigned) {
             throw new AccessDeniedException(
                     "Bạn không được phân công ở chi nhánh này");
+        }
+    }
+
+    public void assertBranchRole(Branch branch, String roleCode) {
+        AccountUserDetails details = currentUserOrNull();
+        if (details == null || !Objects.equals(details.getRestaurantId(), branch.getRestaurant().getId())
+                || assignmentsMatching(details, roleCode).noneMatch(branch.getId()::equals)) {
+            throw new AccessDeniedException("Bạn không được phân công quản lý chi nhánh này.");
         }
     }
 
