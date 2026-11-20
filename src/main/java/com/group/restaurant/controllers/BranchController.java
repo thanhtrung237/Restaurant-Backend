@@ -109,9 +109,9 @@ public class BranchController {
         return ResponseEntity.ok(new ResponseSuccess<>(OK, "Xóa chi nhánh thành công", null));
     }
 
-    // FR-BRN-02 Nhóm 1: Quản lý chi nhánh cấu hình giờ giấc, tài khoản ngân hàng, timeout
+    // FR-BRN-02: Giờ giấc và timeout dùng chung. Tài khoản ngân hàng dành cho Quản trị nhà hàng.
     @PutMapping("/{id}/config/manager")
-    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
+    @PreAuthorize("hasRole('MANAGER') or (hasRole('BRANCH_MANAGER') and !#request.bankAccountNoProvided and !#request.bankNameProvided)")
     public ResponseEntity<ResponseSuccess<BranchResponse>> updateManagerConfig(
             @PathVariable Long id, @Valid @RequestBody BranchManagerConfigRequest request) {
         return ResponseEntity.ok(new ResponseSuccess<>(
