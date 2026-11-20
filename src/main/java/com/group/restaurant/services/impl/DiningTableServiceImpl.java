@@ -21,6 +21,9 @@ import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.DiningTableRepository;
 import com.group.restaurant.repositories.TableSessionRepository;
 import com.group.restaurant.services.DiningTableService;
+import com.group.restaurant.utils.TenantGuard;
+import com.group.restaurant.enums.OperationalPermission;
+import com.group.restaurant.services.OperationalPermissionService;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
 import com.google.zxing.WriterException;
@@ -52,18 +55,19 @@ public class DiningTableServiceImpl implements DiningTableService {
     private final AreaRepository areaRepository;
     private final TableSessionRepository tableSessionRepository;
     private final DiningTableMapper diningTableMapper;
+    private final TenantGuard tenantGuard;
+    private final OperationalPermissionService permissions;
 
     @Override
     public DiningTableResponse createTable(DiningTableAddRequest request) {
         Branch branch = branchRepository.findById(request.getBranchId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy chi nhánh với ID: " + request.getBranchId()));
+        assertTableNameNotRetired(branch.getId(), request.getName());
 
         Area area = null;
         if (request.getAreaId() != null) {
-            area = areaRepository.findById(request.getAreaId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Không tìm thấy khu vực với ID: " + request.getAreaId()));
+            area = findAreaInBranch(request.getAreaId(), branch.getId());
         }
 
         if (request.getQrCode() != null && !request.getQrCode().isBlank() &&
@@ -82,13 +86,19 @@ public class DiningTableServiceImpl implements DiningTableService {
 
     @Override
     public DiningTableResponse updateTable(Long id, DiningTableUpdateRequest request) {
-        DiningTable table = findTableById(id);
+        DiningTable table = findTableForWrite(id);
+        tenantGuard.assertBranchAssigned(table.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
+        if (request.getName() != null && !request.getName().equals(table.getName())) {
+            assertTableNameNotRetired(table.getBranch().getId(), request.getName());
+        }
 
-        if (request.getAreaId() != null) {
-            Area area = areaRepository.findById(request.getAreaId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Không tìm thấy khu vực với ID: " + request.getAreaId()));
-            table.setArea(area);
+        if (request.isClearArea()) {
+            if (request.getAreaId() != null) {
+                throw new InvalidParamException("Chỉ chọn một cách cập nhật khu vực");
+            }
+            table.setArea(null);
+        } else if (request.getAreaId() != null) {
+            table.setArea(findAreaInBranch(request.getAreaId(), table.getBranch().getId()));
         }
 
         if (request.getQrCode() != null && !request.getQrCode().isBlank() &&
@@ -102,6 +112,12 @@ public class DiningTableServiceImpl implements DiningTableService {
         diningTableMapper.updateEntity(table, request);
         DiningTable updatedTable = diningTableRepository.save(table);
         return buildDiningTableResponse(updatedTable);
+    }
+
+    private Area findAreaInBranch(Long areaId, Long branchId) {
+        return areaRepository.findForTableAssignment(areaId)
+                .filter(area -> branchId.equals(area.getBranch().getId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khu vực trong chi nhánh của bàn"));
     }
 
     @Override
@@ -169,16 +185,46 @@ public class DiningTableServiceImpl implements DiningTableService {
 
     @Override
     public void changeStatus(Long id, DiningTableStatus status) {
-        DiningTable table = findTableById(id);
+        DiningTable table = findTableForWrite(id);
+        tenantGuard.assertBranchAssigned(table.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
+        if (status == DiningTableStatus.RESERVED || table.getStatus() == DiningTableStatus.RESERVED) {
+            throw new ConflictException("Hãy dùng thao tác đặt bàn hoặc hủy đặt bàn.");
+        }
+        if (status == DiningTableStatus.INACTIVE || table.getStatus() == DiningTableStatus.INACTIVE) {
+            assertTableIdle(table);
+        }
         table.setStatus(status);
         diningTableRepository.save(table);
     }
 
     @Override
     public void deleteTable(Long id) {
-        DiningTable table = findTableById(id);
+        DiningTable table = findTableForWrite(id);
+        tenantGuard.assertBranchAssigned(table.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
+        assertTableIdle(table);
+        if (tableSessionRepository.countHistoryByTableId(id) > 0) {
+            throw new ConflictException("Bàn đã có lịch sử. Hãy chọn Ngừng sử dụng để giữ dữ liệu.");
+        }
         table.softDelete(null);
         diningTableRepository.save(table);
+    }
+
+    private void assertTableIdle(DiningTable table) {
+        if (table.getStatus() == DiningTableStatus.OCCUPIED || table.getStatus() == DiningTableStatus.RESERVED
+                || tableSessionRepository.countActiveSessionsByTableId(table.getId()) > 0) {
+            throw new ConflictException("Bàn còn phiên hoạt động hoặc lịch đặt trước. Hãy xử lý phiên trước khi tiếp tục.");
+        }
+    }
+
+    private void assertTableNameNotRetired(Long branchId, String name) {
+        if (diningTableRepository.countDeletedWithName(branchId, name) > 0) {
+            throw new ConflictException("Tên bàn đã từng được dùng. Hãy chọn tên khác để tránh trùng với mã QR cũ.");
+        }
+    }
+
+    private DiningTable findTableForWrite(Long id) {
+        return diningTableRepository.findForGuestAdmission(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn với ID: " + id));
     }
 
     private DiningTable findTableById(Long id) {
@@ -195,7 +241,8 @@ public class DiningTableServiceImpl implements DiningTableService {
 
     @Override
     public DiningTableResponse reserveTable(Long tableId, DiningTableReservationRequest request) {
-        DiningTable table = findTableById(tableId);
+        DiningTable table = findTableForWrite(tableId);
+        permissions.require(table.getBranch().getId(), OperationalPermission.RESERVE_TABLE);
 
         // 1. Bàn phải ở trạng thái AVAILABLE mới được đặt trước (BR-29)
         if (table.getStatus() != DiningTableStatus.AVAILABLE) {
@@ -234,7 +281,10 @@ public class DiningTableServiceImpl implements DiningTableService {
 
     @Override
     public String generateQrCode(Long tableId, String frontendBaseUrl) {
-        DiningTable table = findTableById(tableId);
+        DiningTable table = findTableForWrite(tableId);
+        if (table.getStatus() == DiningTableStatus.INACTIVE) {
+            throw new ConflictException("Bàn đã ngừng sử dụng.");
+        }
 
         String baseUrl = (frontendBaseUrl != null && !frontendBaseUrl.isBlank())
                 ? frontendBaseUrl.replaceAll("/$", "")
@@ -263,16 +313,7 @@ public class DiningTableServiceImpl implements DiningTableService {
     @Override
     @Transactional
     public String getQrUrl(Long tableId, String frontendBaseUrl) {
-        DiningTable table = findTableById(tableId);
-        String baseUrl = (frontendBaseUrl != null && !frontendBaseUrl.isBlank())
-                ? frontendBaseUrl.replaceAll("/$", "")
-                : "http://localhost:5173";
-
-        if (table.getQrCode() == null || table.getQrCode().isBlank() || table.getQrCode().startsWith("http")) {
-            return generateQrCode(tableId, baseUrl);
-        }
-
-        return baseUrl + "/ban/" + table.getQrCode();
+        return generateQrCode(tableId, frontendBaseUrl);
     }
 
     @Override
@@ -327,7 +368,10 @@ public class DiningTableServiceImpl implements DiningTableService {
      */
     @Override
     public QrScanResponse scanQr(Long tableId) {
-        DiningTable table = findTableById(tableId);
+        DiningTable table = findTableForWrite(tableId);
+        if (table.getStatus() == DiningTableStatus.INACTIVE) {
+            throw new ConflictException("Bàn đã ngừng sử dụng.");
+        }
         Branch branch = table.getBranch();
 
         // ── TH1: Chi nhánh ngưng hoạt động ─────────────────────────────────
@@ -427,7 +471,8 @@ public class DiningTableServiceImpl implements DiningTableService {
 
     @Override
     public void cancelReservation(Long tableId) {
-        DiningTable table = findTableById(tableId);
+        DiningTable table = findTableForWrite(tableId);
+        permissions.require(table.getBranch().getId(), OperationalPermission.RESERVE_TABLE);
 
         if (table.getStatus() != DiningTableStatus.RESERVED) {
             throw new ConflictException("Bàn không ở trạng thái đặt trước để thực hiện hủy");

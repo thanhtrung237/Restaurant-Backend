@@ -34,14 +34,25 @@ public class AreaServiceImpl implements AreaService {
 
     @Override
     public AreaResponse createArea(AreaAddRequest request) {
+        tenantGuard.assertBranchAssigned(request.getBranchId(), TenantGuard.ROLE_BRANCH_MANAGER);
         Branch branch = branchRepository.findById(request.getBranchId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với ID: " + request.getBranchId()));
 
-        if (areaRepository.existsByBranchIdAndName(request.getBranchId(), request.getName())) {
-            throw new ConflictException("Khu vực '" + request.getName() + "' đã tồn tại trong chi nhánh này");
+        String name = request.getName().strip();
+        if (areaRepository.existsByBranchIdAndNameIgnoreCase(request.getBranchId(), name)) {
+            throw new ConflictException("Khu vực '" + name + "' đã tồn tại trong chi nhánh này");
+        }
+        var deletedId = areaRepository.findDeletedId(branch.getId(), name);
+        if (deletedId.isPresent()) {
+            Long id = deletedId.get();
+            if (areaRepository.restoreDeleted(id, AreaStatus.ACTIVE.getValue()) == 0) {
+                throw new ConflictException("Khu vực '" + name + "' đã tồn tại trong chi nhánh này");
+            }
+            return buildAreaResponse(findAreaById(id));
         }
 
         Area area = areaMapper.toEntity(request);
+        area.setName(name);
         area.setBranch(branch);
         area.setStatus(AreaStatus.ACTIVE);
 
@@ -51,10 +62,10 @@ public class AreaServiceImpl implements AreaService {
 
     @Override
     public AreaResponse updateArea(Long id, AreaUpdateRequest request) {
-        Area area = findAreaById(id);
+        Area area = findAreaForWrite(id);
 
         if (!area.getName().equalsIgnoreCase(request.getName()) &&
-                areaRepository.existsByBranchIdAndName(area.getBranch().getId(), request.getName())) {
+                areaRepository.existsByBranchIdAndNameIgnoreCase(area.getBranch().getId(), request.getName())) {
             throw new ConflictException("Khu vực '" + request.getName() + "' đã tồn tại trong chi nhánh này");
         }
 
@@ -110,25 +121,28 @@ public class AreaServiceImpl implements AreaService {
 
     @Override
     public void changeStatus(Long id, AreaStatus status) {
-        Area area = findAreaById(id);
+        Area area = findAreaForWrite(id);
         area.setStatus(status);
         areaRepository.save(area);
     }
 
     @Override
     public void deleteArea(Long id) {
-        Area area = findAreaById(id);
-
-        diningTableRepository.findByAreaId(id).forEach(table -> {
-            table.softDelete(null);
-            diningTableRepository.save(table);
-        });
-
+        Area area = findAreaForWrite(id);
+        if (diningTableRepository.existsByAreaId(id)) {
+            throw new ConflictException("Khu vực còn bàn. Hãy chuyển các bàn sang khu vực khác trước khi xóa.");
+        }
         area.softDelete(null);
         areaRepository.save(area);
     }
 
-    /** Chốt tenant tại finder: phủ getAreaById / updateArea / changeStatus / deleteArea. */
+    private Area findAreaForWrite(Long id) {
+        Area area = areaRepository.findForTableAssignment(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khu vực với ID: " + id));
+        tenantGuard.assertBranchAssigned(area.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
+        return area;
+    }
+
     private Area findAreaById(Long id) {
         Area area = areaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khu vực với ID: " + id));
