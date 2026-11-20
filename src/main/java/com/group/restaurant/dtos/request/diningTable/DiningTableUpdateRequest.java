@@ -10,6 +10,7 @@ import lombok.Setter;
 public class DiningTableUpdateRequest {
 
     private Long areaId;
+    private boolean clearArea;
 
     @Size(max = 50, message = "Tên bàn không được vượt quá 50 ký tự")
     private String name;

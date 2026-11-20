@@ -8,8 +8,7 @@ import lombok.Setter;
 
 import java.time.LocalTime;
 
-/** Quản lý chi nhánh có thể sửa:
- giờ mở/đóng, giờ bắt đầu ngày kinh doanh, tài khoản ngân hàng, timeout CHỜ MỞ BÀN, timeout ĐẶT TRƯỚC */
+/** Cấu hình giờ giấc và timeout. Các trường tài khoản ngân hàng yêu cầu quyền Quản trị nhà hàng. */
 @Getter
 @Setter
 public class BranchManagerConfigRequest {

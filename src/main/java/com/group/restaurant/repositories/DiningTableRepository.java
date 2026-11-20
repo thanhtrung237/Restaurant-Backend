@@ -23,6 +23,11 @@ public interface DiningTableRepository extends JpaRepository<DiningTable, Long> 
 
     List<DiningTable> findByAreaId(Long areaId);
 
+    boolean existsByAreaId(Long areaId);
+
+    @Query(value = "select count(*) from dining_table where branch_id = :branchId and name = :name and is_deleted = true", nativeQuery = true)
+    long countDeletedWithName(@Param("branchId") Long branchId, @Param("name") String name);
+
     Optional<DiningTable> findByBranchIdAndQrCode(Long branchId, String qrCode);
 
     long countByBranchId(Long branchId);
