@@ -40,6 +40,7 @@ public class OptionGroupServiceImpl implements OptionGroupService {
 
     @Override
     public OptionGroupResponse createOptionGroup(OptionGroupAddRequest request) {
+        tenantGuard.assertRestaurant(request.getRestaurantId());
         // Validate restaurant exists
         Restaurant restaurant = restaurantRepository.findById(request.getRestaurantId())
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -95,6 +96,7 @@ public class OptionGroupServiceImpl implements OptionGroupService {
     @Override
     @Transactional(readOnly = true)
     public List<OptionGroupResponse> getOptionGroupsByRestaurant(Long restaurantId) {
+        tenantGuard.assertRestaurant(restaurantId);
         List<OptionGroup> optionGroups = optionGroupRepository.findByRestaurantId(restaurantId);
         return optionGroups.stream()
                 .map(optionGroupMapper::toResponse)
@@ -161,8 +163,10 @@ public class OptionGroupServiceImpl implements OptionGroupService {
     }
 
     private OptionGroup findById(Long id) {
-        return optionGroupRepository.findById(id)
+        OptionGroup group = optionGroupRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhóm tùy chọn với ID: " + id));
+        tenantGuard.assertRestaurant(group.getRestaurant().getId());
+        return group;
     }
 
     private void validateSelectionRange(SelectionType selectionType, int minSelect, int maxSelect) {

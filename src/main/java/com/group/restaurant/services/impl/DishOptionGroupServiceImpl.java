@@ -34,9 +34,7 @@ public class DishOptionGroupServiceImpl implements DishOptionGroupService {
     @Override
     public DishOptionGroupResponse linkDishToOptionGroup(DishOptionGroupAddRequest request) {
         // Validate dish exists
-        Dish dish = dishRepository.findById(request.getDishId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy món ăn với ID: " + request.getDishId()));
+        Dish dish = lockDish(request.getDishId());
 
         // Validate option group exists
         OptionGroup optionGroup = optionGroupRepository.findById(request.getOptionGroupId())
@@ -45,14 +43,20 @@ public class DishOptionGroupServiceImpl implements DishOptionGroupService {
 
         // Món và nhóm tùy chọn phải cùng thuộc nhà hàng của người đăng nhập —
         // chặn liên kết chéo giữa 2 nhà hàng.
-        tenantGuard.assertRestaurant(dish.getRestaurant() != null ? dish.getRestaurant().getId() : null);
+        tenantGuard.assertMenuDishWrite(dish.getRestaurant().getId(), dish.getBranch());
         tenantGuard.assertRestaurant(
                 optionGroup.getRestaurant() != null ? optionGroup.getRestaurant().getId() : null);
 
-        // Check duplicate link
-        if (dishOptionGroupRepository.existsByDishIdAndOptionGroupId(
-                request.getDishId(), request.getOptionGroupId())) {
-            throw new ConflictException("Món ăn đã được liên kết với nhóm tùy chọn này");
+        var existing = dishOptionGroupRepository.findIncludingDeleted(dish.getId(), optionGroup.getId());
+        if (existing.isPresent()) {
+            DishOptionGroup link = existing.get();
+            if (!Boolean.TRUE.equals(link.getIsDeleted())) {
+                throw new ConflictException("Món ăn đã được liên kết với nhóm tùy chọn này");
+            }
+            link.setIsDeleted(false);
+            link.setDeletedAt(null);
+            link.setDeletedBy(null);
+            return dishOptionGroupMapper.toResponse(link);
         }
 
         DishOptionGroup dishOptionGroup = dishOptionGroupMapper.toEntity(request);
@@ -91,10 +95,17 @@ public class DishOptionGroupServiceImpl implements DishOptionGroupService {
     @Override
     public void unlinkDishFromOptionGroup(Long id) {
         DishOptionGroup dishOptionGroup = findById(id);
-        
+        Dish dish = lockDish(dishOptionGroup.getDish().getId());
+        tenantGuard.assertMenuDishWrite(dish.getRestaurant().getId(), dish.getBranch());
+
         // Soft delete
         dishOptionGroup.softDelete(null);
         dishOptionGroupRepository.save(dishOptionGroup);
+    }
+
+    private Dish lockDish(Long id) {
+        return dishRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món ăn với ID: " + id));
     }
 
     /** Chốt tenant tại finder: phủ getDishOptionGroupById / unlinkDishFromOptionGroup. */

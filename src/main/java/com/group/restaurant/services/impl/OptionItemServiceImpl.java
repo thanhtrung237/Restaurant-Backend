@@ -36,6 +36,7 @@ public class OptionItemServiceImpl implements OptionItemService {
         OptionGroup optionGroup = optionGroupRepository.findById(request.getOptionGroupId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy nhóm tùy chọn với ID: " + request.getOptionGroupId()));
+        tenantGuard.assertRestaurant(optionGroup.getRestaurant().getId());
 
         OptionItem optionItem = optionItemMapper.toEntity(request);
         optionItem.setOptionGroup(optionGroup);
@@ -116,7 +117,9 @@ public class OptionItemServiceImpl implements OptionItemService {
     }
 
     private OptionItem findById(Long id) {
-        return optionItemRepository.findById(id)
+        OptionItem item = optionItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lựa chọn với ID: " + id));
+        tenantGuard.assertRestaurant(item.getOptionGroup().getRestaurant().getId());
+        return item;
     }
 }

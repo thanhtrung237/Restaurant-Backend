@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,6 +27,7 @@ public class OptionItemController {
     private final OptionItemService optionItemService;
 
     @PostMapping("")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<OptionItemResponse>> createOptionItem(
             @Valid @RequestBody OptionItemAddRequest request) {
         return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
@@ -36,6 +38,7 @@ public class OptionItemController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<OptionItemResponse>> updateOptionItem(
             @PathVariable Long id,
             @Valid @RequestBody OptionItemUpdateRequest request) {
@@ -81,6 +84,7 @@ public class OptionItemController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ResponseSuccess<Void>> deleteOptionItem(@PathVariable Long id) {
         optionItemService.deleteOptionItem(id);
         return ResponseEntity.ok(new ResponseSuccess<>(
