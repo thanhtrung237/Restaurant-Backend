@@ -72,8 +72,9 @@ public class KitchenTicketServiceImpl implements KitchenTicketService {
 
         if (!items.isEmpty()) {
             OrderDetail first = items.get(0);
-            String tableNo = first.getOrder().getTableSession().getTable().getName();
-            sb.append("Bàn: ").append(tableNo).append("\n");
+            var session = first.getOrder().getTableSession();
+            if (!session.isTakeaway()) sb.append("Bàn: ");
+            sb.append(session.getDisplayName()).append("\n");
             sb.append("Order #").append(orderId).append("\n");
         }
 

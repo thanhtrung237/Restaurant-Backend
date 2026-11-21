@@ -16,7 +16,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findByTableSessionIdAndStatus(Long tableSessionId, OrderStatus status);
 
-    @Query("SELECT o FROM Order o WHERE o.tableSession.table.branch.id = :branchId AND o.status = :status")
+    @Query("SELECT o FROM Order o WHERE o.tableSession.branch.id = :branchId AND o.status = :status")
     List<Order> findByBranchIdAndStatus(@Param("branchId") Long branchId, @Param("status") OrderStatus status);
 
     long countByTableSessionId(Long tableSessionId);
