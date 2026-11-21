@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 public class DishOverrideUpdateRequest {
 
     private BigDecimal overridePrice;
+    private boolean clearOverridePrice;
 
     private Boolean isHidden;
 }

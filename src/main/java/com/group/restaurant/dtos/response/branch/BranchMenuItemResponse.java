@@ -1,5 +1,6 @@
 package com.group.restaurant.dtos.response.branch;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.group.restaurant.enums.StockStatus;
 import lombok.Builder;
 import lombok.Getter;
@@ -38,11 +39,13 @@ public class BranchMenuItemResponse {
     private boolean hasOverride;
 
     // true = món bị ẩn tại chi nhánh này
+    @Getter(onMethod_ = @JsonProperty("isHidden"))
     private boolean isHidden;
 
     // Trạng thái tồn kho tại chi nhánh (FR-MNU-03)
     private StockStatus stockStatus;
 
     // true = món riêng của chi nhánh (không phải món gốc nhà hàng)
+    @Getter(onMethod_ = @JsonProperty("isBranchSpecific"))
     private boolean isBranchSpecific;
 }

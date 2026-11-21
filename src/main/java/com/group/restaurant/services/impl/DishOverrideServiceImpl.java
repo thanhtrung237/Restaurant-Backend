@@ -16,6 +16,7 @@ import com.group.restaurant.services.DishOverrideService;
 import com.group.restaurant.utils.TenantGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -38,14 +39,24 @@ public class DishOverrideServiceImpl implements DishOverrideService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy chi nhánh với ID: " + request.getBranchId()));
 
-        Dish dish = dishRepository.findById(request.getDishId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy món ăn với ID: " + request.getDishId()));
+        tenantGuard.assertBranchAssigned(branch.getId(), TenantGuard.ROLE_BRANCH_MANAGER);
+        Dish dish = lockDish(request.getDishId());
+        if (!branch.getRestaurant().getId().equals(dish.getRestaurant().getId())) {
+            throw new AccessDeniedException("Món ăn không thuộc nhà hàng của chi nhánh");
+        }
 
-        if (dishOverrideRepository.findByBranchIdAndDishId(request.getBranchId(), request.getDishId()).isPresent()) {
-            throw new ConflictException(
-                    "Đã tồn tại tùy chỉnh giá cho chi nhánh ID: " + request.getBranchId() + " và món ID: "
-                            + request.getDishId());
+        var previousOverride = dishOverrideRepository.findIncludingDeleted(branch.getId(), dish.getId());
+        if (previousOverride.isPresent()) {
+            DishOverride override = previousOverride.get();
+            if (!Boolean.TRUE.equals(override.getIsDeleted())) {
+                throw new ConflictException("Món đã có ghi đè tại chi nhánh này");
+            }
+            override.setOverridePrice(request.getOverridePrice());
+            override.setIsHidden(Boolean.TRUE.equals(request.getIsHidden()));
+            override.setIsDeleted(false);
+            override.setDeletedAt(null);
+            override.setDeletedBy(null);
+            return dishOverrideMapper.toResponse(override);
         }
 
         DishOverride dishOverride = dishOverrideMapper.toEntity(request);
@@ -61,8 +72,11 @@ public class DishOverrideServiceImpl implements DishOverrideService {
 
     @Override
     public DishOverrideResponse updateDishOverride(Long id, DishOverrideUpdateRequest request) {
-        DishOverride dishOverride = findById(id);
+        DishOverride dishOverride = findWritableOverride(id);
         dishOverrideMapper.updateEntity(dishOverride, request);
+        if (request.isClearOverridePrice()) {
+            dishOverride.setOverridePrice(null);
+        }
         DishOverride updated = dishOverrideRepository.save(dishOverride);
         return dishOverrideMapper.toResponse(updated);
     }
@@ -95,12 +109,23 @@ public class DishOverrideServiceImpl implements DishOverrideService {
 
     @Override
     public void deleteDishOverride(Long id) {
-        DishOverride dishOverride = findById(id);
+        DishOverride dishOverride = findWritableOverride(id);
         dishOverride.softDelete(null);
         dishOverrideRepository.save(dishOverride);
     }
 
-    /** Chốt tenant tại finder: phủ getDishOverrideById / updateDishOverride / deleteDishOverride. */
+    private DishOverride findWritableOverride(Long id) {
+        DishOverride override = findById(id);
+        tenantGuard.assertBranchAssigned(override.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
+        lockDish(override.getDish().getId());
+        return override;
+    }
+
+    private Dish lockDish(Long id) {
+        return dishRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món ăn với ID: " + id));
+    }
+
     private DishOverride findById(Long id) {
         DishOverride override = dishOverrideRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tùy chỉnh món với ID: " + id));

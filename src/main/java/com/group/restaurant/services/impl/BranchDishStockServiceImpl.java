@@ -12,6 +12,8 @@ import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.DishRepository;
 import com.group.restaurant.services.BranchDishStockService;
 import com.group.restaurant.utils.TenantGuard;
+import com.group.restaurant.enums.OperationalPermission;
+import com.group.restaurant.services.OperationalPermissionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,10 +33,11 @@ public class BranchDishStockServiceImpl implements BranchDishStockService {
     private final DishRepository dishRepository;
     private final BranchDishStockMapper stockMapper;
     private final TenantGuard tenantGuard;
+    private final OperationalPermissionService permissions;
 
     @Override
     public BranchDishStockResponse toggleStock(Long branchId, Long dishId) {
-        tenantGuard.assertBranch(branchId);
+        permissions.require(branchId, OperationalPermission.MANAGE_STOCK);
         // Lấy hoặc tạo mới bản ghi stock
         BranchDishStock stock = stockRepository.findByBranchIdAndDishId(branchId, dishId)
                 .orElseGet(() -> createNewStock(branchId, dishId));
@@ -74,17 +77,16 @@ public class BranchDishStockServiceImpl implements BranchDishStockService {
 
     @Override
     public int restoreAllStock(Long branchId) {
-        tenantGuard.assertBranch(branchId);
-        // FR-MNU-03: Mở bán lại tất cả món đang hết tại chi nhánh
-        int count = stockRepository.resetStockForBranch(branchId);
-        log.info("Restored {} dishes to AVAILABLE at branch {}", count, branchId);
-        return count;
+        permissions.require(branchId, OperationalPermission.MANAGE_STOCK);
+        return resetStockForBranch(branchId);
     }
 
     @Override
     public int resetStockForBranch(Long branchId) {
-        // BR-06: Gọi bởi scheduled job - cùng logic với restoreAllStock
-        return restoreAllStock(branchId);
+        // FR-MNU-03: Mở bán lại tất cả món đang hết tại chi nhánh
+        int count = stockRepository.resetStockForBranch(branchId);
+        log.info("Restored {} dishes to AVAILABLE at branch {}", count, branchId);
+        return count;
     }
 
     @Override
@@ -103,6 +105,10 @@ public class BranchDishStockServiceImpl implements BranchDishStockService {
         Dish dish = dishRepository.findById(dishId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy món ăn với ID: " + dishId));
+        if (!branch.getRestaurant().getId().equals(dish.getRestaurant().getId())
+                || (dish.getBranch() != null && !branchId.equals(dish.getBranch().getId()))) {
+            throw new ResourceNotFoundException("Món không thuộc thực đơn của chi nhánh.");
+        }
 
         return BranchDishStock.builder()
                 .branch(branch)
