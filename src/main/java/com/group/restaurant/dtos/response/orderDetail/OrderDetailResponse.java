@@ -22,6 +22,7 @@ public class OrderDetailResponse {
     private Long promotionId;
     private String promotionName;
     private Integer quantity;
+    private Integer servedQuantity;
     private BigDecimal priceAtOrderTime;
     private BigDecimal promotionDiscountAmount;
     private BigDecimal weightKg;

@@ -3,6 +3,7 @@ package com.group.restaurant.controllers;
 import com.group.restaurant.dtos.request.orderDetail.OrderDetailAddRequest;
 import com.group.restaurant.dtos.request.orderDetail.OrderDetailCancelRequest;
 import com.group.restaurant.dtos.request.orderDetail.OrderDetailConfirmWeightRequest;
+import com.group.restaurant.dtos.request.orderDetail.OrderDetailServeRequest;
 import com.group.restaurant.dtos.request.orderDetail.OrderDetailUpdateRequest;
 import com.group.restaurant.dtos.response.base.ResponseSuccess;
 import com.group.restaurant.dtos.response.orderDetail.OrderDetailResponse;
@@ -108,13 +109,23 @@ public class OrderDetailController {
         ));
     }
 
-    // Phục vụ xác nhận đã mang món ra: PREPARING → SERVED
     @PostMapping("/{id}/mark-served")
     public ResponseEntity<ResponseSuccess<OrderDetailResponse>> markAsServed(@PathVariable Long id) {
+        return servedResponse(id, null);
+    }
+
+    @PostMapping("/{id}/serve-portions")
+    public ResponseEntity<ResponseSuccess<OrderDetailResponse>> servePortions(
+            @PathVariable Long id,
+            @Valid @RequestBody OrderDetailServeRequest request) {
+        return servedResponse(id, request);
+    }
+
+    private ResponseEntity<ResponseSuccess<OrderDetailResponse>> servedResponse(Long id, OrderDetailServeRequest request) {
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
                 "Xác nhận đã phục vụ món thành công",
-                orderDetailService.markAsServed(id)
+                orderDetailService.markAsServed(id, request)
         ));
     }
 
@@ -139,6 +150,15 @@ public class OrderDetailController {
                 orderDetailService.cancelAfterKitchen(id, request)
         ));
     }
+
+    @PostMapping("/session/{sessionId}/remove/{id}")
+    public ResponseEntity<ResponseSuccess<OrderDetailResponse>> removeFromCheckout(@PathVariable Long sessionId,
+            @PathVariable Long id, @Valid @RequestBody(required = false) CheckoutRemoval request) {
+        return ResponseEntity.ok(new ResponseSuccess<>(OK, "Đã bỏ món khỏi hóa đơn",
+                orderDetailService.removeFromCheckout(sessionId, id, request == null ? null : request.reason())));
+    }
+
+    public record CheckoutRemoval(@jakarta.validation.constraints.Size(max = 500) String reason) {}
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ResponseSuccess<Void>> deleteOrderDetail(@PathVariable Long id) {
