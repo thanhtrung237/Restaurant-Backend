@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,13 +53,16 @@ public class DishServiceImpl implements DishService {
 
     @Override
     public DishResponse createDish(DishAddRequest request) {
+        tenantGuard.assertRestaurant(request.getRestaurantId());
         Restaurant restaurant = restaurantRepository.findById(request.getRestaurantId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy nhà hàng với ID: " + request.getRestaurantId()));
 
-        Category category = categoryRepository.findById(request.getCategoryId())
+        Branch branch = request.getBranchId() == null ? null : branchRepository.findById(request.getBranchId())
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy danh mục với ID: " + request.getCategoryId()));
+                        "Không tìm thấy chi nhánh với ID: " + request.getBranchId()));
+        tenantGuard.assertMenuDishWrite(restaurant.getId(), branch);
+        Category category = findMenuCategory(request.getCategoryId(), restaurant.getId());
 
         Dish dish = dishMapper.toEntity(request);
         dish.setRestaurant(restaurant);
@@ -68,13 +72,7 @@ public class DishServiceImpl implements DishService {
             dish.setSoldByWeight(false);
         }
 
-        // FR-MNU-04: Nếu có branchId → món riêng chi nhánh
-        if (request.getBranchId() != null) {
-            Branch branch = branchRepository.findById(request.getBranchId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Không tìm thấy chi nhánh với ID: " + request.getBranchId()));
-            dish.setBranch(branch);
-        }
+        dish.setBranch(branch);
 
         Dish saved = dishRepository.save(dish);
         return dishMapper.toResponse(saved);
@@ -82,13 +80,10 @@ public class DishServiceImpl implements DishService {
 
     @Override
     public DishResponse updateDish(Long id, DishUpdateRequest request) {
-        Dish dish = findById(id);
+        Dish dish = findWritableDish(id);
 
         if (request.getCategoryId() != null) {
-            Category category = categoryRepository.findById(request.getCategoryId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Không tìm thấy danh mục với ID: " + request.getCategoryId()));
-            dish.setCategory(category);
+            dish.setCategory(findMenuCategory(request.getCategoryId(), dish.getRestaurant().getId()));
         }
 
         dishMapper.updateEntity(dish, request);
@@ -157,7 +152,7 @@ public class DishServiceImpl implements DishService {
 
     @Override
     public void changeStatus(Long id, DishStatus status) {
-        Dish dish = findById(id);
+        Dish dish = findWritableDish(id);
         dish.setStatus(status);
         dishRepository.save(dish);
     }
@@ -205,7 +200,7 @@ public class DishServiceImpl implements DishService {
 
     @Override
     public void deleteDish(Long id) {
-        Dish dish = findById(id);
+        Dish dish = findWritableDish(id);
 
         // FR-MNU-02 + BR-09: hóa đơn đã phát hành là BẤT BIẾN. Món đã nằm trên một hóa
         // đơn thì xóa mềm sẽ làm hỏng dữ liệu tra cứu về sau. Xét MỌI trạng thái hóa đơn
@@ -224,11 +219,21 @@ public class DishServiceImpl implements DishService {
         dishRepository.save(dish);
     }
 
-    /**
-      * Chốt tenant tại finder dùng chung: phủ getDishById / updateDish / changeStatus /
-      * deleteDish / countBranchesSellingDish.
-      * No-op với khách ẩn danh (GET /dishes/{id} là endpoint công khai) — xem TenantGuard.
-      */
+    private Dish findWritableDish(Long id) {
+        Dish dish = findById(id);
+        tenantGuard.assertMenuDishWrite(dish.getRestaurant().getId(), dish.getBranch());
+        return dish;
+    }
+
+    private Category findMenuCategory(Long id, Long restaurantId) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy danh mục với ID: " + id));
+        if (!restaurantId.equals(category.getRestaurant().getId())) {
+            throw new AccessDeniedException("Danh mục không thuộc nhà hàng của món");
+        }
+        return category;
+    }
+
     private Dish findById(Long id) {
         Dish dish = dishRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món ăn với ID: " + id));
