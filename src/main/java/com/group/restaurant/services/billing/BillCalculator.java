@@ -34,37 +34,29 @@ public class BillCalculator {
 
     /** Cách chọn khuyến mãi cấp hóa đơn. */
     public static final class PromotionSelection {
-        enum Mode {AUTO, PREFER, NONE, LOCKED}
+        enum Mode {AUTO, LOCKED}
 
         final Mode mode;
         final Long promotionId;
         final String promotionName;
         final BigDecimal lockedAmount;
+        final java.util.Set<Long> excludedIds;
 
-        private PromotionSelection(Mode mode, Long id, String name, BigDecimal amount) {
+        private PromotionSelection(Mode mode, Long id, String name, BigDecimal amount, java.util.Set<Long> excludedIds) {
             this.mode = mode;
             this.promotionId = id;
             this.promotionName = name;
             this.lockedAmount = amount;
+            this.excludedIds = excludedIds;
         }
 
         /** Engine tự chọn KM tốt nhất (BR-22, BR-23). */
         public static PromotionSelection auto() {
-            return new PromotionSelection(Mode.AUTO, null, null, null);
+            return auto(null, java.util.Set.of());
         }
 
-        /** Ưu tiên KM Thu ngân chọn; promotionId <= 0 là chỉ định không áp KM; null thì rơi về tự chọn. */
-        public static PromotionSelection prefer(Long promotionId) {
-            if (promotionId != null && promotionId <= 0L) {
-                return none();
-            }
-            return promotionId == null ? auto()
-                    : new PromotionSelection(Mode.PREFER, promotionId, null, null);
-        }
-
-        /** Không áp KM đơn (ví dụ KM vừa hết lượt). */
-        public static PromotionSelection none() {
-            return new PromotionSelection(Mode.NONE, null, null, null);
+        public static PromotionSelection auto(Long reservedId, java.util.Set<Long> excludedIds) {
+            return new PromotionSelection(Mode.AUTO, reservedId, null, null, excludedIds);
         }
 
         /**
@@ -72,7 +64,7 @@ public class BillCalculator {
          * tính lại vì chiết khấu tay đổi — không chọn lại để khỏi đổi số khách đã thấy.
          */
         public static PromotionSelection locked(Long promotionId, String name, BigDecimal amount) {
-            return new PromotionSelection(Mode.LOCKED, promotionId, name, amount);
+            return new PromotionSelection(Mode.LOCKED, promotionId, name, amount, java.util.Set.of());
         }
     }
 
@@ -287,23 +279,15 @@ public class BillCalculator {
     private PromotionResult resolveOrderPromotion(TableSession session, Branch branch,
                                                   PromotionSelection selection, BigDecimal afterItemPromo) {
         PromotionSelection sel = selection != null ? selection : PromotionSelection.auto();
-        switch (sel.mode) {
-            case NONE:
-                return PromotionResult.noPromotion();
-            case LOCKED:
-                if (sel.promotionId == null || sel.lockedAmount == null) return PromotionResult.noPromotion();
-                return new PromotionResult(sel.promotionId, sel.promotionName, sel.lockedAmount, 0);
-            default:
-                break;
+        if (sel.mode == PromotionSelection.Mode.LOCKED) {
+            if (sel.promotionId == null || sel.lockedAmount == null) return PromotionResult.noPromotion();
+            return new PromotionResult(sel.promotionId, sel.promotionName, sel.lockedAmount, 0);
         }
         Long branchId = session.getBranch() != null ? session.getBranch().getId() : branch.getId();
         Long restaurantId = branch.getRestaurant().getId();
         double base = afterItemPromo.doubleValue();
-        if (sel.mode == PromotionSelection.Mode.PREFER) {
-            return promotionEngine.calculateOrderPromotionById(
-                    branchId, restaurantId, sel.promotionId, base);
-        }
-        return promotionEngine.calculateOrderPromotion(branchId, restaurantId, base);
+        return promotionEngine.calculateOrderPromotion(branchId, restaurantId, base,
+                sel.promotionId, sel.excludedIds);
     }
 
     private static BigDecimal manualAmount(ManualDiscount md, BigDecimal base) {

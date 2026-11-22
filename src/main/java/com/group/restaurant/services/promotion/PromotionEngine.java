@@ -178,10 +178,16 @@ public class PromotionEngine {
      */
     public PromotionResult calculateOrderPromotion(Long branchId, Long restaurantId,
                                                    double orderSubtotal) {
+        return calculateOrderPromotion(branchId, restaurantId, orderSubtotal, null, java.util.Set.of());
+    }
+
+    public PromotionResult calculateOrderPromotion(Long branchId, Long restaurantId,
+                                                   double orderSubtotal, Long reservedId, java.util.Set<Long> excludedIds) {
         List<Promotion> orderPromotions = getActivePromotions(branchId, restaurantId).stream()
                 .filter(p -> p.getApplyLevel() == ApplyLevel.INVOICE)
                 .filter(p -> p.getCode() == null || p.getCode().isBlank())
-                .filter(p -> isPromotionStillHasUsage(p))
+                .filter(p -> !excludedIds.contains(p.getId()))
+                .filter(p -> p.getId().equals(reservedId) || isPromotionStillHasUsage(p))
                 .collect(Collectors.toList());
 
         if (orderPromotions.isEmpty()) {
@@ -206,8 +212,9 @@ public class PromotionEngine {
 
         // Chọn KM tốt nhất
         return applicableResults.stream()
-                .max(Comparator.comparing(PromotionResult::getPriority)
-                        .thenComparing(PromotionResult::getDiscountAmount))
+                .max(Comparator.comparing(PromotionResult::getDiscountAmount)
+                        .thenComparing(PromotionResult::getPriority)
+                        .thenComparing(PromotionResult::getPromotionId, Comparator.reverseOrder()))
                 .orElse(PromotionResult.noPromotion());
     }
 
