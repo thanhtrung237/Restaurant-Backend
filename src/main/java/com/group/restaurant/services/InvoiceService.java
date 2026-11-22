@@ -7,6 +7,7 @@ import com.group.restaurant.enums.InvoiceStatus;
 import com.group.restaurant.dtos.response.invoice.QrCodeResponse;
 
 import java.util.List;
+import java.math.BigDecimal;
 
 public interface InvoiceService {
 
@@ -24,12 +25,18 @@ public interface InvoiceService {
 
     QrCodeResponse generateQrCodeByTableSession(Long tableSessionId);
 
+    void reportGuestQrOpened(Long tableSessionId, String guestToken, BigDecimal expectedTotal);
+
+    void shareQuote(Long invoiceId, BigDecimal expectedTotal);
+
     /**
      * Tính lại hóa đơn PENDING sau khi chiết khấu tay được tạo/xóa (luồng Thu ngân: lập hóa đơn
      * trước, chiết khấu sau). Giữ nguyên KM đơn đã chốt. Hóa đơn không còn PENDING (PAID / ISSUED
      * / CANCELLED — BR-09) hoặc phiên không còn WAITING_FOR_PAY thì không làm gì.
      */
     void recalculatePendingInvoice(Long invoiceId);
+
+    void recalculateAfterItemRemoval(Long invoiceId);
 
     /**
 

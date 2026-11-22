@@ -24,6 +24,7 @@ public class InvoiceResponse {
     private String branchName;
     private Long tableSessionId;
     private String tableName;
+    private Boolean takeaway;
     private Long promotionId;
     private String promotionName;
     private String invoiceNumber;
@@ -34,6 +35,8 @@ public class InvoiceResponse {
     private BigDecimal serviceFee;
     private BigDecimal vatAmount;
     private BigDecimal grandTotal;
+    private boolean quoteShared;
+    private boolean discountApprovalPending;
 
     // ----- Breakdown đầy đủ theo thứ tự BR-13 (cùng bộ field với BillPreviewResponse) -----
     // Suy ra từ phiên và dòng món, không cần đổi schema. Các field cũ ở trên giữ nguyên để tương thích;

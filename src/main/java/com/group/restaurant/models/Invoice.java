@@ -65,6 +65,12 @@ public class Invoice extends BaseEntity {
         @Column(name = "grand_total", nullable = false, precision = 14, scale = 2)
         private BigDecimal grandTotal;
 
+        @Column(name = "quote_shared_at")
+        private java.time.LocalDateTime quoteSharedAt;
+
+        @Embedded
+        private InvoiceDiscountApproval discountApproval;
+
         @Column(name = "status", nullable = false)
         @Builder.Default
         private InvoiceStatus status = InvoiceStatus.PENDING;

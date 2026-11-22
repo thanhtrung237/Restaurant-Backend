@@ -36,6 +36,7 @@ public interface InvoiceMapper {
     @Mapping(target = "branchId", expression = "java(SoftDeleteSafe.get(invoice.getBranch(), Branch::getId))")
     @Mapping(target = "branchName", expression = "java(SoftDeleteSafe.get(invoice.getBranch(), Branch::getName))")
     @Mapping(target = "tableSessionId", expression = "java(SoftDeleteSafe.get(invoice.getTableSession(), TableSession::getId))")
+    @Mapping(target = "takeaway", expression = "java(SoftDeleteSafe.get(invoice.getTableSession(), TableSession::isTakeaway))")
     @Mapping(target = "tableName", expression = "java(InvoiceMapper.tableNameOf(invoice))")
     @Mapping(target = "promotionId", expression = "java(SoftDeleteSafe.get(invoice.getPromotion(), Promotion::getId))")
     @Mapping(target = "promotionName", expression = "java(SoftDeleteSafe.get(invoice.getPromotion(), Promotion::getName))")
@@ -56,6 +57,7 @@ public interface InvoiceMapper {
      */
     static String tableNameOf(Invoice invoice) {
         return SoftDeleteSafe.get(invoice.getTableSession(),
-                session -> SoftDeleteSafe.get(session.getTable(), table -> table.getName()));
+                session -> session.isTakeaway() ? session.getDisplayName()
+                        : SoftDeleteSafe.get(session.getTable(), table -> table.getName()));
     }
 }
