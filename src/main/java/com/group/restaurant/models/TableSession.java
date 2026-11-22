@@ -27,9 +27,25 @@ public class TableSession extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "table_id", nullable = false, foreignKey = @ForeignKey(name = "fk_session_table"))
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "table_id", foreignKey = @ForeignKey(name = "fk_session_table"))
     private DiningTable table;
+
+    @Column(name = "picked_up_at")
+    private LocalDateTime pickedUpAt;
+
+    public boolean isTakeaway() {
+        return table == null;
+    }
+
+    public String getDisplayName() {
+        return isTakeaway() ? "Mang về #" + id : table.getName();
+    }
+
+    public boolean canAddTakeawayItems(boolean hasInvoice) {
+        return isTakeaway() && (status == TableSessionStatus.SERVING
+                || (status == TableSessionStatus.WAITING_FOR_PAY && !hasInvoice));
+    }
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "branch_id", nullable = false, foreignKey = @ForeignKey(name = "fk_session_branch"))
