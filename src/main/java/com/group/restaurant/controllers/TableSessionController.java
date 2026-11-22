@@ -43,7 +43,6 @@ public class TableSessionController {
      * Đặt bàn trước → tạo phiên RESERVED (FR-TBL-03, BR-29)
      * Chỉ Phục vụ và QL chi nhánh (Bảng 4.2)
      */
-    @PreAuthorize("hasAnyRole('WAITER', 'BRANCH_MANAGER', 'MANAGER')")
     @PostMapping("/reserve")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> reserveSession(
             @Valid @RequestBody TableSessionReservationRequest request) {

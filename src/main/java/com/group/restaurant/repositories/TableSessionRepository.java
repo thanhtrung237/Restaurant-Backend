@@ -18,10 +18,13 @@ public interface TableSessionRepository extends JpaRepository<TableSession, Long
 
         @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
         @Query("select s from TableSession s where s.id = :id")
-        Optional<TableSession> findForGuestCode(@Param("id") Long id);
+        Optional<TableSession> findForUpdate(@Param("id") Long id);
 
 
         List<TableSession> findByTableId(Long tableId);
+
+        @Query(value = "select count(*) from table_session where table_id = :tableId", nativeQuery = true)
+        long countHistoryByTableId(@Param("tableId") Long tableId);
 
         List<TableSession> findByTableIdAndStatus(Long tableId, TableSessionStatus status);
 
@@ -30,8 +33,20 @@ public interface TableSessionRepository extends JpaRepository<TableSession, Long
         Optional<TableSession> findActiveSessionByTableId(@Param("tableId") Long tableId);
 
         // Lấy danh sách phiên hoạt động theo chi nhánh
-        @Query("SELECT ts FROM TableSession ts WHERE ts.table.branch.id = :branchId AND ts.status NOT IN (com.group.restaurant.enums.TableSessionStatus.CLOSED, com.group.restaurant.enums.TableSessionStatus.CANCELLED, com.group.restaurant.enums.TableSessionStatus.MERGED)")
+        @Query("""
+                SELECT ts FROM TableSession ts WHERE ts.branch.id = :branchId
+                  AND ts.status NOT IN (com.group.restaurant.enums.TableSessionStatus.CANCELLED, com.group.restaurant.enums.TableSessionStatus.MERGED)
+                  AND ((ts.table IS NOT NULL AND ts.status <> com.group.restaurant.enums.TableSessionStatus.CLOSED)
+                       OR (ts.table IS NULL AND ts.pickedUpAt IS NULL))
+                """)
         List<TableSession> findActiveSessionsByBranchId(@Param("branchId") Long branchId);
+
+        List<TableSession> findByBranchIdAndTableIsNullAndPickedUpAtIsNullAndStatusNotOrderByIdAsc(
+                Long branchId, TableSessionStatus status);
+
+        @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+        @Query("select s from TableSession s where s.id = :id and s.table is null")
+        Optional<TableSession> findTakeawayForUpdate(Long id);
 
         // Đếm số phiên đang hoạt động của bàn
         @Query("SELECT COUNT(ts) FROM TableSession ts WHERE ts.table.id = :tableId AND ts.status NOT IN (com.group.restaurant.enums.TableSessionStatus.CLOSED, com.group.restaurant.enums.TableSessionStatus.CANCELLED, com.group.restaurant.enums.TableSessionStatus.MERGED)")
