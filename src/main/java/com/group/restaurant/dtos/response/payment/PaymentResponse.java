@@ -19,6 +19,7 @@ public class PaymentResponse {
     private BigDecimal amount;
     private LocalDateTime paidAt;
     private String transactionRef;
+    private boolean bankVerified;
     private BigDecimal amountTendered;
     private BigDecimal changeAmount;
     private LocalDateTime createdAt;
