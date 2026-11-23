@@ -20,6 +20,19 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     Optional<Invoice> findByTableSessionId(Long tableSessionId);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select i from Invoice i where i.tableSession.id = :sessionId")
+    Optional<Invoice> findBySessionForPayment(@Param("sessionId") Long sessionId);
+
+    @Query("select i.tableSession.id from Invoice i where i.id = :invoiceId")
+    Optional<Long> findSessionId(@Param("invoiceId") Long invoiceId);
+
+    boolean existsByTableSessionId(Long tableSessionId);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select i from Invoice i where i.id = :id")
+    Optional<Invoice> findForPayment(Long id);
+
     List<Invoice> findByBranchId(Long branchId);
 
     List<Invoice> findByBranchIdAndStatus(Long branchId, InvoiceStatus status);

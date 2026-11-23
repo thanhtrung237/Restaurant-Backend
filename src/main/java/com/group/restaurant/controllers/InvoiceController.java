@@ -8,11 +8,14 @@ import com.group.restaurant.dtos.response.invoice.QrCodeResponse;
 import com.group.restaurant.enums.InvoiceStatus;
 import com.group.restaurant.services.InvoiceService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.math.BigDecimal;
 
 import static org.springframework.http.HttpStatus.CREATED;
 import static org.springframework.http.HttpStatus.OK;
@@ -23,6 +26,14 @@ import static org.springframework.http.HttpStatus.OK;
 public class InvoiceController {
 
     private final InvoiceService invoiceService;
+
+    public record ShareQuoteRequest(@NotNull @Positive BigDecimal expectedTotal) {}
+
+    @PostMapping("/{id}/share-quote")
+    public ResponseEntity<Void> shareQuote(@PathVariable Long id, @Valid @RequestBody ShareQuoteRequest request) {
+        invoiceService.shareQuote(id, request.expectedTotal());
+        return ResponseEntity.noContent().build();
+    }
 
     @PostMapping("")
     public ResponseEntity<ResponseSuccess<InvoiceResponse>> createInvoice(
@@ -93,6 +104,14 @@ public class InvoiceController {
         ));
     }
     
+    @PostMapping("/session/{tableSessionId}/qr-opened")
+    public ResponseEntity<Void> reportGuestQrOpened(@PathVariable Long tableSessionId,
+            @RequestHeader(value = "X-Guest-Token", required = false) String guestToken,
+            @Valid @RequestBody(required = false) ShareQuoteRequest request) {
+        invoiceService.reportGuestQrOpened(tableSessionId, guestToken, request == null ? null : request.expectedTotal());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/session/{tableSessionId}/qr-code")
     public ResponseEntity<ResponseSuccess<QrCodeResponse>> generateQrCodeByTableSession(
             @PathVariable Long tableSessionId) {
