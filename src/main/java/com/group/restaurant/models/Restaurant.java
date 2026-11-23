@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.SQLRestriction;
 
 @Entity
@@ -13,6 +14,7 @@ import org.hibernate.annotations.SQLRestriction;
         @UniqueConstraint(name = "uk_restaurant_code", columnNames = "code")
 })
 @SQLRestriction("is_deleted = false")
+@DynamicUpdate
 @Getter
 @Setter
 @NoArgsConstructor
@@ -43,5 +45,8 @@ public class Restaurant extends BaseEntity {
 
     @Column(name = "phone", length = 20)
     private String phone;
+
+    @Column(name = "operational_permissions", columnDefinition = "TEXT")
+    private String operationalPermissions;
 
 }

@@ -12,6 +12,13 @@ import java.util.Optional;
 
 @Repository
 public interface AccountRepository extends JpaRepository<Account, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from Account a where a.id = :id")
+    Optional<Account> findForNotificationUpdate(Long id);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from Account a where a.id = :id and a.restaurant.id = :restaurantId")
+    Optional<Account> findForAssignmentUpdate(Long id, Long restaurantId);
 
     Optional<Account> findByUsername(String username);
 

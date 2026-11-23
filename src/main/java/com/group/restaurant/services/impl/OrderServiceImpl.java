@@ -23,6 +23,8 @@ import com.group.restaurant.services.OrderService;
 import com.group.restaurant.services.promotion.PromotionEngine;
 import com.group.restaurant.services.promotion.PromotionResult;
 import com.group.restaurant.utils.TenantGuard;
+import com.group.restaurant.enums.OperationalPermission;
+import com.group.restaurant.services.OperationalPermissionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,6 +42,7 @@ import java.util.stream.Collectors;
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
+    private final InvoiceRepository invoiceRepository;
     private final TableSessionRepository tableSessionRepository;
     private final AccountRepository accountRepository;
     private final DishRepository dishRepository;
@@ -53,20 +56,24 @@ public class OrderServiceImpl implements OrderService {
     private final OrderNotificationService orderNotificationService;
     private final PromotionEngine promotionEngine;
     private final TenantGuard tenantGuard;
+    private final OperationalPermissionService permissions;
     private final GuestSessionGuard guestSessionGuard;
     private final GuestRateLimiter guestRateLimiter;
 
     @Override
     public OrderResponse createOrder(OrderAddRequest request) {
-        guestSessionGuard.require(request.getTableSessionId(), true);
+        TableSession session = guestSessionGuard.requireForOrderCreation(request.getTableSessionId());
         guestRateLimiter.check("order-session:" + request.getTableSessionId(), 30, 60_000);
-        TableSession session = tableSessionRepository.findById(request.getTableSessionId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy phiên làm việc với ID: " + request.getTableSessionId()));
 
-        // chặn tạo order khi phiên đang CHỜ THANH TOÁN, ĐÃ ĐÓNG, ĐÃ HỦY
+        // Phiên mang về có thể quay lại gọi món trước khi lập hóa đơn.
         if (session.getStatus() == TableSessionStatus.WAITING_FOR_PAY) {
-            throw new ConflictException("Phiên đang chờ thanh toán, không thể gọi thêm món. Quản lý chi nhánh cần mở lại bàn trước");
+            if (!session.isTakeaway()) {
+                throw new ConflictException("Phiên đang chờ thanh toán, không thể gọi thêm món. Quản lý chi nhánh cần mở lại bàn trước");
+            }
+            if (!session.canAddTakeawayItems(invoiceRepository.existsByTableSessionId(session.getId()))) {
+                throw new ConflictException("Đơn mang về đã lập hóa đơn, không thể thêm món.");
+            }
+            session.setStatus(TableSessionStatus.SERVING);
         }
         if (session.getStatus() == TableSessionStatus.CLOSED
                 || session.getStatus() == TableSessionStatus.CANCELLED) {
@@ -99,7 +106,7 @@ public class OrderServiceImpl implements OrderService {
 
         Order savedOrder = orderRepository.save(order);
 
-        Long branchId = session.getTable().getBranch().getId();
+        Long branchId = session.getBranch().getId();
 
         List<OrderDetail> details = new ArrayList<>();
         if (request.getItems() != null && !request.getItems().isEmpty()) {
@@ -116,7 +123,9 @@ public class OrderServiceImpl implements OrderService {
                 branchId,
                 savedOrder.getId(),
                 session.getId(),
-                session.getTable().getName());
+                session.getDisplayName(),
+                orderedBy == null ? null : orderedBy.getId());
+        orderNotificationService.notifyTakeawayUpdated(session);
 
         return orderMapper.toResponse(savedOrder);
     }
@@ -125,6 +134,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public OrderResponse confirmOrder(Long id) {
         Order order = findOrderById(id);
+        permissions.require(order.getTableSession().getBranch().getId(), OperationalPermission.CONFIRM_ORDER);
 
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new ConflictException("Chỉ có thể xác nhận order đang ở trạng thái PENDING");
@@ -151,6 +161,9 @@ public class OrderServiceImpl implements OrderService {
         for (OrderDetail d : preparingDetails) {
             orderNotificationService.notifyItemStatusChanged(sessionId, d.getId(), OrderDetailStatus.PREPARING);
         }
+        if (!preparingDetails.isEmpty()) {
+            orderNotificationService.notifyTakeawayUpdated(order.getTableSession());
+        }
 
         return response;
     }
@@ -158,6 +171,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public OrderResponse updateOrder(Long id, OrderUpdateRequest request) {
         Order order = findOrderById(id);
+        assertTakeawayEditable(order);
         orderMapper.updateEntity(order, request);
         return orderMapper.toResponse(orderRepository.save(order));
     }
@@ -199,6 +213,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public void cancelOrder(Long id) {
         Order order = findOrderById(id);
+        assertTakeawayEditable(order);
         order.setStatus(OrderStatus.CANCELLED);
         if (order.getOrderDetails() != null) {
             for (OrderDetail detail : order.getOrderDetails()) {
@@ -216,6 +231,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public void deleteOrder(Long id) {
         Order order = findOrderById(id);
+        assertTakeawayEditable(order);
         if (order.getOrderDetails() != null) {
             order.getOrderDetails().forEach(d -> {
                 d.softDelete(null);
@@ -228,8 +244,19 @@ public class OrderServiceImpl implements OrderService {
 
 
     private Order findOrderById(Long id) {
-        return orderRepository.findById(id)
+        Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với ID: " + id));
+        if (order.getTableSession().isTakeaway()) {
+            tenantGuard.assertBranchAssigned(order.getTableSession().getBranch().getId());
+        }
+        return order;
+    }
+
+    private void assertTakeawayEditable(Order order) {
+        TableSession session = order.getTableSession();
+        if (session.isTakeaway() && session.getStatus() != TableSessionStatus.SERVING) {
+            throw new ConflictException("Đơn mang về đã chốt thanh toán, không thể sửa món.");
+        }
     }
 
     private OrderDetail buildDetail(Order order, OrderDetailAddRequest req, Long branchId) {
@@ -272,7 +299,7 @@ public class OrderServiceImpl implements OrderService {
                     .weightKg(null)
                     .priceAtOrderTime(unitPrice)
                     .promotionDiscountAmount(BigDecimal.ZERO)
-                    .isTakeAway(Boolean.TRUE.equals(req.getIsTakeAway()))
+                    .isTakeAway(order.getTableSession().isTakeaway() || Boolean.TRUE.equals(req.getIsTakeAway()))
                     .note(req.getNote())
                     .status(status)
                     .price(BigDecimal.ZERO)
@@ -285,7 +312,7 @@ public class OrderServiceImpl implements OrderService {
                 .multiply(BigDecimal.valueOf(req.getQuantity()));
 
         // Tính khuyến mãi CẤP MÓN (tự động, không lấy từ client)
-        Long restaurantId = order.getTableSession().getTable().getBranch().getRestaurant().getId();
+        Long restaurantId = order.getTableSession().getBranch().getRestaurant().getId();
 
         PromotionResult promoResult = promotionEngine.calculateItemPromotion(
                 branchId,
@@ -332,7 +359,7 @@ public class OrderServiceImpl implements OrderService {
                 .weightKg(null)
                 .priceAtOrderTime(unitPrice)
                 .promotionDiscountAmount(discountAmount)
-                .isTakeAway(Boolean.TRUE.equals(req.getIsTakeAway()))
+                .isTakeAway(order.getTableSession().isTakeaway() || Boolean.TRUE.equals(req.getIsTakeAway()))
                 .note(req.getNote())
                 .status(status)
                 .price(finalPrice)

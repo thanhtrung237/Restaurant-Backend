@@ -5,7 +5,9 @@ import com.group.restaurant.dtos.response.orderDetail.OrderDetailOptionResponse;
 import com.group.restaurant.dtos.response.orderDetail.OrderDetailResponse;
 import com.group.restaurant.enums.CancelReason;
 import com.group.restaurant.enums.OrderDetailStatus;
+import com.group.restaurant.enums.InvoiceStatus;
 import com.group.restaurant.exceptions.ConflictException;
+import com.group.restaurant.exceptions.InvalidParamException;
 import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.mappers.OrderDetailMapper;
 import com.group.restaurant.enums.TableSessionStatus;
@@ -14,6 +16,7 @@ import com.group.restaurant.models.*;
 import com.group.restaurant.repositories.*;
 import com.group.restaurant.services.AuditLogService;
 import com.group.restaurant.services.KitchenTicketService;
+import com.group.restaurant.services.InvoiceService;
 import com.group.restaurant.services.OrderDetailService;
 import com.group.restaurant.services.audit.AuditAction;
 import com.group.restaurant.services.audit.AuditEvent;
@@ -21,6 +24,8 @@ import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.services.promotion.PromotionEngine;
 import com.group.restaurant.services.promotion.PromotionResult;
 import com.group.restaurant.utils.TenantGuard;
+import com.group.restaurant.enums.OperationalPermission;
+import com.group.restaurant.services.OperationalPermissionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +34,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 
@@ -49,7 +55,12 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     private final OrderDetailMapper orderDetailMapper;
     private final AuditLogService auditLogService;
     private final TenantGuard tenantGuard;
+    private final OperationalPermissionService permissions;
     private final PromotionEngine promotionEngine;
+    private final TableSessionRepository tableSessionRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final PaymentRepository paymentRepository;
+    private final InvoiceService invoiceService;
 
     @Override
     public OrderDetailResponse addOrderDetail(Long orderId, OrderDetailAddRequest request) {
@@ -80,7 +91,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món ăn với ID: " + request.getDishId()));
 
         // Giá hiệu lực tại chi nhánh
-        Branch branchOfOrder = order.getTableSession().getTable().getBranch();
+        Branch branchOfOrder = order.getTableSession().getBranch();
         Long branchId = branchOfOrder.getId();
         Long restaurantId = branchOfOrder.getRestaurant().getId();
         BigDecimal unitPrice = resolvePrice(dish, branchId);
@@ -151,7 +162,8 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     // Phục vụ nhập số cân: PENDING_WEIGHT → PREPARING
     @Override
     public OrderDetailResponse confirmWeight(Long id, OrderDetailConfirmWeightRequest request) {
-        OrderDetail detail = findById(id);
+        OrderDetail detail = findForUpdate(id);
+        requirePermission(detail, OperationalPermission.WEIGH_ORDER);
 
         if (detail.getStatus() != OrderDetailStatus.PENDING_WEIGHT) {
             throw new ConflictException("Chỉ có thể nhập số cân cho món đang ở trạng thái CHỜ CÂN");
@@ -172,7 +184,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         // QUY ƯỚC price: số SAU khuyến mãi (giống buildDetail) — trước đây ở đây price bị để là số
         // trước KM dù vẫn ghi promotionDiscountAmount, làm tổng lệch.
         Dish dish = detail.getDish();
-        Branch branchOfDetail = detail.getOrder().getTableSession().getTable().getBranch();
+        Branch branchOfDetail = detail.getOrder().getTableSession().getBranch();
         BigDecimal discount = applyAutoItemPromotion(detail, dish, branchOfDetail.getId(),
                 branchOfDetail.getRestaurant().getId(), request.getWeightKg().intValue(), grossPrice);
         detail.setPrice(grossPrice.subtract(discount));
@@ -185,36 +197,48 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         kitchenTicketService.printKitchenTickets(detail.getOrder().getId(), List.of(detail));
 
         // A3: Push trạng thái mới đến khách/phục vụ (T-01)
-        Long sessionId = detail.getOrder().getTableSession().getId();
-        orderNotificationService.notifyItemStatusChanged(sessionId, id, OrderDetailStatus.PREPARING);
+        notifyDetailStatus(detail);
 
         return response;
     }
 
-    // Phục vụ xác nhận đã mang món ra: PREPARING → SERVED
+    // Ghi nhận số phần đã mang ra và chuyển trạng thái khi đủ.
     @Override
-    public OrderDetailResponse markAsServed(Long id) {
-        OrderDetail detail = findById(id);
+    public OrderDetailResponse markAsServed(Long id, OrderDetailServeRequest request) {
+        OrderDetail detail = findForUpdate(id);
+        requirePermission(detail, OperationalPermission.SERVE_ORDER);
 
         if (detail.getStatus() != OrderDetailStatus.PREPARING) {
             throw new ConflictException("Chỉ có thể xác nhận phục vụ cho món đang ở trạng thái ĐANG CHẾ BIẾN");
         }
 
-        detail.setStatus(OrderDetailStatus.SERVED);
-        OrderDetailResponse response = orderDetailMapper.toResponse(orderDetailRepository.save(detail));
+        int served = detail.getServedQuantity();
+        int remaining = detail.getQuantity() - served;
+        if (request != null && request.expectedServedQuantity() != served) {
+            throw new ConflictException("Số lượng đã phục vụ vừa thay đổi. Vui lòng kiểm tra lại.");
+        }
+        int servingNow = request == null ? remaining : request.quantity();
+        if (servingNow > remaining) {
+            throw new ConflictException("Số lượng phục vụ vượt quá số phần còn lại.");
+        }
+        detail.setServedQuantity(served + servingNow);
+        if (servingNow == remaining) {
+            detail.setStatus(OrderDetailStatus.SERVED);
+            notifyDetailStatus(detail);
+        }
 
-        // A3: Push trạng thái SERVED (T-01)
-        Long sessionId = detail.getOrder().getTableSession().getId();
-        orderNotificationService.notifyItemStatusChanged(sessionId, id, OrderDetailStatus.SERVED);
-
-        return response;
+        return orderDetailMapper.toResponse(detail);
     }
 
     // Hủy trước bếp: PENDING / PENDING_WEIGHT → CANCELLED, không tính tiền
     @Override
     public OrderDetailResponse cancelBeforeKitchen(Long id) {
         OrderDetail detail = findById(id);
+        assertOrderEditable(detail);
+        return cancelBeforeKitchen(detail);
+    }
 
+    private OrderDetailResponse cancelBeforeKitchen(OrderDetail detail) {
         if (detail.getStatus() != OrderDetailStatus.PENDING
                 && detail.getStatus() != OrderDetailStatus.PENDING_WEIGHT) {
             throw new ConflictException("Chỉ có thể hủy tự do với món đang CHỜ XÁC NHẬN hoặc CHỜ CÂN");
@@ -232,8 +256,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         OrderDetailResponse response = orderDetailMapper.toResponse(orderDetailRepository.save(detail));
 
         // A3: Push trạng thái HỦY (T-01)
-        Long sessionId = detail.getOrder().getTableSession().getId();
-        orderNotificationService.notifyItemStatusChanged(sessionId, id, OrderDetailStatus.CANCELLED);
+        notifyDetailStatus(detail);
 
         return response;
     }
@@ -241,15 +264,19 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     // Hủy sau bếp: PREPARING / SERVED → CANCELLED với lý do
     @Override
     public OrderDetailResponse cancelAfterKitchen(Long id, OrderDetailCancelRequest request) {
-        OrderDetail detail = findById(id);
+        OrderDetail detail = findForUpdate(id);
+        assertOrderEditable(detail);
+        return cancelAfterKitchen(detail, request.getCancelReason());
+    }
 
+    private OrderDetailResponse cancelAfterKitchen(OrderDetail detail, CancelReason reason) {
         if (detail.getStatus() != OrderDetailStatus.PREPARING
                 && detail.getStatus() != OrderDetailStatus.SERVED) {
             throw new ConflictException("Chỉ có thể hủy sau bếp với món đang ĐANG CHẾ BIẾN hoặc ĐÃ PHỤC VỤ");
         }
 
         //lý do quyết định có tính tiền không
-        boolean isBillable = request.getCancelReason() == CancelReason.CUSTOMER_CHANGED_MIND;
+        boolean isBillable = reason == CancelReason.CUSTOMER_CHANGED_MIND;
         OrderDetailStatus previousStatus = detail.getStatus();
 
         // BR-24: Refund promotion usage chỉ khi lỗi nhà hàng (không tính tiền khách)
@@ -258,7 +285,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         }
 
         detail.setStatus(OrderDetailStatus.CANCELLED);
-        detail.setCancelReason(request.getCancelReason());
+        detail.setCancelReason(reason);
         detail.setIsBillable(isBillable);
         detail.setCancelledAt(LocalDateTime.now());
 
@@ -275,7 +302,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                 .valueBefore("status=" + previousStatus + "; isBillable=true")
                 .valueAfter("status=" + OrderDetailStatus.CANCELLED
                         + "; isBillable=" + isBillable
-                        + "; cancelReason=" + request.getCancelReason()
+                        + "; cancelReason=" + reason
                         + "; dish=" + detail.getDish().getName()
                         + "; price=" + detail.getPrice())
                 .reason(isBillable
@@ -287,15 +314,60 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         kitchenTicketService.printCancelTicket(detail);
 
         // A3: Push trạng thái HỦY (T-01)
-        Long sessionId = detail.getOrder().getTableSession().getId();
-        orderNotificationService.notifyItemStatusChanged(sessionId, id, OrderDetailStatus.CANCELLED);
+        notifyDetailStatus(detail);
 
+        return response;
+    }
+
+    @Override
+    public OrderDetailResponse removeFromCheckout(Long sessionId, Long detailId, String reason) {
+        TableSession session = tableSessionRepository.findForUpdate(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phiên tính tiền."));
+        tenantGuard.assertBranchAssigned(session.getBranch().getId(),
+                TenantGuard.ROLE_CASHIER, TenantGuard.ROLE_BRANCH_MANAGER, TenantGuard.ROLE_MANAGER);
+        if (session.getStatus() != TableSessionStatus.WAITING_FOR_PAY) {
+            throw new ConflictException("Chỉ được điều chỉnh khi phiên đang chờ thanh toán.");
+        }
+        Invoice invoice = invoiceRepository.findBySessionForPayment(sessionId).orElse(null);
+        if (invoice != null && (invoice.getStatus() != InvoiceStatus.PENDING
+                || paymentRepository.sumAmountByInvoiceId(invoice.getId()).signum() > 0)) {
+            throw new ConflictException("Hóa đơn đã ghi nhận thanh toán hoặc đã khóa.");
+        }
+        boolean sharedQuote = invoice != null && invoice.getQuoteSharedAt() != null;
+        if (sharedQuote) {
+            tenantGuard.assertBranchAssigned(session.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
+            if (reason == null || reason.isBlank()) {
+                throw new InvalidParamException("Nhập lý do khi bỏ món sau khi đã gửi tạm tính.");
+            }
+        }
+
+        OrderDetail detail = findForUpdate(detailId);
+        if (!sessionId.equals(detail.getOrder().getTableSession().getId())) {
+            throw new ResourceNotFoundException("Không tìm thấy món trong phiên tính tiền.");
+        }
+        var response = switch (detail.getStatus()) {
+            case PENDING, PENDING_WEIGHT -> cancelBeforeKitchen(detail);
+            case PREPARING, SERVED -> {
+                tenantGuard.assertBranchAssigned(session.getBranch().getId(),
+                        TenantGuard.ROLE_BRANCH_MANAGER, TenantGuard.ROLE_MANAGER);
+                yield cancelAfterKitchen(detail, CancelReason.RESTAURANT_ERROR);
+            }
+            default -> throw new ConflictException("Món này đã được hủy.");
+        };
+        if (invoice != null) invoiceService.recalculateAfterItemRemoval(invoice.getId());
+        if (sharedQuote) {
+            auditLogService.record(AuditEvent.builder().entityType("Invoice").entityId(invoice.getId())
+                    .branchId(session.getBranch().getId()).actionType(AuditAction.UPDATE)
+                    .valueAfter("removedDetailId=" + detailId + "; grandTotal=" + invoice.getGrandTotal())
+                    .reason(reason.trim()).build());
+        }
         return response;
     }
 
     @Override
     public OrderDetailResponse updateOrderDetail(Long id, OrderDetailUpdateRequest request) {
         OrderDetail detail = findById(id);
+        assertOrderEditable(detail);
 
         // Chỉ cho sửa khi còn ở CHỜ XÁC NHẬN
         if (detail.getStatus() != OrderDetailStatus.PENDING) {
@@ -316,7 +388,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         BigDecimal optionExtra = optionExtraOf(detail.getId());
         BigDecimal gross = detail.getPriceAtOrderTime().add(optionExtra)
                 .multiply(BigDecimal.valueOf(detail.getQuantity()));
-        Branch branchOfDetail = detail.getOrder().getTableSession().getTable().getBranch();
+        Branch branchOfDetail = detail.getOrder().getTableSession().getBranch();
         BigDecimal discount = applyAutoItemPromotion(detail, detail.getDish(), branchOfDetail.getId(),
                 branchOfDetail.getRestaurant().getId(), detail.getQuantity(), gross);
         detail.setPrice(gross.subtract(discount));
@@ -352,6 +424,11 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     @Override
     public void changeOrderDetailStatus(Long id, OrderDetailStatus status) {
         OrderDetail detail = findById(id);
+        if (status == OrderDetailStatus.PREPARING) requirePermission(detail, OperationalPermission.CONFIRM_ORDER);
+        if (status == OrderDetailStatus.SERVED) requirePermission(detail, OperationalPermission.SERVE_ORDER);
+        if (detail.getOrder().getTableSession().isTakeaway()) {
+            throw new ConflictException("Hãy dùng thao tác xác nhận món hoặc đóng gói tại màn bếp.");
+        }
         detail.setStatus(status);
         orderDetailRepository.save(detail);
 
@@ -372,8 +449,10 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         List<OrderDetailResponse> responses = new java.util.ArrayList<>();
         List<OrderDetail> newlyConfirmedDetails = new java.util.ArrayList<>();
 
-        for (Long id : request.getOrderDetailIds()) {
-            OrderDetail detail = findById(id);
+        var details = request.getOrderDetailIds().stream().distinct().map(this::findById).toList();
+        details.stream().map(detail -> detail.getOrder().getTableSession().getBranch().getId()).distinct()
+                .forEach(branchId -> permissions.require(branchId, OperationalPermission.CONFIRM_ORDER));
+        for (OrderDetail detail : details) {
             // Chỉ xác nhận các món đang ở trạng thái PENDING
             if (detail.getStatus() == OrderDetailStatus.PENDING) {
                 detail.setStatus(OrderDetailStatus.PREPARING);
@@ -394,6 +473,10 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
         // FR-SRV-07: In phiếu bếp cho các món vừa được xác nhận (gom theo từng order)
         if (!newlyConfirmedDetails.isEmpty()) {
+            newlyConfirmedDetails.stream()
+                    .map(detail -> detail.getOrder().getTableSession())
+                    .distinct()
+                    .forEach(orderNotificationService::notifyTakeawayUpdated);
             Map<Long, List<OrderDetail>> byOrder = newlyConfirmedDetails.stream()
                     .filter(d -> d.getOrder() != null && d.getOrder().getId() != null)
                     .collect(Collectors.groupingBy(d -> d.getOrder().getId()));
@@ -406,11 +489,23 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         return responses;
     }
 
+    private void requirePermission(OrderDetail detail, OperationalPermission permission) {
+        permissions.require(detail.getOrder().getTableSession().getBranch().getId(), permission);
+    }
+
+    private void notifyDetailStatus(OrderDetail detail) {
+        TableSession session = detail.getOrder().getTableSession();
+        orderNotificationService.notifyItemStatusChanged(session.getId(), detail.getId(), detail.getStatus());
+        orderNotificationService.notifyTakeawayUpdated(session);
+    }
+
     @Override
     public void deleteOrderDetail(Long id) {
         OrderDetail detail = findById(id);
+        assertOrderEditable(detail);
         detail.softDelete(null);
         orderDetailRepository.save(detail);
+        orderNotificationService.notifyTakeawayUpdated(detail.getOrder().getTableSession());
     }
 
 
@@ -440,13 +535,31 @@ public class OrderDetailServiceImpl implements OrderDetailService {
      * No-op với khách ẩn danh (khách tự huỷ món chưa vào bếp qua endpoint công khai).
      */
     private OrderDetail findById(Long id) {
-        OrderDetail detail = orderDetailRepository.findById(id)
+        return checkDetailBranch(id, orderDetailRepository.findById(id));
+    }
+
+    private OrderDetail findForUpdate(Long id) {
+        return checkDetailBranch(id, orderDetailRepository.findForUpdate(id));
+    }
+
+    private OrderDetail checkDetailBranch(Long id, Optional<OrderDetail> found) {
+        OrderDetail detail = found
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dòng món với ID: " + id));
         TableSession session = detail.getOrder() != null ? detail.getOrder().getTableSession() : null;
         if (session != null) {
-            tenantGuard.assertBranch(session.getBranch());
+            tenantGuard.assertBranchAssigned(session.getBranch().getId());
         }
         return detail;
+    }
+
+    private void assertOrderEditable(OrderDetail detail) {
+        TableSession session = detail.getOrder().getTableSession();
+        if (session.isTakeaway() && session.getStatus() != TableSessionStatus.SERVING) {
+            throw new ConflictException("Đơn mang về đã chốt thanh toán, không thể sửa món.");
+        }
+        if (session.getStatus() == TableSessionStatus.WAITING_FOR_PAY) {
+            throw new ConflictException("Đơn đang chờ thanh toán. Hãy điều chỉnh món trên màn chốt bàn.");
+        }
     }
 
     /** Tổng phụ thu topping đã snapshot của một dòng món (BR-07). */

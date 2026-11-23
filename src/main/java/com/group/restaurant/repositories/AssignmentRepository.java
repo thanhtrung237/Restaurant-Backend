@@ -3,6 +3,7 @@ package com.group.restaurant.repositories;
 import com.group.restaurant.enums.AccountStatus;
 import com.group.restaurant.models.Assignment;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -14,11 +15,20 @@ import java.util.List;
 @Repository
 public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
 
+    @Query("select count(distinct a.account.id) from Assignment a where a.account.restaurant.id = :restaurantId "
+            + "and a.role.code = :roleCode and a.branch is not null and a.account.status = :status")
+    long countAccountsForPermissions(Long restaurantId, String roleCode, AccountStatus status);
+
     List<Assignment> findByAccountId(Long accountId);
 
     List<Assignment> findByRoleId(Long roleId);
 
     List<Assignment> findByBranchId(Long branchId);
+
+    @EntityGraph(attributePaths = {"account", "role", "branch"})
+    @Query("select a from Assignment a where a.account.id in "
+            + "(select member.account.id from Assignment member where member.branch.id = :branchId)")
+    List<Assignment> findForBranchStaff(Long branchId);
 
     void deleteByAccountId(Long accountId);
 

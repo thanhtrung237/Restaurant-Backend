@@ -3,6 +3,7 @@ package com.group.restaurant.services;
 import com.group.restaurant.dtos.request.orderDetail.OrderDetailAddRequest;
 import com.group.restaurant.dtos.request.orderDetail.OrderDetailCancelRequest;
 import com.group.restaurant.dtos.request.orderDetail.OrderDetailConfirmWeightRequest;
+import com.group.restaurant.dtos.request.orderDetail.OrderDetailServeRequest;
 import com.group.restaurant.dtos.request.orderDetail.OrderDetailUpdateRequest;
 import com.group.restaurant.dtos.response.orderDetail.OrderDetailResponse;
 import com.group.restaurant.enums.OrderDetailStatus;
@@ -22,7 +23,7 @@ public interface OrderDetailService {
     List<OrderDetailResponse> getOrderDetailsByTableSession(Long tableSessionId, OrderDetailStatus status);
 
     // Phục vụ xác nhận đã mang món ra bàn: PREPARING → SERVED
-    OrderDetailResponse markAsServed(Long id);
+    OrderDetailResponse markAsServed(Long id, OrderDetailServeRequest request);
 
     // Phục vụ nhập số cân: PENDING_WEIGHT → PREPARING 
     OrderDetailResponse confirmWeight(Long id, OrderDetailConfirmWeightRequest request);
@@ -32,6 +33,8 @@ public interface OrderDetailService {
 
     // Hủy dòng món trước bếp (PENDING / PENDING_WEIGHT → CANCELLED)
     OrderDetailResponse cancelBeforeKitchen(Long id);
+
+    OrderDetailResponse removeFromCheckout(Long sessionId, Long detailId, String reason);
 
     void changeOrderDetailStatus(Long id, OrderDetailStatus status);
 

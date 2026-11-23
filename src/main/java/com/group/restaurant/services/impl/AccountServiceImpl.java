@@ -49,13 +49,10 @@ public class AccountServiceImpl implements AccountService {
     private final TenantGuard tenantGuard;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    /** Khoá sinh mã nhân viên — xem ghi chú ở generateEmployeeCode. */
-    private static final Object EMPLOYEE_CODE_LOCK = new Object();
-
     @Override
     public AccountResponse createAccount(AccountAddRequest request) {
         tenantGuard.assertRestaurant(request.getRestaurantId());
-        Restaurant restaurant = restaurantRepository.findById(request.getRestaurantId())
+        Restaurant restaurant = restaurantRepository.findByIdForUpdate(request.getRestaurantId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy nhà hàng với ID: " + request.getRestaurantId()));
 
@@ -74,17 +71,11 @@ public class AccountServiceImpl implements AccountService {
         account.setStatus(AccountStatus.ACTIVE);
 
         // QĐ-03: mã nhân viên do hệ thống sinh, client không gửi.
-        Account savedAccount;
-        synchronized (EMPLOYEE_CODE_LOCK) {
-            account.setEmployeeCode(generateEmployeeCode(restaurant.getId()));
-            savedAccount = accountRepository.save(account);
-        }
+        account.setEmployeeCode(generateEmployeeCode(restaurant.getId()));
+        Account savedAccount = accountRepository.save(account);
 
-        // Tự động phân quyền MANAGER cho tài khoản chủ nhà hàng vừa tạo bởi Platform Admin.
-        // Tìm role MANAGER theo restaurant_id để đúng với unique constraint (restaurant_id, code).
-        // Nếu chưa có role MANAGER trong nhà hàng này thì tạo mới.
-        List<Assignment> existing = assignmentRepository.findByAccountId(savedAccount.getId());
-        if (existing.isEmpty()) {
+        // POST /accounts also serves Platform Admin onboarding for restaurant owners.
+        if (tenantGuard.isPlatformAdmin()) {
             Role managerRole = roleRepository.findByRestaurantIdAndCode(restaurant.getId(), "MANAGER")
                     .orElseGet(() -> {
                         Role newRole = Role.builder()
@@ -100,7 +91,7 @@ public class AccountServiceImpl implements AccountService {
                     .role(managerRole)
                     .branch(null)
                     .build();
-            assignmentRepository.save(assignment);
+            savedAccount.getAssignments().add(assignmentRepository.save(assignment));
         }
 
         return buildAccountResponse(savedAccount);
@@ -325,10 +316,7 @@ public class AccountServiceImpl implements AccountService {
      * Lấy số lớn nhất đang dùng trong CHÍNH nhà hàng đó rồi +1, và vẫn kiểm trùng trước khi
      * trả về — dữ liệu cũ có thể có mã nhập tay không theo quy ước.
      *
-     * ⚠️ Giới hạn đã biết: cột `employee_code` KHÔNG có ràng buộc duy nhất ở DB, nên hai lời
-     * gọi tạo tài khoản thật sự đồng thời (hai tiến trình) vẫn có thể ra cùng một mã. Khối
-     * `synchronized` chỉ chặn được trong một tiến trình. Cách sửa triệt để là thêm unique
-     * index `(restaurant_id, employee_code)` — đổi schema nên chưa làm.
+     * createAccount giữ khóa trên dòng nhà hàng tới khi giao dịch hoàn tất.
      */
     private String generateEmployeeCode(Long restaurantId) {
         int maxNumber = accountRepository.findByRestaurantId(restaurantId).stream()

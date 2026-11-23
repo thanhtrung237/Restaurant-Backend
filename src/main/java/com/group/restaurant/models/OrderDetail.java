@@ -42,6 +42,14 @@ public class OrderDetail extends BaseEntity {
         @Column(name = "quantity", nullable = false)
         private Integer quantity;
 
+        @Column(name = "served_quantity")
+        private Integer servedQuantity;
+
+        public int getServedQuantity() {
+                if (status == OrderDetailStatus.SERVED) return quantity;
+                return servedQuantity == null ? 0 : servedQuantity;
+        }
+
         @Column(name = "price_at_order_time", nullable = false, precision = 12, scale = 2)
         private BigDecimal priceAtOrderTime;
 

@@ -7,6 +7,9 @@ import com.group.restaurant.models.*;
 import com.group.restaurant.repositories.*;
 import com.group.restaurant.services.TableSessionService;
 import com.group.restaurant.utils.TenantGuard;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.nio.charset.StandardCharsets;
@@ -21,6 +24,8 @@ import static org.springframework.http.HttpStatus.*;
 @Service
 @RequiredArgsConstructor
 public class GuestAdmissionService {
+    @PersistenceContext
+    private EntityManager entityManager;
     public record AccessRequest(@NotNull Long branchId, @NotBlank @Size(max=200) String qrCode,
                                 @Min(1) @Max(100) Integer guestCount,
                                 @Pattern(regexp="[0-9]{8}") String joinCode, @Valid GuestLocation location) {}
@@ -39,6 +44,7 @@ public class GuestAdmissionService {
     @Transactional(readOnly=true)
     public TableInfo info(Long branchId, String qrCode) {
         DiningTable table = findTable(branchId, qrCode);
+        ensureTableActive(table);
         Branch branch = table.getBranch();
         return new TableInfo(table.getId(), branch.getId(), table.getName(), branch.getName(),
                 branch.getRestaurant().getName(), branch.isGeofenceEnabled(),
@@ -53,6 +59,7 @@ public class GuestAdmissionService {
         limiter.check("admit-ip-table:" + remoteAddress + ":" + table.getId(), 5, 60_000);
         limiter.check("admit-branch:" + table.getBranch().getId(), 300, 60_000);
         table = tables.findForGuestAdmission(table.getId()).orElseThrow(() -> new ResponseStatusException(NOT_FOUND));
+        entityManager.refresh(table, LockModeType.PESSIMISTIC_WRITE);
         ensureActive(table);
         TableSession existing = sessions.findActiveForGuestAdmission(table.getId()).orElse(null);
         TableSessionResponse response;
@@ -88,7 +95,7 @@ public class GuestAdmissionService {
 
     @Transactional
     public String staffCode(Long sessionId) {
-        TableSession session = sessions.findForGuestCode(sessionId)
+        TableSession session = sessions.findForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy phiên bàn."));
         tenantGuard.assertBranchAssigned(session.getBranch().getId(), "WAITER", "BRANCH_MANAGER", "MANAGER", "CASHIER");
         if (session.getStatus() != TableSessionStatus.WAITING_FOR_OPEN && session.getStatus() != TableSessionStatus.SERVING
@@ -107,10 +114,16 @@ public class GuestAdmissionService {
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Mã QR không hợp lệ."));
     }
     private void ensureActive(DiningTable table) {
-        if (table.getStatus() == DiningTableStatus.INACTIVE
-                || table.getBranch().getStatus() != BranchStatus.ACTIVE
+        ensureTableActive(table);
+        if (table.getBranch().getStatus() != BranchStatus.ACTIVE
                 || table.getBranch().getRestaurant().getStatus() != RestaurantStatus.ACTIVE) {
             throw new ResponseStatusException(FORBIDDEN, "Chi nhánh hoặc nhà hàng đang ngừng hoạt động.");
+        }
+    }
+
+    private void ensureTableActive(DiningTable table) {
+        if (table.getStatus() == DiningTableStatus.INACTIVE) {
+            throw new ResponseStatusException(FORBIDDEN, "Bàn đã ngừng sử dụng.");
         }
     }
 }

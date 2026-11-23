@@ -3,6 +3,8 @@ package com.group.restaurant.services.impl;
 import com.group.restaurant.dtos.request.payment.PaymentAddRequest;
 import com.group.restaurant.dtos.response.payment.PaymentResponse;
 import com.group.restaurant.enums.InvoiceStatus;
+import com.group.restaurant.enums.PaymentMethod;
+import com.group.restaurant.enums.TableSessionStatus;
 import com.group.restaurant.exceptions.ConflictException;
 import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.mappers.PaymentMapper;
@@ -11,7 +13,9 @@ import com.group.restaurant.models.Payment;
 import com.group.restaurant.repositories.InvoiceRepository;
 import com.group.restaurant.repositories.PaymentRepository;
 import com.group.restaurant.services.AuditLogService;
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.services.PaymentService;
+import com.group.restaurant.services.SepayTransfer;
 import com.group.restaurant.services.audit.AuditAction;
 import com.group.restaurant.services.audit.AuditEvent;
 import com.group.restaurant.utils.TenantGuard;
@@ -34,14 +38,21 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentMapper paymentMapper;
     private final AuditLogService auditLogService;
     private final TenantGuard tenantGuard;
+    private final OrderNotificationService orderNotificationService;
+    private final SepayTransfer sepay;
 
     @Override
     public PaymentResponse processPayment(PaymentAddRequest request) {
-        Invoice invoice = invoiceRepository.findById(request.getInvoiceId())
+        Invoice invoice = invoiceRepository.findForPayment(request.getInvoiceId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy hóa đơn với ID: " + request.getInvoiceId()));
         // invoiceId đến từ client: Thu ngân chỉ được thu tiền hóa đơn của nhà hàng mình.
-        tenantGuard.assertBranch(invoice.getBranch());
+        tenantGuard.assertBranchAssigned(invoice.getBranch().getId());
+        boolean takeaway = invoice.getTableSession() != null && invoice.getTableSession().isTakeaway();
+        if (takeaway) {
+            tenantGuard.assertBranchAssigned(invoice.getBranch().getId(),
+                    TenantGuard.ROLE_CASHIER, TenantGuard.ROLE_BRANCH_MANAGER, TenantGuard.ROLE_MANAGER);
+        }
 
         if (invoice.getStatus() == InvoiceStatus.PAID) {
             throw new ConflictException("Hóa đơn này đã được thanh toán đầy đủ trước đó");
@@ -53,7 +64,34 @@ public class PaymentServiceImpl implements PaymentService {
             throw new ConflictException("Hóa đơn này đã bị hủy, không thể thanh toán");
         }
 
+        BigDecimal remaining = invoice.getGrandTotal().subtract(paymentRepository.sumAmountByInvoiceId(invoice.getId()));
+        if (request.getAmount().compareTo(remaining) > 0) {
+            throw new ConflictException("Số tiền thu vượt số tiền còn phải trả. Vui lòng kiểm tra lại hóa đơn.");
+        }
         Payment payment = paymentMapper.toEntity(request);
+        return buildPaymentResponse(savePayment(invoice, payment));
+    }
+
+    @Override
+    public boolean recordVerifiedSepayTransfer(Long invoiceId, Long transactionId, BigDecimal amount) {
+        if (amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 0) return false;
+
+        Invoice invoice = invoiceRepository.findForPayment(invoiceId).orElse(null);
+        if (invoice == null || invoice.getStatus() != InvoiceStatus.PENDING
+                || !sepay.enabledFor(invoice.getBranch()) || invoice.getTableSession() == null
+                || invoice.getTableSession().getStatus() != TableSessionStatus.WAITING_FOR_PAY
+                || paymentRepository.existsBySepayTransactionId(transactionId)) return false;
+
+        BigDecimal remaining = invoice.getGrandTotal().subtract(paymentRepository.sumAmountByInvoiceId(invoiceId));
+        if (amount.compareTo(remaining) != 0) return false;
+
+        savePayment(invoice, Payment.builder().method(PaymentMethod.BANK_TRANSFER).amount(amount)
+                .transactionRef("SePay #" + transactionId).sepayTransactionId(transactionId).build());
+        orderNotificationService.notifyBankPaymentVerified(invoice.getTableSession());
+        return true;
+    }
+
+    private Payment savePayment(Invoice invoice, Payment payment) {
         payment.setInvoice(invoice);
         payment.setPaidAt(LocalDateTime.now());
 
@@ -88,7 +126,8 @@ public class PaymentServiceImpl implements PaymentService {
                 .reason(fullyPaid ? "Thu đủ tiền hóa đơn" : "Thu một phần hóa đơn")
                 .build());
 
-        return buildPaymentResponse(savedPayment);
+        orderNotificationService.notifyTakeawayUpdated(invoice.getTableSession());
+        return savedPayment;
     }
 
     @Override

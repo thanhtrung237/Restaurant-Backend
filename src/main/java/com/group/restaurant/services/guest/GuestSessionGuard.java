@@ -24,6 +24,16 @@ public class GuestSessionGuard {
     @Transactional(readOnly = true)
     public TableSession require(Long id, boolean write) {
         TableSession session = sessions.findById(id).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy phiên bàn."));
+        return authorize(session, write);
+    }
+
+    @Transactional
+    public TableSession requireForOrderCreation(Long id) {
+        TableSession session = sessions.findForUpdate(id).orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy phiên bàn."));
+        return authorize(session, true);
+    }
+
+    private TableSession authorize(TableSession session, boolean write) {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof AccountUserDetails) {
             tenantGuard.assertBranchAssigned(session.getBranch().getId());
@@ -36,6 +46,9 @@ public class GuestSessionGuard {
     }
 
     public void requireGuest(String token, TableSession session, boolean write) {
+        if (session.isTakeaway()) {
+            throw new ResponseStatusException(FORBIDDEN, "Đơn mang về được xử lý tại quầy.");
+        }
         tokens.verify(token, session);
         if (session.getStatus() == TableSessionStatus.CANCELLED || session.getStatus() == TableSessionStatus.MERGED
                 || (write && session.getStatus() == TableSessionStatus.CLOSED)) {

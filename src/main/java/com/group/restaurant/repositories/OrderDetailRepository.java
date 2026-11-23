@@ -3,14 +3,21 @@ package com.group.restaurant.repositories;
 import com.group.restaurant.enums.OrderDetailStatus;
 import com.group.restaurant.models.OrderDetail;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import jakarta.persistence.LockModeType;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface OrderDetailRepository extends JpaRepository<OrderDetail, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT od FROM OrderDetail od WHERE od.id = :id")
+    Optional<OrderDetail> findForUpdate(@Param("id") Long id);
 
     List<OrderDetail> findByOrderId(Long orderId);
 

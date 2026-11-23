@@ -7,6 +7,7 @@ import com.group.restaurant.services.DishOptionGroupService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +23,7 @@ public class DishOptionGroupController {
     private final DishOptionGroupService dishOptionGroupService;
 
     @PostMapping("")
+    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
     public ResponseEntity<ResponseSuccess<DishOptionGroupResponse>> linkDishToOptionGroup(
             @Valid @RequestBody DishOptionGroupAddRequest request) {
         return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
@@ -62,6 +64,7 @@ public class DishOptionGroupController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
     public ResponseEntity<ResponseSuccess<Void>> unlinkDishFromOptionGroup(@PathVariable Long id) {
         dishOptionGroupService.unlinkDishFromOptionGroup(id);
         return ResponseEntity.ok(new ResponseSuccess<>(

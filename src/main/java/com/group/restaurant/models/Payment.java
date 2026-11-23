@@ -38,6 +38,13 @@ public class Payment extends BaseEntity {
     @Column(name = "transaction_ref", length = 200)
     private String transactionRef;
 
+    @Column(name = "sepay_transaction_id", unique = true)
+    private Long sepayTransactionId;
+
+    public boolean isBankVerified() {
+        return sepayTransactionId != null;
+    }
+
     @Column(name = "amount_tendered", precision = 14, scale = 2)
     private BigDecimal amountTendered;
 }

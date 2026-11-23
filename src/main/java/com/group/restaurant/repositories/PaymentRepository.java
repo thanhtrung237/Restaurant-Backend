@@ -15,6 +15,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     List<Payment> findByInvoiceId(Long invoiceId);
 
+    boolean existsBySepayTransactionId(Long transactionId);
+
     List<Payment> findByMethod(PaymentMethod method);
 
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p WHERE p.invoice.id = :invoiceId")

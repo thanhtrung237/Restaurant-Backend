@@ -16,6 +16,9 @@ public class TableSessionResponse {
     private Long id;
     private Long tableId;
     private String tableName;
+    private boolean takeaway;
+    private boolean canAddTakeawayItems;
+    private LocalDateTime pickedUpAt;
     private Long branchId;
     private Integer guestCount;
     private String note;

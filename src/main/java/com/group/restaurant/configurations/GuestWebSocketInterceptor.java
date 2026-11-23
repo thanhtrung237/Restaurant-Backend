@@ -55,7 +55,7 @@ public class GuestWebSocketInterceptor implements ChannelInterceptor {
                         String token = attributes == null ? null : (String) attributes.get("guestToken");
                         guests.requireGuest(token, sessions.findById(id).orElseThrow(() -> new ResponseStatusException(FORBIDDEN)), true);
                     }
-                } else if (staff != null && destination != null && destination.matches("/topic/branch/[0-9]+/(new-order|payment-request|staff-call)")) {
+                } else if (staff != null && destination != null && destination.matches("/topic/branch/[0-9]+/(new-order|payment-request|staff-call|takeaway-updated)")) {
                     tenantGuard.assertBranchAssigned(Long.valueOf(destination.split("/")[3]));
                 } else deny();
             } finally { SecurityContextHolder.setContext(previous); }

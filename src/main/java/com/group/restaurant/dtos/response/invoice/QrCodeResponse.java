@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 @Setter
 @Builder
 public class QrCodeResponse {
+    private boolean automaticVerification;
 
     private Long invoiceId;
     private String invoiceNumber;

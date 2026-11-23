@@ -74,47 +74,53 @@ public class AuditLogServiceImpl implements AuditLogService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(AuditEvent event) {
         try {
-            // Ưu tiên SecurityContext; sự kiện đăng nhập thì chưa có nên nhận từ event.
-            Account performedBy = currentAccountOrNull();
-            if (performedBy == null && event.getPerformedByAccountId() != null) {
-                performedBy = accountRepository.findById(event.getPerformedByAccountId()).orElse(null);
-            }
-
-            Long restaurantId = event.getRestaurantId() != null
-                    ? event.getRestaurantId()
-                    : (performedBy != null && performedBy.getRestaurant() != null
-                            ? performedBy.getRestaurant().getId()
-                            : null);
-
-            Restaurant restaurant = restaurantId != null
-                    ? restaurantRepository.findById(restaurantId).orElse(null)
-                    : null;
-            Branch branch = event.getBranchId() != null
-                    ? branchRepository.findById(event.getBranchId()).orElse(null)
-                    : null;
-            Account approvedBy = event.getApprovedByAccountId() != null
-                    ? accountRepository.findById(event.getApprovedByAccountId()).orElse(null)
-                    : null;
-
-            AuditLog entry = AuditLog.builder()
-                    .restaurant(restaurant)
-                    .branch(branch)
-                    .performedBy(performedBy)
-                    .approvedBy(approvedBy)
-                    .occurredAt(LocalDateTime.now())
-                    .entityType(event.getEntityType())
-                    .entityId(event.getEntityId())
-                    .actionType(event.getActionType())
-                    .valueBefore(event.getValueBefore())
-                    .valueAfter(event.getValueAfter())
-                    .reason(event.getReason())
-                    .build();
-
-            auditLogRepository.save(entry);
+            recordInTransaction(event);
         } catch (Exception e) {
             log.error("Không ghi được nhật ký cho {} #{} ({}): {}",
                     event.getEntityType(), event.getEntityId(), event.getActionType(), e.getMessage(), e);
         }
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void recordInTransaction(AuditEvent event) {
+        // Ưu tiên SecurityContext; sự kiện đăng nhập thì chưa có nên nhận từ event.
+        Account performedBy = currentAccountOrNull();
+        if (performedBy == null && event.getPerformedByAccountId() != null) {
+            performedBy = accountRepository.findById(event.getPerformedByAccountId()).orElse(null);
+        }
+
+        Long restaurantId = event.getRestaurantId() != null
+                ? event.getRestaurantId()
+                : (performedBy != null && performedBy.getRestaurant() != null
+                        ? performedBy.getRestaurant().getId()
+                        : null);
+
+        Restaurant restaurant = restaurantId != null
+                ? restaurantRepository.findById(restaurantId).orElse(null)
+                : null;
+        Branch branch = event.getBranchId() != null
+                ? branchRepository.findById(event.getBranchId()).orElse(null)
+                : null;
+        Account approvedBy = event.getApprovedByAccountId() != null
+                ? accountRepository.findById(event.getApprovedByAccountId()).orElse(null)
+                : null;
+
+        AuditLog entry = AuditLog.builder()
+                .restaurant(restaurant)
+                .branch(branch)
+                .performedBy(performedBy)
+                .approvedBy(approvedBy)
+                .occurredAt(LocalDateTime.now())
+                .entityType(event.getEntityType())
+                .entityId(event.getEntityId())
+                .actionType(event.getActionType())
+                .valueBefore(event.getValueBefore())
+                .valueAfter(event.getValueAfter())
+                .reason(event.getReason())
+                .build();
+
+        auditLogRepository.save(entry);
     }
 
     private Account currentAccountOrNull() {
