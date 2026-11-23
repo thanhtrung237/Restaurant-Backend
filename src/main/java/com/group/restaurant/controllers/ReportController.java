@@ -4,6 +4,8 @@ import com.group.restaurant.dtos.response.base.ResponseSuccess;
 import com.group.restaurant.dtos.response.report.*;
 import com.group.restaurant.services.ReportExportService;
 import com.group.restaurant.services.ReportService;
+import com.group.restaurant.services.OperationalPermissionService;
+import com.group.restaurant.enums.OperationalPermission;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -31,6 +33,7 @@ import static org.springframework.http.HttpStatus.OK;
 public class ReportController {
 
     private final ReportService reportService;
+    private final OperationalPermissionService permissions;
     private final ReportExportService reportExportService;
     private final com.group.restaurant.services.AnomalyDetectionService anomalyDetectionService;
 
@@ -53,6 +56,7 @@ public class ReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(defaultValue = "DAY") String groupBy) {
 
+        requireBranchPermissions(branchIds, OperationalPermission.VIEW_REPORT);
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
                 "Lấy báo cáo doanh thu thành công",
@@ -73,6 +77,7 @@ public class ReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
 
+        requireBranchPermissions(branchIds, OperationalPermission.VIEW_REPORT);
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
                 "Lấy báo cáo doanh thu theo khung giờ thành công",
@@ -94,6 +99,7 @@ public class ReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(defaultValue = "10") int topN) {
 
+        requireBranchPermissions(branchIds, OperationalPermission.VIEW_REPORT);
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
                 "Lấy báo cáo món bán chạy/bán chậm thành công",
@@ -115,6 +121,7 @@ public class ReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
 
+        permissions.requireManager(restaurantId);
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
                 "Lấy báo cáo so sánh chi nhánh thành công",
@@ -131,6 +138,7 @@ public class ReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
 
+        requireBranchPermissions(branchIds, OperationalPermission.VIEW_REPORT);
         return ResponseEntity.ok(new ResponseSuccess<>(
                 OK,
                 "Quét phát hiện bất thường AI thành công",
@@ -163,6 +171,12 @@ public class ReportController {
             @RequestParam(defaultValue = "DAY") String groupBy,
             HttpServletResponse response) throws IOException {
 
+        if ("BRANCH_COMPARISON".equalsIgnoreCase(type)) {
+            permissions.requireManager(restaurantId);
+        } else {
+            requireBranchPermissions(branchIds, OperationalPermission.EXPORT_REPORT);
+        }
+
         String ext = "csv".equalsIgnoreCase(format) ? "csv" : "xlsx";
         String contentType = "csv".equalsIgnoreCase(format)
                 ? "text/csv; charset=UTF-8"
@@ -187,5 +201,12 @@ public class ReportController {
             }
             outputStream.flush();
         }
+    }
+
+    private void requireBranchPermissions(List<Long> branchIds, OperationalPermission permission) {
+        if (branchIds == null || branchIds.isEmpty()) {
+            throw new com.group.restaurant.exceptions.InvalidParamException("Chọn ít nhất một chi nhánh.");
+        }
+        branchIds.stream().distinct().forEach(branchId -> permissions.require(branchId, permission));
     }
 }

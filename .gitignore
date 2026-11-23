@@ -50,3 +50,4 @@ out/
 *.ps1
 *.sh
 *.sql
+!docs/sql/2026-11-22-operational-permissions.sql

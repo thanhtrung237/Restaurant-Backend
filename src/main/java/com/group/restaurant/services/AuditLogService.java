@@ -21,6 +21,9 @@ public interface AuditLogService {
      */
     void record(AuditEvent event);
 
+    /** Ghi nhật ký cùng giao dịch với thay đổi phân quyền. */
+    void recordInTransaction(AuditEvent event);
+
     AuditLogResponse getAuditLogById(Long id);
 
     PageResponse<AuditLogResponse> getAllAuditLogs(
