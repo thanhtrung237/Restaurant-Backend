@@ -271,15 +271,20 @@ test, ví dụ `./gradlew test bootJar` với Java 21.
 
 ## CI/CD backend
 
-Khi push lên nhánh làm việc, Spotless format các file Java thay đổi so với
-nhánh mặc định. Nếu cần sửa format, bot tạo commit trên chính nhánh đó. CI
-chạy toàn bộ test Gradle và build Boot JAR bằng Java 21 trên commit đã format.
-Pull commit của bot về trước lần push tiếp theo nếu bot đã cập nhật nhánh.
-Trên PowerShell, chạy `.\gradlew.bat spotlessApply "-PformatBase=origin/main"`
-để format cục bộ.
+Workflow `.github/workflows/cicd.yml` chạy khi push vào các nhánh `main`, `dev`,
+`develop`, `tai-dev`, `trung-dev`, hoặc mở/cập nhật pull request có nhánh đích
+thuộc danh sách trên. Có thể chạy thủ công bằng Actions → Run workflow.
 
-Pull request và mỗi lần push vào `main` đều kiểm tra format, test và build
-độc lập. Sau khi `main` đạt, workflow build backend image, chạy thử với MySQL
+CI checkout source, cài Temurin Java 21 kèm Gradle cache, cấp quyền cho Gradle
+Wrapper rồi chạy `./gradlew --no-daemon --console=plain clean build`. Profile
+`test` dùng H2, không cần mật khẩu database local hoặc production cho bước CI.
+Workflow không chạy Spotless và
+không tự tạo commit hoặc push thay đổi format lên nhánh.
+
+Spotless vẫn có sẵn để chạy thủ công trên máy local khi cần:
+`.\gradlew.bat spotlessApply "-PformatBase=origin/main"`.
+
+Sau khi `main` đạt bước test và build, workflow build backend image, chạy thử với MySQL
 tạm và kiểm tra `/actuator/health/readiness`. Image được phát hành lên
 `ghcr.io/thanhtrung237/restaurant-backend` với tag `latest` và `sha-<commit-sha>`.
 
