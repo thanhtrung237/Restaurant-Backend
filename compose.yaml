@@ -1,0 +1,131 @@
+name: restaurant-local
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-restaurant}
+      MYSQL_USER: ${MYSQL_USER:-restaurant}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env.docker}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env.docker}
+      TZ: Asia/Ho_Chi_Minh
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "${HTTP_BIND_ADDRESS:-127.0.0.1}:${MYSQL_PORT:-3307}:3306"
+    healthcheck:
+      # A real authenticated query checks that the application database is ready.
+      test:
+        - CMD-SHELL
+        - >-
+          MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --protocol=TCP -h 127.0.0.1
+          -u"$${MYSQL_USER}" "$${MYSQL_DATABASE}" -e 'SELECT 1' >/dev/null 2>&1
+      interval: 10s
+      timeout: 5s
+      start_period: 40s
+      retries: 20
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    image: restaurant-backend:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: "8080"
+      API_PREFIX: /api/v1
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-restaurant}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-restaurant}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env.docker}
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
+      # Local Docker only: create/update schema on the isolated development volume.
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${DOCKER_DDL_AUTO:-update}
+      SPRING_JPA_SHOW_SQL: "false"
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MySQLDialect
+      SPRING_JPA_DEFER_DATASOURCE_INITIALIZATION: "false"
+      SPRING_SQL_INIT_MODE: never
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set a Base64 JWT_ACCESS_SECRET in .env.docker}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set a different Base64 JWT_REFRESH_SECRET in .env.docker}
+      JWT_ACCESS_EXPIRATION_MS: ${JWT_ACCESS_EXPIRATION_MS:-3600000}
+      JWT_REFRESH_EXPIRATION_DAYS: ${JWT_REFRESH_EXPIRATION_DAYS:-7}
+      # Placeholder allows local startup; real credentials are needed for uploads.
+      CLOUDINARY_URL: ${CLOUDINARY_URL:-cloudinary://local:local@local-demo}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      SEPAY_WEBHOOK_SECRET: ${SEPAY_WEBHOOK_SECRET:-}
+      SEPAY_ACCOUNT_NUMBER: ${SEPAY_ACCOUNT_NUMBER:-}
+      SEPAY_BANK: ${SEPAY_BANK:-STB}
+      DISCORD_TRANSACTION_WEBHOOK_URL: ${DISCORD_TRANSACTION_WEBHOOK_URL:-}
+      APP_CORS_ALLOWED_ORIGIN_PATTERNS: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:-http://localhost:8088,http://127.0.0.1:8088}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0
+      TZ: Asia/Ho_Chi_Minh
+    stop_grace_period: 30s
+    ports:
+      - "${HTTP_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-8081}:8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    image: restaurant-frontend:local
+    build:
+      # Both Git repositories must be checked out next to one another.
+      context: ${FRONTEND_BUILD_CONTEXT:-../Restaurant-Frontend}
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+        VITE_WS_URL: /ws
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${HTTP_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-8088}:80"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  seed-demo:
+    image: mysql:8.4
+    profiles: [demo]
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-restaurant}
+      MYSQL_USER: ${MYSQL_USER:-restaurant}
+      MYSQL_PWD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env.docker}
+    volumes:
+      - ./docker/seed-demo.mysql:/seed-demo.mysql:ro
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        accounts=$$(mysql -h mysql -u"$$MYSQL_USER" "$$MYSQL_DATABASE" -Nse 'SELECT COUNT(*) FROM account')
+        if [ "$$accounts" != '0' ]; then
+          echo 'Demo seed requires an empty database. No rows were imported.' >&2
+          exit 1
+        fi
+        mysql -h mysql -u"$$MYSQL_USER" --default-character-set=utf8mb4 "$$MYSQL_DATABASE" < /seed-demo.mysql
+
+volumes:
+  mysql_data:
+    # Reuse the original database volume in both Compose and standalone mode.
+    name: ${MYSQL_VOLUME_NAME:-restaurant-local_mysql_data}

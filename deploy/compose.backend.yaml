@@ -1,0 +1,3 @@
+services:
+  backend:
+    image: ${RESTAURANT_BACKEND_IMAGE:?Set RESTAURANT_BACKEND_IMAGE}

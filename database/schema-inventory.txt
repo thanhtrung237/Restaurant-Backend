@@ -1,0 +1,27 @@
+Database: restaurantServiceDB
+Server: 8.4.13
+account | columns=15 | rows=0
+area | columns=11 | rows=0
+assignment | columns=11 | rows=0
+audit_log | columns=19 | rows=0
+branch | columns=31 | rows=0
+branch_dish_stock | columns=11 | rows=0
+category | columns=12 | rows=0
+dining_table | columns=14 | rows=0
+dish | columns=19 | rows=0
+dish_option_group | columns=10 | rows=0
+dish_override | columns=12 | rows=0
+invoice | columns=26 | rows=0
+manual_discount | columns=16 | rows=0
+option_group | columns=13 | rows=0
+option_item | columns=11 | rows=0
+order_detail | columns=26 | rows=0
+order_detail_option | columns=11 | rows=0
+orders | columns=12 | rows=0
+payment | columns=14 | rows=0
+promotion | columns=25 | rows=0
+promotion_branch | columns=10 | rows=0
+refresh_token | columns=6 | rows=0
+restaurant | columns=15 | rows=0
+role | columns=12 | rows=0
+table_session | columns=28 | rows=0

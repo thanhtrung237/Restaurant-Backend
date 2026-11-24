@@ -1,6 +1,7 @@
 package com.group.restaurant;
 import com.group.restaurant.configurations.GuestWebSocketInterceptor;
 import com.group.restaurant.configurations.jwt.*;
+import com.group.restaurant.models.DiningTable;
 import com.group.restaurant.models.TableSession;
 import com.group.restaurant.enums.TableSessionStatus;
 import com.group.restaurant.repositories.TableSessionRepository;
@@ -27,7 +28,8 @@ class GuestWebSocketSecurityTest {
         var guard=new GuestSessionGuard(tokens,sessions,tenant);
         interceptor=new GuestWebSocketInterceptor(mock(JwtUtil.class),mock(AccountUserDetailsService.class),sessions,guard,tenant);
         attributes=new HashMap<>();
-        session=TableSession.builder().id(1L).status(TableSessionStatus.SERVING).build();
+        session=TableSession.builder().id(1L).table(DiningTable.builder().id(1L).build())
+                .status(TableSessionStatus.SERVING).build();
         token=tokens.issue(session);
     }
     private Message<byte[]> frame(StompCommand command,String destination,String credential) {
@@ -47,7 +49,8 @@ class GuestWebSocketSecurityTest {
         assertThatCode(() -> interceptor.preSend(frame(StompCommand.SUBSCRIBE,"/topic/session/1/item-status",null),mock(MessageChannel.class))).doesNotThrowAnyException();
     }
     @Test void guestCannotSubscribeToAnotherSession() {
-        connect(); var other=TableSession.builder().id(2L).status(TableSessionStatus.SERVING).guestAccessVersion(session.getGuestAccessVersion()).build();
+        connect(); var other=TableSession.builder().id(2L).table(DiningTable.builder().id(2L).build())
+                .status(TableSessionStatus.SERVING).guestAccessVersion(session.getGuestAccessVersion()).build();
         when(sessions.findById(2L)).thenReturn(Optional.of(other));
         assertThatThrownBy(() -> interceptor.preSend(frame(StompCommand.SUBSCRIBE,"/topic/session/2/item-status",null),mock(MessageChannel.class))).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
     }

@@ -111,7 +111,8 @@ class GuestQrIntegrationTest {
                         .content(json.writeValueAsString(Map.of("orderDetailIds", List.of(removedId)))))
                 .andExpect(status().isOk());
         mvc.perform(post("/api/v1/order-details/session/{sessionId}/remove/{id}", sessionId, removedId)
-                        .with(authentication(staff)))
+                        .with(authentication(staff)).contentType("application/json")
+                        .content(json.writeValueAsString(Map.of("reason", "Restaurant removed the duplicate item"))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.isBillable").value(false));
         String updatedQr = mvc.perform(get("/api/v1/invoices/{id}/qr-code", invoiceId).with(authentication(staff)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();

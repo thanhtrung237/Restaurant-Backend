@@ -38,6 +38,9 @@ out/
 
 ### Environment ###
 .env
+.env.*
+!.env.example
+!.env.docker.example
 
 
 ### Markdown Documentation ###
@@ -48,6 +51,8 @@ out/
 
 ### Scripts ###
 *.ps1
+!start-docker.ps1
+.docker-runtime/
 *.sh
 *.sql
 !docs/sql/2026-11-22-operational-permissions.sql

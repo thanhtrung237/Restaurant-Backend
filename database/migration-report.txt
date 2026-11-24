@@ -1,0 +1,8 @@
+Schema verification: PASS (Hibernate validate + exact column sets + constraint definitions)
+Columns: 390; foreign keys: 50; unique constraints: 14
+Seed review: data.sql is entirely commented out and is not automatically loaded from the project root.
+Commented INSERT statements reviewed: 101
+Seed branch missing required SQL values: [geofence_enabled, geofence_max_accuracy_meters, geofence_radius_meters, vat_applied_on_service_fee]
+Seed invoice missing required SQL values: [e_invoice_attempt_count]
+Seed promotion missing required SQL values: [all_branches, usage_count, version]
+No seed rows were inserted; no existing application data was modified.

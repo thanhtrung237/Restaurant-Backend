@@ -1,0 +1,21 @@
+.git
+.gradle
+.idea
+.vscode
+.agents
+.codex
+build
+bin
+out
+.env
+.env.*
+.docker-runtime
+*.ps1
+**/*.sql
+# Keep application SQL resources available for future schema migrations.
+!src/main/resources/**/*.sql
+*.log
+README.md
+compose*.yaml
+compose*.yml
+# The Gradle wrapper JAR must remain in the build context.

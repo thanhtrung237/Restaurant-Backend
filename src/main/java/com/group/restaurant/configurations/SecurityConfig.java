@@ -14,6 +14,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.util.AntPathMatcher;
 
 import jakarta.servlet.DispatcherType;
 
@@ -118,6 +119,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Cho phép async và error dispatch để không bị AuthorizationFilter chặn lại sau khi xử lý
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
+                        // Container probes expose status only, never database credentials/details.
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/liveness",
+                                "/actuator/health/readiness").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/swagger-ui.html", "/swagger-ui/**",
+                                "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
                         // WebSocket / STOMP handshake (A3)
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -133,6 +139,17 @@ public class SecurityConfig {
     /** Gắn `api.prefix` vào từng pattern tương đối. */
     private String[] prefixed(String[] paths) {
         return Arrays.stream(paths).map(p -> apiPrefix + p).toArray(String[]::new);
+    }
+
+    // Reuse the actual HTTP access policy in the generated API documentation.
+    boolean isPublicApiPath(String method, String path) {
+        String[] patterns = switch (method) {
+            case "GET" -> PUBLIC_GET;
+            case "POST" -> PUBLIC_POST;
+            default -> new String[0];
+        };
+        AntPathMatcher matcher = new AntPathMatcher();
+        return Arrays.stream(patterns).anyMatch(pattern -> matcher.match(apiPrefix + pattern, path));
     }
 
     @Bean

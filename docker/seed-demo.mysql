@@ -1,0 +1,311 @@
+-- Demo data adapted from data.sql for the current JPA schema.
+-- Apply once to an empty local Docker database after Hibernate creates the tables.
+-- Demo accounts use a shared password. Do not import into a deployment.
+
+START TRANSACTION;
+
+INSERT INTO restaurant (id, code, name, tax_code, status, address, phone, is_deleted, created_at)
+VALUES (1, 'NH001', 'Nhà hàng Phố Việt', '0123456789', 1, '123 Nguyễn Huệ, Q1, TP.HCM', '0901234567', false, NOW());
+
+INSERT INTO restaurant (id, code, name, tax_code, status, address, phone, is_deleted, created_at)
+VALUES (2, 'NH002', 'Quán Ăn Sài Gòn', '0987654321', 1, '456 Lê Lợi, Q3, TP.HCM', '0912345678', false, NOW());
+
+INSERT INTO role (id, restaurant_id, name, scope, code, is_deleted, created_at)
+VALUES (100, NULL, 'Platform Admin', 1, 'PLATFORM_ADMIN', false, NOW());
+
+INSERT INTO account (id, restaurant_id, full_name, employee_code, username, password_hash, status, email, is_deleted, created_at)
+VALUES (100, NULL, 'Super Admin', 'PA001', 'superadmin', '$2a$10$J/bb76j8jZoi.CspHF5KGO13B0tAh73DJWkULmpi2Snmy1UQjd7US', 1, 'admin@qrestaurant.vn', false, NOW());
+
+INSERT INTO assignment (id, account_id, branch_id, role_id, is_deleted, created_at)
+VALUES (100, 100, NULL, 100, false, NOW());
+
+INSERT INTO branch (id, restaurant_id, code, name, address, phone, status, vat_rate, service_fee_rate, discount_approval_threshold, pending_confirm_timeout_minutes, reservation_hold_minutes, is_deleted, created_at, geofence_enabled, geofence_max_accuracy_meters, geofence_radius_meters, vat_applied_on_service_fee)
+VALUES (1, 1, 'CN001', 'Chi nhánh Quận 1', '123 Nguyễn Huệ, Q1', '0901111111', 1, 8.00, 5.00, 30, 10, 15, false, NOW(), false, 100, 150, false);
+
+INSERT INTO branch (id, restaurant_id, code, name, address, phone, status, vat_rate, service_fee_rate, discount_approval_threshold, pending_confirm_timeout_minutes, reservation_hold_minutes, is_deleted, created_at, geofence_enabled, geofence_max_accuracy_meters, geofence_radius_meters, vat_applied_on_service_fee)
+VALUES (2, 1, 'CN002', 'Chi nhánh Quận 7', '789 Nguyễn Thị Thập, Q7', '0902222222', 1, 8.00, 5.00, 30, 10, 15, false, NOW(), false, 100, 150, false);
+
+INSERT INTO branch (id, restaurant_id, code, name, address, phone, status, vat_rate, service_fee_rate, discount_approval_threshold, pending_confirm_timeout_minutes, reservation_hold_minutes, is_deleted, created_at, geofence_enabled, geofence_max_accuracy_meters, geofence_radius_meters, vat_applied_on_service_fee)
+VALUES (3, 2, 'CN001', 'Chi nhánh Quận 3', '456 Lê Lợi, Q3', '0903333333', 1, 10.00, 0.00, 50, 10, 15, false, NOW(), false, 100, 150, false);
+
+INSERT INTO role (id, restaurant_id, name, scope, code, is_deleted, created_at)
+VALUES (1, 1, 'Quản lý nhà hàng', 2, 'MANAGER', false, NOW());
+
+INSERT INTO role (id, restaurant_id, name, scope, code, is_deleted, created_at)
+VALUES (2, 1, 'Quản lý chi nhánh', 3, 'BRANCH_MANAGER', false, NOW());
+
+INSERT INTO role (id, restaurant_id, name, scope, code, is_deleted, created_at)
+VALUES (3, 1, 'Nhân viên phục vụ', 3, 'WAITER', false, NOW());
+
+INSERT INTO role (id, restaurant_id, name, scope, code, is_deleted, created_at)
+VALUES (4, 1, 'Thu ngân', 3, 'CASHIER', false, NOW());
+
+INSERT INTO role (id, restaurant_id, name, scope, code, is_deleted, created_at)
+VALUES (5, 2, 'Quản lý nhà hàng', 2, 'MANAGER', false, NOW());
+
+INSERT INTO account (id, restaurant_id, full_name, employee_code, username, password_hash, status, email, is_deleted, created_at)
+VALUES (1, 1, 'Nguyễn Văn A', 'NV001', 'admin', '$2a$10$xMFoIB1rGylGqDd.K/isXObiNEoPJwzTc7YBvvMOHobR71TE.tQRa', 1, 'admin@phoviet.com', false, NOW());
+
+INSERT INTO account (id, restaurant_id, full_name, employee_code, username, password_hash, status, email, is_deleted, created_at)
+VALUES (2, 1, 'Trần Thị B', 'NV002', 'manager_q1', '$2a$10$K03G6aVbQFoETwWNC.9fR.BKWJ/pWxEo0T.LR/bP3k1H9BDCaaqS2', 1, 'manager@phoviet.com', false, NOW());
+
+INSERT INTO account (id, restaurant_id, full_name, employee_code, username, password_hash, status, email, is_deleted, created_at)
+VALUES (3, 1, 'Lê Văn C', 'NV003', 'waiter01', '$2a$10$bAkGxSu.P9JirsxZbctS.eHTPTMLI1imvmSxJyKpLzrjD.dOaUz2a', 1, 'waiter01@phoviet.com', false, NOW());
+
+INSERT INTO account (id, restaurant_id, full_name, employee_code, username, password_hash, status, email, is_deleted, created_at)
+VALUES (4, 1, 'Phạm Thị D', 'NV004', 'cashier01', '$2a$10$dlAn1IiIDbHnluImH5miZeWh2mZdgAdVK1NtNVO8sVhbE9ucaBqHm', 1, 'cashier01@phoviet.com', false, NOW());
+
+INSERT INTO assignment (id, account_id, branch_id, role_id, is_deleted, created_at)
+VALUES (1, 1, 1, 1, false, NOW());
+
+INSERT INTO assignment (id, account_id, branch_id, role_id, is_deleted, created_at)
+VALUES (2, 2, 1, 2, false, NOW());
+
+INSERT INTO assignment (id, account_id, branch_id, role_id, is_deleted, created_at)
+VALUES (3, 3, 1, 3, false, NOW());
+
+INSERT INTO assignment (id, account_id, branch_id, role_id, is_deleted, created_at)
+VALUES (4, 4, 1, 4, false, NOW());
+
+INSERT INTO assignment (id, account_id, branch_id, role_id, is_deleted, created_at)
+VALUES (5, 3, 2, 3, false, NOW());
+
+INSERT INTO category (id, restaurant_id, name, display_order, status, is_deleted, created_at)
+VALUES (1, 1, 'Đồ uống', 1, 1, false, NOW());
+
+INSERT INTO category (id, restaurant_id, name, display_order, status, is_deleted, created_at)
+VALUES (2, 1, 'Món chính', 2, 1, false, NOW());
+
+INSERT INTO category (id, restaurant_id, name, display_order, status, is_deleted, created_at)
+VALUES (3, 1, 'Tráng miệng', 3, 1, false, NOW());
+
+INSERT INTO category (id, restaurant_id, name, display_order, status, is_deleted, created_at)
+VALUES (4, 1, 'Khai vị', 4, 1, false, NOW());
+
+INSERT INTO category (id, restaurant_id, name, display_order, status, is_deleted, created_at)
+VALUES (5, 2, 'Món nướng', 1, 1, false, NOW());
+
+INSERT INTO category (id, restaurant_id, name, display_order, status, is_deleted, created_at)
+VALUES (6, 2, 'Đồ uống', 2, 1, false, NOW());
+
+INSERT INTO dish (id, restaurant_id, branch_id, category_id, name, base_price, tax_group, kitchen_station_type, sold_by_weight, status, description, is_deleted, created_at)
+VALUES (1, 1, null, 1, 'Trà sữa trân châu', 35000, 'FOOD', 'BAR', false, 1, 'Trà sữa thơm ngon với trân châu dai', false, NOW());
+
+INSERT INTO dish (id, restaurant_id, branch_id, category_id, name, base_price, tax_group, kitchen_station_type, sold_by_weight, status, description, is_deleted, created_at)
+VALUES (2, 1, null, 1, 'Cà phê sữa đá', 29000, 'FOOD', 'BAR', false, 1, 'Cà phê Việt Nam đậm đà', false, NOW());
+
+INSERT INTO dish (id, restaurant_id, branch_id, category_id, name, base_price, tax_group, kitchen_station_type, sold_by_weight, status, description, is_deleted, created_at)
+VALUES (3, 1, null, 1, 'Nước ép cam', 35000, 'FOOD', 'BAR', false, 1, 'Nước ép cam tươi nguyên chất', false, NOW());
+
+INSERT INTO dish (id, restaurant_id, branch_id, category_id, name, base_price, tax_group, kitchen_station_type, sold_by_weight, status, description, is_deleted, created_at)
+VALUES (4, 1, null, 2, 'Phở bò tái', 65000, 'FOOD', 'KITCHEN', false, 1, 'Phở bò truyền thống nước trong', false, NOW());
+
+INSERT INTO dish (id, restaurant_id, branch_id, category_id, name, base_price, tax_group, kitchen_station_type, sold_by_weight, status, description, is_deleted, created_at)
+VALUES (5, 1, null, 2, 'Cơm tấm sườn', 55000, 'FOOD', 'KITCHEN', false, 1, 'Cơm tấm Sài Gòn sườn nướng', false, NOW());
+
+INSERT INTO dish (id, restaurant_id, branch_id, category_id, name, base_price, tax_group, kitchen_station_type, sold_by_weight, status, description, is_deleted, created_at)
+VALUES (6, 1, null, 2, 'Bún bò Huế', 60000, 'FOOD', 'KITCHEN', false, 1, 'Bún bò cay đặc trưng Huế', false, NOW());
+
+INSERT INTO dish (id, restaurant_id, branch_id, category_id, name, base_price, tax_group, kitchen_station_type, sold_by_weight, status, description, is_deleted, created_at)
+VALUES (7, 1, null, 3, 'Chè bưởi', 25000, 'FOOD', 'BAR', false, 1, 'Chè bưởi mát lạnh', false, NOW());
+
+INSERT INTO dish (id, restaurant_id, branch_id, category_id, name, base_price, tax_group, kitchen_station_type, sold_by_weight, status, description, is_deleted, created_at)
+VALUES (8, 1, null, 3, 'Bánh flan', 20000, 'FOOD', 'BAR', false, 1, 'Bánh flan mềm mịn caramel', false, NOW());
+
+INSERT INTO dish (id, restaurant_id, branch_id, category_id, name, base_price, tax_group, kitchen_station_type, sold_by_weight, status, description, is_deleted, created_at)
+VALUES (9, 1, null, 4, 'Gỏi cuốn tôm thịt', 45000, 'FOOD', 'KITCHEN', false, 1, 'Gỏi cuốn tươi tôm thịt kèm nước mắm', false, NOW());
+
+INSERT INTO dish (id, restaurant_id, branch_id, category_id, name, base_price, tax_group, kitchen_station_type, sold_by_weight, status, description, is_deleted, created_at)
+VALUES (10, 1, null, 4, 'Chả giò chiên', 40000, 'FOOD', 'KITCHEN', false, 1, 'Chả giò giòn rụm', false, NOW());
+
+INSERT INTO dish (id, restaurant_id, branch_id, category_id, name, base_price, tax_group, kitchen_station_type, sold_by_weight, status, description, is_deleted, created_at)
+VALUES (13, 1, null, 2, 'Bò Mỹ nướng (theo cân)', 280000, 'FOOD', 'KITCHEN', true, 1, 'Tính tiền theo kg thực tế', false, NOW());
+
+INSERT INTO dish (id, restaurant_id, branch_id, category_id, name, base_price, tax_group, kitchen_station_type, sold_by_weight, status, description, is_deleted, created_at)
+VALUES (11, 1, 1, 2, 'Bò kho bánh mì đặc biệt Q1', 75000, 'FOOD', 'KITCHEN', false, 1, 'Đặc sản riêng chi nhánh Quận 1', false, NOW());
+
+INSERT INTO dish (id, restaurant_id, branch_id, category_id, name, base_price, tax_group, kitchen_station_type, sold_by_weight, status, description, is_deleted, created_at)
+VALUES (12, 1, 2, 1, 'Trà đào cam sả Q7', 45000, 'FOOD', 'BAR', false, 1, 'Thức uống đặc trưng chi nhánh Quận 7', false, NOW());
+
+INSERT INTO option_group (id, restaurant_id, name, selection_type, min_select, max_select, is_deleted, created_at)
+VALUES (1, 1, 'Kích cỡ', 0, 1, 1, false, NOW());
+
+INSERT INTO option_group (id, restaurant_id, name, selection_type, min_select, max_select, is_deleted, created_at)
+VALUES (2, 1, 'Độ ngọt', 1, 0, 1, false, NOW());
+
+INSERT INTO option_group (id, restaurant_id, name, selection_type, min_select, max_select, is_deleted, created_at)
+VALUES (3, 1, 'Topping', 1, 0, 3, false, NOW());
+
+INSERT INTO option_item (id, option_group_id, name, extra_price, is_deleted, created_at)
+VALUES (1, 1, 'Nhỏ (S)', 0, false, NOW());
+
+INSERT INTO option_item (id, option_group_id, name, extra_price, is_deleted, created_at)
+VALUES (2, 1, 'Vừa (M)', 5000, false, NOW());
+
+INSERT INTO option_item (id, option_group_id, name, extra_price, is_deleted, created_at)
+VALUES (3, 1, 'Lớn (L)', 10000, false, NOW());
+
+INSERT INTO option_item (id, option_group_id, name, extra_price, is_deleted, created_at)
+VALUES (4, 2, '100% ngọt', 0, false, NOW());
+
+INSERT INTO option_item (id, option_group_id, name, extra_price, is_deleted, created_at)
+VALUES (5, 2, '70% ngọt', 0, false, NOW());
+
+INSERT INTO option_item (id, option_group_id, name, extra_price, is_deleted, created_at)
+VALUES (6, 2, '50% ngọt', 0, false, NOW());
+
+INSERT INTO option_item (id, option_group_id, name, extra_price, is_deleted, created_at)
+VALUES (7, 3, 'Trân châu đen', 5000, false, NOW());
+
+INSERT INTO option_item (id, option_group_id, name, extra_price, is_deleted, created_at)
+VALUES (8, 3, 'Thạch cà phê', 5000, false, NOW());
+
+INSERT INTO option_item (id, option_group_id, name, extra_price, is_deleted, created_at)
+VALUES (9, 3, 'Pudding trứng', 8000, false, NOW());
+
+INSERT INTO dish_option_group (id, dish_id, option_group_id, is_deleted, created_at)
+VALUES (1, 1, 1, false, NOW());
+
+INSERT INTO dish_option_group (id, dish_id, option_group_id, is_deleted, created_at)
+VALUES (2, 1, 2, false, NOW());
+
+INSERT INTO dish_option_group (id, dish_id, option_group_id, is_deleted, created_at)
+VALUES (3, 1, 3, false, NOW());
+
+INSERT INTO dish_option_group (id, dish_id, option_group_id, is_deleted, created_at)
+VALUES (4, 2, 1, false, NOW());
+
+INSERT INTO dish_option_group (id, dish_id, option_group_id, is_deleted, created_at)
+VALUES (5, 3, 1, false, NOW());
+
+INSERT INTO dish_override (id, branch_id, dish_id, override_price, is_hidden, is_deleted, created_at)
+VALUES (1, 1, 1, 40000, false, false, NOW());
+
+INSERT INTO dish_override (id, branch_id, dish_id, override_price, is_hidden, is_deleted, created_at)
+VALUES (2, 2, 4, 70000, false, false, NOW());
+
+INSERT INTO dish_override (id, branch_id, dish_id, override_price, is_hidden, is_deleted, created_at)
+VALUES (3, 1, 7, null, true, false, NOW());
+
+INSERT INTO dish_override (id, branch_id, dish_id, override_price, is_hidden, is_deleted, created_at)
+VALUES (4, 2, 5, 60000, false, false, NOW());
+
+INSERT INTO promotion (id, restaurant_id, name, description, start_date, end_date, apply_level, `condition`, action, priority, status, code, is_deleted, created_at, all_branches, usage_count, version, days_of_week)
+VALUES (1, 1, 'Giảm 10% cuối tuần', 'Áp dụng T7 và CN', '2026-08-01', '2026-12-31', 2, '{"minOrderValue": 200000}', '{"type":"percentage","value":10}', 1, 1, 'WEEKEND10', false, NOW(), false, 0, 0, 'SAT,SUN');
+
+INSERT INTO promotion (id, restaurant_id, name, description, start_date, end_date, apply_level, `condition`, action, priority, status, code, is_deleted, created_at, all_branches, usage_count, version, days_of_week)
+VALUES (2, 1, 'Mua 2 tặng 1', 'Áp dụng đồ uống', '2026-09-01', '2026-11-30', 1, '{"minQty":3,"target":"category","categoryIds":[1]}', '{"type":"gift_dish","buyQty":2,"getQty":1}', 2, 1, 'BUY2GET1', false, NOW(), false, 0, 0, NULL);
+
+INSERT INTO promotion (id, restaurant_id, name, description, start_date, end_date, apply_level, `condition`, action, priority, status, code, is_deleted, created_at, all_branches, usage_count, version, days_of_week)
+VALUES (3, 1, 'Giảm 50k cho hóa đơn từ 500k', 'Áp dụng tất cả ngày', '2026-09-01', '2026-12-31', 2, '{"minOrderValue": 500000}', '{"type":"fixed_amount","value":50000}', 3, 1, 'SAVE50K', false, NOW(), false, 0, 0, NULL);
+
+INSERT INTO promotion_branch (id, branch_id, promotion_id, is_deleted, created_at)
+VALUES (1, 1, 1, false, NOW());
+
+INSERT INTO promotion_branch (id, branch_id, promotion_id, is_deleted, created_at)
+VALUES (2, 2, 1, false, NOW());
+
+INSERT INTO promotion_branch (id, branch_id, promotion_id, is_deleted, created_at)
+VALUES (3, 1, 2, false, NOW());
+
+INSERT INTO promotion_branch (id, branch_id, promotion_id, is_deleted, created_at)
+VALUES (4, 1, 3, false, NOW());
+
+INSERT INTO area (id, branch_id, name, status, is_deleted, created_at)
+VALUES (1, 1, 'Tầng 1', 1, false, NOW());
+
+INSERT INTO area (id, branch_id, name, status, is_deleted, created_at)
+VALUES (2, 1, 'Tầng 2 - VIP', 1, false, NOW());
+
+INSERT INTO area (id, branch_id, name, status, is_deleted, created_at)
+VALUES (3, 2, 'Khu trong', 1, false, NOW());
+
+INSERT INTO area (id, branch_id, name, status, is_deleted, created_at)
+VALUES (4, 2, 'Khu ngoài trời', 1, false, NOW());
+
+INSERT INTO dining_table (id, branch_id, area_id, name, capacity, qr_code, status, is_deleted, created_at)
+VALUES (1, 1, 1, 'Bàn 01', 4, 'QR-B1-T01', 1, false, NOW());
+
+INSERT INTO dining_table (id, branch_id, area_id, name, capacity, qr_code, status, is_deleted, created_at)
+VALUES (2, 1, 1, 'Bàn 02', 4, 'QR-B1-T02', 2, false, NOW());
+
+INSERT INTO dining_table (id, branch_id, area_id, name, capacity, qr_code, status, is_deleted, created_at)
+VALUES (3, 1, 1, 'Bàn 03', 6, 'QR-B1-T03', 1, false, NOW());
+
+INSERT INTO dining_table (id, branch_id, area_id, name, capacity, qr_code, status, is_deleted, created_at)
+VALUES (4, 1, 2, 'Bàn VIP 01', 8, 'QR-B1-V01', 3, false, NOW());
+
+INSERT INTO dining_table (id, branch_id, area_id, name, capacity, qr_code, status, is_deleted, created_at)
+VALUES (5, 1, 2, 'Bàn VIP 02', 10, 'QR-B1-V02', 1, false, NOW());
+
+INSERT INTO dining_table (id, branch_id, area_id, name, capacity, qr_code, status, is_deleted, created_at)
+VALUES (6, 2, 3, 'Bàn 01', 4, 'QR-B2-T01', 2, false, NOW());
+
+INSERT INTO dining_table (id, branch_id, area_id, name, capacity, qr_code, status, is_deleted, created_at)
+VALUES (7, 2, 4, 'Bàn ngoài 01', 6, 'QR-B2-O01', 1, false, NOW());
+
+INSERT INTO table_session (id, table_id, branch_id, guest_count, opened_at, closed_at, status, vat_rate_at_open, service_fee_rate_at_open, is_deleted, created_at)
+VALUES (1, 1, 1, 3, '2026-09-04 10:00:00', '2026-09-04 11:30:00', 3, 8.00, 5.00, false, NOW());
+
+INSERT INTO table_session (id, table_id, branch_id, guest_count, opened_at, status, vat_rate_at_open, service_fee_rate_at_open, reservation_name, reservation_phone, is_deleted, created_at)
+VALUES (2, 2, 1, 2, '2026-09-04 18:00:00', 1, 8.00, 5.00, 'Trần Văn E', '0911222333', false, NOW());
+
+INSERT INTO table_session (id, table_id, branch_id, guest_count, status, reservation_name, reservation_phone, reservation_time, reservation_note, is_deleted, created_at)
+VALUES (3, 4, 1, 6, 5, 'Lê Thị F', '0922333444', DATE_ADD(NOW(), INTERVAL 1 DAY), 'Bàn sinh nhật, cần trang trí', false, NOW());
+
+INSERT INTO table_session (id, table_id, branch_id, guest_count, opened_at, status, vat_rate_at_open, service_fee_rate_at_open, is_deleted, created_at)
+VALUES (4, 6, 2, 4, '2026-09-04 12:00:00', 2, 8.00, 5.00, false, NOW());
+
+INSERT INTO orders (id, table_session_id, ordered_by, note, status, is_deleted, created_at)
+VALUES (1, 1, 3, null, 2, false, NOW());
+
+INSERT INTO orders (id, table_session_id, ordered_by, note, status, is_deleted, created_at)
+VALUES (2, 2, 3, 'Khách không ăn hành', 1, false, NOW());
+
+INSERT INTO orders (id, table_session_id, ordered_by, note, status, is_deleted, created_at)
+VALUES (3, 4, null, null, 1, false, NOW());
+
+INSERT INTO order_detail (id, order_id, table_session_id, dish_id, quantity, price_at_order_time, promotion_discount_amount, is_take_away, status, price, is_billable, is_printed, print_count, is_deleted, created_at)
+VALUES (1, 1, 1, 4, 1, 65000, 0, false, 2, 65000, true, true, 1, false, NOW());
+
+INSERT INTO order_detail (id, order_id, table_session_id, dish_id, quantity, price_at_order_time, promotion_discount_amount, is_take_away, status, price, is_billable, is_printed, print_count, is_deleted, created_at)
+VALUES (2, 1, 1, 5, 2, 55000, 0, false, 2, 110000, true, true, 1, false, NOW());
+
+INSERT INTO order_detail (id, order_id, table_session_id, dish_id, quantity, price_at_order_time, promotion_discount_amount, is_take_away, status, price, is_billable, is_printed, print_count, is_deleted, created_at)
+VALUES (3, 1, 1, 2, 3, 29000, 0, false, 2, 87000, true, true, 1, false, NOW());
+
+INSERT INTO order_detail (id, order_id, table_session_id, dish_id, quantity, price_at_order_time, promotion_discount_amount, is_take_away, status, price, is_billable, is_printed, print_count, is_deleted, created_at)
+VALUES (4, 2, 2, 4, 1, 65000, 0, false, 1, 65000, true, true, 1, false, NOW());
+
+INSERT INTO order_detail (id, order_id, table_session_id, dish_id, quantity, price_at_order_time, promotion_discount_amount, is_take_away, status, price, is_billable, is_printed, print_count, is_deleted, created_at)
+VALUES (5, 2, 2, 1, 2, 40000, 0, false, 0, 80000, true, true, 1, false, NOW());
+
+INSERT INTO order_detail (id, order_id, table_session_id, dish_id, quantity, price_at_order_time, promotion_discount_amount, is_take_away, status, price, is_billable, is_printed, print_count, is_deleted, created_at)
+VALUES (6, 3, 4, 6, 2, 60000, 0, false, 1, 120000, true, false, 0, false, NOW());
+
+INSERT INTO order_detail_option (id, order_detail_id, option_item_id, price_snapshot, is_deleted, created_at)
+VALUES (1, 5, 2, 5000, false, NOW());
+
+INSERT INTO order_detail_option (id, order_detail_id, option_item_id, price_snapshot, is_deleted, created_at)
+VALUES (2, 5, 5, 0, false, NOW());
+
+INSERT INTO order_detail_option (id, order_detail_id, option_item_id, price_snapshot, is_deleted, created_at)
+VALUES (3, 5, 7, 5000, false, NOW());
+
+INSERT INTO invoice (id, branch_id, table_session_id, order_id, invoice_number, sub_total_before_discount, total_promotion_discount, total_manual_discount, service_fee, vat_amount, grand_total, status, is_deleted, created_at, e_invoice_attempt_count)
+VALUES (1, 1, 1, 1, 'INV-2026-0001', 262000, 0, 0, 13100, 0, 275100, 1, false, NOW(), 0);
+
+INSERT INTO payment (id, invoice_id, method, amount, paid_at, transaction_ref, amount_tendered, is_deleted, created_at)
+VALUES (1, 1, 1, 275100, '2026-09-04 11:25:00', null, 300000, false, NOW());
+
+INSERT INTO manual_discount (id, applied_by, approved_by, order_id, invoice_id, order_detail_id, type, value, reason, is_deleted, created_at)
+VALUES (1, 4, 2, 2, null, null, 1, 10.00, 'Khách VIP - giảm 10%', false, NOW());
+
+INSERT INTO audit_log (id, restaurant_id, branch_id, performed_by, approved_by, occurred_at, entity_type, action_type, value_before, value_after, reason, is_deleted, created_at)
+VALUES (1, 1, 1, 3, 2, '2026-09-04 10:05:00', 'ORDER_DETAIL', 'CREATE', null, '{"dishId":4,"qty":1,"price":65000}', 'Tạo order mới', false, NOW());
+
+INSERT INTO audit_log (id, restaurant_id, branch_id, performed_by, approved_by, occurred_at, entity_type, action_type, value_before, value_after, reason, is_deleted, created_at)
+VALUES (2, 1, 1, 3, 2, '2026-09-04 11:20:00', 'ORDER_DETAIL', 'STATUS_CHANGE', '{"status":1}', '{"status":3}', 'Khách đổi món', false, NOW());
+
+COMMIT;
+
