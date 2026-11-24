@@ -1,16 +1,12 @@
 package com.group.restaurant.services.promotion;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.group.restaurant.enums.ApplyLevel;
 import com.group.restaurant.enums.PromotionStatus;
 import com.group.restaurant.models.Promotion;
 import com.group.restaurant.repositories.PromotionBranchRepository;
 import com.group.restaurant.repositories.PromotionRepository;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -19,6 +15,9 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 /**
  * Engine tính toán khuyến mãi - dùng chung cho menu, giỏ hàng, order và invoice
@@ -43,8 +42,9 @@ public class PromotionEngine {
      */
     public List<Promotion> getActivePromotions(Long branchId, Long restaurantId) {
         // Lấy tất cả khuyến mãi ACTIVE của nhà hàng
-        List<Promotion> allPromotions = promotionRepository.findByRestaurantIdAndStatus(
-                restaurantId, PromotionStatus.ACTIVE);
+        List<Promotion> allPromotions =
+                promotionRepository.findByRestaurantIdAndStatus(
+                        restaurantId, PromotionStatus.ACTIVE);
 
         ZonedDateTime now = ZonedDateTime.now(VIETNAM_ZONE);
         LocalDate today = now.toLocalDate();
@@ -59,8 +59,12 @@ public class PromotionEngine {
     /**
      * Kiểm tra khuyến mãi có áp dụng được không
      */
-    private boolean isPromotionApplicable(Promotion promotion, Long branchId,
-                                          LocalDate today, LocalTime currentTime, DayOfWeek currentDay) {
+    private boolean isPromotionApplicable(
+            Promotion promotion,
+            Long branchId,
+            LocalDate today,
+            LocalTime currentTime,
+            DayOfWeek currentDay) {
         // 1. Kiểm tra ngày
         if (today.isBefore(promotion.getStartDate()) || today.isAfter(promotion.getEndDate())) {
             return false;
@@ -70,14 +74,18 @@ public class PromotionEngine {
         if (promotion.getDaysOfWeek() != null && !promotion.getDaysOfWeek().isEmpty()) {
             String[] days = promotion.getDaysOfWeek().split(",");
             String dayName = currentDay.name();
-            boolean matchDay = Arrays.stream(days)
-                    .map(String::trim)
-                    .anyMatch(d -> {
-                        String upper = d.toUpperCase();
-                        return upper.equalsIgnoreCase(dayName)
-                                || dayName.startsWith(upper)
-                                || upper.startsWith(dayName.substring(0, Math.min(3, dayName.length())));
-                    });
+            boolean matchDay =
+                    Arrays.stream(days)
+                            .map(String::trim)
+                            .anyMatch(
+                                    d -> {
+                                        String upper = d.toUpperCase();
+                                        return upper.equalsIgnoreCase(dayName)
+                                                || dayName.startsWith(upper)
+                                                || upper.startsWith(
+                                                        dayName.substring(
+                                                                0, Math.min(3, dayName.length())));
+                                    });
             if (!matchDay) {
                 return false;
             }
@@ -96,7 +104,8 @@ public class PromotionEngine {
             return true;
         } else {
             // Kiểm tra chi nhánh cụ thể
-            return promotionBranchRepository.existsByBranchIdAndPromotionId(branchId, promotion.getId());
+            return promotionBranchRepository.existsByBranchIdAndPromotionId(
+                    branchId, promotion.getId());
         }
     }
 
@@ -133,13 +142,18 @@ public class PromotionEngine {
      * Tính khuyến mãi cấp món cho một món cụ thể
      * @return số tiền giảm giá (0 nếu không có KM)
      */
-    public PromotionResult calculateItemPromotion(Long branchId, Long restaurantId,
-                                                  Long dishId, Long categoryId,
-                                                  int quantity, double itemSubtotal) {
-        List<Promotion> itemPromotions = getActivePromotions(branchId, restaurantId).stream()
-                .filter(p -> p.getApplyLevel() == ApplyLevel.ITEM)
-                .filter(p -> isPromotionStillHasUsage(p))
-                .collect(Collectors.toList());
+    public PromotionResult calculateItemPromotion(
+            Long branchId,
+            Long restaurantId,
+            Long dishId,
+            Long categoryId,
+            int quantity,
+            double itemSubtotal) {
+        List<Promotion> itemPromotions =
+                getActivePromotions(branchId, restaurantId).stream()
+                        .filter(p -> p.getApplyLevel() == ApplyLevel.ITEM)
+                        .filter(p -> isPromotionStillHasUsage(p))
+                        .collect(Collectors.toList());
 
         if (itemPromotions.isEmpty()) {
             return PromotionResult.noPromotion();
@@ -154,8 +168,12 @@ public class PromotionEngine {
                 if (checkItemCondition(promo, quantity, itemSubtotal)) {
                     BigDecimal discount = calculateDiscount(promo, quantity, itemSubtotal);
                     if (discount.compareTo(BigDecimal.ZERO) > 0) {
-                        applicableResults.add(new PromotionResult(promo.getId(), promo.getName(),
-                                discount, promo.getPriority()));
+                        applicableResults.add(
+                                new PromotionResult(
+                                        promo.getId(),
+                                        promo.getName(),
+                                        discount,
+                                        promo.getPriority()));
                     }
                 }
             }
@@ -167,8 +185,9 @@ public class PromotionEngine {
 
         // Chọn KM tốt nhất (BR-23): priority cao nhất, cùng priority thì lợi nhất
         return applicableResults.stream()
-                .max(Comparator.comparing(PromotionResult::getPriority)
-                        .thenComparing(PromotionResult::getDiscountAmount))
+                .max(
+                        Comparator.comparing(PromotionResult::getPriority)
+                                .thenComparing(PromotionResult::getDiscountAmount))
                 .orElse(PromotionResult.noPromotion());
     }
 
@@ -176,19 +195,25 @@ public class PromotionEngine {
      * Tính khuyến mãi cấp hóa đơn
      * @param orderSubtotal Tổng tiền hàng DOPO khuyến mãi cấp món
      */
-    public PromotionResult calculateOrderPromotion(Long branchId, Long restaurantId,
-                                                   double orderSubtotal) {
-        return calculateOrderPromotion(branchId, restaurantId, orderSubtotal, null, java.util.Set.of());
+    public PromotionResult calculateOrderPromotion(
+            Long branchId, Long restaurantId, double orderSubtotal) {
+        return calculateOrderPromotion(
+                branchId, restaurantId, orderSubtotal, null, java.util.Set.of());
     }
 
-    public PromotionResult calculateOrderPromotion(Long branchId, Long restaurantId,
-                                                   double orderSubtotal, Long reservedId, java.util.Set<Long> excludedIds) {
-        List<Promotion> orderPromotions = getActivePromotions(branchId, restaurantId).stream()
-                .filter(p -> p.getApplyLevel() == ApplyLevel.INVOICE)
-                .filter(p -> p.getCode() == null || p.getCode().isBlank())
-                .filter(p -> !excludedIds.contains(p.getId()))
-                .filter(p -> p.getId().equals(reservedId) || isPromotionStillHasUsage(p))
-                .collect(Collectors.toList());
+    public PromotionResult calculateOrderPromotion(
+            Long branchId,
+            Long restaurantId,
+            double orderSubtotal,
+            Long reservedId,
+            java.util.Set<Long> excludedIds) {
+        List<Promotion> orderPromotions =
+                getActivePromotions(branchId, restaurantId).stream()
+                        .filter(p -> p.getApplyLevel() == ApplyLevel.INVOICE)
+                        .filter(p -> p.getCode() == null || p.getCode().isBlank())
+                        .filter(p -> !excludedIds.contains(p.getId()))
+                        .filter(p -> p.getId().equals(reservedId) || isPromotionStillHasUsage(p))
+                        .collect(Collectors.toList());
 
         if (orderPromotions.isEmpty()) {
             return PromotionResult.noPromotion();
@@ -200,8 +225,9 @@ public class PromotionEngine {
             if (checkOrderCondition(promo, orderSubtotal)) {
                 BigDecimal discount = calculateDiscount(promo, 1, orderSubtotal);
                 if (discount.compareTo(BigDecimal.ZERO) > 0) {
-                    applicableResults.add(new PromotionResult(promo.getId(), promo.getName(),
-                            discount, promo.getPriority()));
+                    applicableResults.add(
+                            new PromotionResult(
+                                    promo.getId(), promo.getName(), discount, promo.getPriority()));
                 }
             }
         }
@@ -212,9 +238,11 @@ public class PromotionEngine {
 
         // Chọn KM tốt nhất
         return applicableResults.stream()
-                .max(Comparator.comparing(PromotionResult::getDiscountAmount)
-                        .thenComparing(PromotionResult::getPriority)
-                        .thenComparing(PromotionResult::getPromotionId, Comparator.reverseOrder()))
+                .max(
+                        Comparator.comparing(PromotionResult::getDiscountAmount)
+                                .thenComparing(PromotionResult::getPriority)
+                                .thenComparing(
+                                        PromotionResult::getPromotionId, Comparator.reverseOrder()))
                 .orElse(PromotionResult.noPromotion());
     }
 
@@ -226,7 +254,8 @@ public class PromotionEngine {
             JsonNode condition = objectMapper.readTree(promo.getCondition());
 
             // Kiểm tra target
-            String target = condition.has("target") ? condition.get("target").asText() : "all_order";
+            String target =
+                    condition.has("target") ? condition.get("target").asText() : "all_order";
 
             if ("all_order".equals(target)) {
                 return true;
@@ -338,7 +367,10 @@ public class PromotionEngine {
         try {
             if (promo.getAction() == null || promo.getAction().isBlank()) return null;
             JsonNode action = objectMapper.readTree(promo.getAction());
-            JsonNode node = action.has("maxDiscount") ? action.get("maxDiscount") : action.get("maxDiscountAmount");
+            JsonNode node =
+                    action.has("maxDiscount")
+                            ? action.get("maxDiscount")
+                            : action.get("maxDiscountAmount");
             if (node == null || node.isNull() || !node.isNumber()) return null;
             BigDecimal cap = node.decimalValue();
             return cap.signum() > 0 ? cap : null;
@@ -355,8 +387,8 @@ public class PromotionEngine {
      * thỏa điều kiện. Không thỏa thì trả noPromotion() để bên gọi rơi về chọn tự động.
      * KHÔNG trừ lượt — bên gọi tự trừ khi chốt hóa đơn.
      */
-    public PromotionResult calculateOrderPromotionById(Long branchId, Long restaurantId,
-                                                       Long promotionId, double orderSubtotal) {
+    public PromotionResult calculateOrderPromotionById(
+            Long branchId, Long restaurantId, Long promotionId, double orderSubtotal) {
         if (promotionId == null) return PromotionResult.noPromotion();
         return getActivePromotions(branchId, restaurantId).stream()
                 .filter(p -> promotionId.equals(p.getId()))
@@ -364,8 +396,13 @@ public class PromotionEngine {
                 .filter(this::isPromotionStillHasUsage)
                 .filter(p -> checkOrderCondition(p, orderSubtotal))
                 .findFirst()
-                .map(p -> new PromotionResult(p.getId(), p.getName(),
-                        calculateDiscount(p, 1, orderSubtotal), p.getPriority()))
+                .map(
+                        p ->
+                                new PromotionResult(
+                                        p.getId(),
+                                        p.getName(),
+                                        calculateDiscount(p, 1, orderSubtotal),
+                                        p.getPriority()))
                 .filter(PromotionResult::hasPromotion)
                 .orElse(PromotionResult.noPromotion());
     }

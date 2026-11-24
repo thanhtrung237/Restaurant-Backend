@@ -24,17 +24,36 @@ import org.mapstruct.ReportingPolicy;
  * Hướng lâu dài (chưa làm vì đổi schema): lưu thẳng tên dạng GIÁ TRỊ trên chính dòng nhật ký
  * lúc ghi, thay vì khoá ngoại — xem be-issues mục 19.
  */
-@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE,
+@Mapper(
+        componentModel = "spring",
+        unmappedTargetPolicy = ReportingPolicy.IGNORE,
         imports = {SoftDeleteSafe.class, Restaurant.class, Branch.class, Account.class})
 public interface AuditLogMapper {
 
-    @Mapping(target = "restaurantId", expression = "java(SoftDeleteSafe.get(auditLog.getRestaurant(), Restaurant::getId))")
-    @Mapping(target = "restaurantName", expression = "java(SoftDeleteSafe.get(auditLog.getRestaurant(), Restaurant::getName))")
-    @Mapping(target = "branchId", expression = "java(SoftDeleteSafe.get(auditLog.getBranch(), Branch::getId))")
-    @Mapping(target = "branchName", expression = "java(SoftDeleteSafe.get(auditLog.getBranch(), Branch::getName))")
-    @Mapping(target = "performedById", expression = "java(SoftDeleteSafe.get(auditLog.getPerformedBy(), Account::getId))")
-    @Mapping(target = "performedByName", expression = "java(SoftDeleteSafe.get(auditLog.getPerformedBy(), Account::getFullName))")
-    @Mapping(target = "approvedById", expression = "java(SoftDeleteSafe.get(auditLog.getApprovedBy(), Account::getId))")
-    @Mapping(target = "approvedByName", expression = "java(SoftDeleteSafe.get(auditLog.getApprovedBy(), Account::getFullName))")
+    @Mapping(
+            target = "restaurantId",
+            expression = "java(SoftDeleteSafe.get(auditLog.getRestaurant(), Restaurant::getId))")
+    @Mapping(
+            target = "restaurantName",
+            expression = "java(SoftDeleteSafe.get(auditLog.getRestaurant(), Restaurant::getName))")
+    @Mapping(
+            target = "branchId",
+            expression = "java(SoftDeleteSafe.get(auditLog.getBranch(), Branch::getId))")
+    @Mapping(
+            target = "branchName",
+            expression = "java(SoftDeleteSafe.get(auditLog.getBranch(), Branch::getName))")
+    @Mapping(
+            target = "performedById",
+            expression = "java(SoftDeleteSafe.get(auditLog.getPerformedBy(), Account::getId))")
+    @Mapping(
+            target = "performedByName",
+            expression =
+                    "java(SoftDeleteSafe.get(auditLog.getPerformedBy(), Account::getFullName))")
+    @Mapping(
+            target = "approvedById",
+            expression = "java(SoftDeleteSafe.get(auditLog.getApprovedBy(), Account::getId))")
+    @Mapping(
+            target = "approvedByName",
+            expression = "java(SoftDeleteSafe.get(auditLog.getApprovedBy(), Account::getFullName))")
     AuditLogResponse toResponse(AuditLog auditLog);
 }

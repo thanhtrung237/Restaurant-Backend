@@ -1,6 +1,7 @@
 package com.group.restaurant.services.impl;
 
 import com.group.restaurant.dtos.response.branchDishStock.BranchDishStockResponse;
+import com.group.restaurant.enums.OperationalPermission;
 import com.group.restaurant.enums.StockStatus;
 import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.mappers.BranchDishStockMapper;
@@ -11,16 +12,14 @@ import com.group.restaurant.repositories.BranchDishStockRepository;
 import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.DishRepository;
 import com.group.restaurant.services.BranchDishStockService;
-import com.group.restaurant.utils.TenantGuard;
-import com.group.restaurant.enums.OperationalPermission;
 import com.group.restaurant.services.OperationalPermissionService;
+import com.group.restaurant.utils.TenantGuard;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -39,8 +38,10 @@ public class BranchDishStockServiceImpl implements BranchDishStockService {
     public BranchDishStockResponse toggleStock(Long branchId, Long dishId) {
         permissions.require(branchId, OperationalPermission.MANAGE_STOCK);
         // Lấy hoặc tạo mới bản ghi stock
-        BranchDishStock stock = stockRepository.findByBranchIdAndDishId(branchId, dishId)
-                .orElseGet(() -> createNewStock(branchId, dishId));
+        BranchDishStock stock =
+                stockRepository
+                        .findByBranchIdAndDishId(branchId, dishId)
+                        .orElseGet(() -> createNewStock(branchId, dishId));
 
         // Toggle: AVAILABLE → OUT_OF_STOCK và ngược lại
         if (stock.getStatus() == StockStatus.AVAILABLE) {
@@ -59,8 +60,7 @@ public class BranchDishStockServiceImpl implements BranchDishStockService {
     @Transactional(readOnly = true)
     public List<BranchDishStockResponse> getOutOfStockByBranch(Long branchId) {
         tenantGuard.assertBranch(branchId);
-        return stockRepository.findByBranchIdAndStatus(branchId, StockStatus.OUT_OF_STOCK)
-                .stream()
+        return stockRepository.findByBranchIdAndStatus(branchId, StockStatus.OUT_OF_STOCK).stream()
                 .map(stockMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -69,8 +69,7 @@ public class BranchDishStockServiceImpl implements BranchDishStockService {
     @Transactional(readOnly = true)
     public List<BranchDishStockResponse> getAllStockByBranch(Long branchId) {
         tenantGuard.assertBranch(branchId);
-        return stockRepository.findByBranchId(branchId)
-                .stream()
+        return stockRepository.findByBranchId(branchId).stream()
                 .map(stockMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -93,18 +92,27 @@ public class BranchDishStockServiceImpl implements BranchDishStockService {
     @Transactional(readOnly = true)
     public boolean isAvailable(Long branchId, Long dishId) {
         // Nếu không có bản ghi stock → mặc định là AVAILABLE
-        return stockRepository.findByBranchIdAndDishId(branchId, dishId)
+        return stockRepository
+                .findByBranchIdAndDishId(branchId, dishId)
                 .map(stock -> stock.getStatus() == StockStatus.AVAILABLE)
                 .orElse(true);
     }
 
     private BranchDishStock createNewStock(Long branchId, Long dishId) {
-        Branch branch = branchRepository.findById(branchId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy chi nhánh với ID: " + branchId));
-        Dish dish = dishRepository.findById(dishId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy món ăn với ID: " + dishId));
+        Branch branch =
+                branchRepository
+                        .findById(branchId)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy chi nhánh với ID: " + branchId));
+        Dish dish =
+                dishRepository
+                        .findById(dishId)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy món ăn với ID: " + dishId));
         if (!branch.getRestaurant().getId().equals(dish.getRestaurant().getId())
                 || (dish.getBranch() != null && !branchId.equals(dish.getBranch().getId()))) {
             throw new ResourceNotFoundException("Món không thuộc thực đơn của chi nhánh.");

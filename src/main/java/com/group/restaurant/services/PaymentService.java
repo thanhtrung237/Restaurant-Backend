@@ -2,9 +2,8 @@ package com.group.restaurant.services;
 
 import com.group.restaurant.dtos.request.payment.PaymentAddRequest;
 import com.group.restaurant.dtos.response.payment.PaymentResponse;
-
-import java.util.List;
 import java.math.BigDecimal;
+import java.util.List;
 
 public interface PaymentService {
 
@@ -15,6 +14,4 @@ public interface PaymentService {
     List<PaymentResponse> getPaymentsByInvoice(Long invoiceId);
 
     PaymentResponse getPaymentById(Long id);
-
-  
 }

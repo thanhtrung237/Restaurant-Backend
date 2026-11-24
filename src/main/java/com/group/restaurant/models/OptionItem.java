@@ -1,11 +1,9 @@
 package com.group.restaurant.models;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
-
-import java.math.BigDecimal;
-
 
 @Entity
 @Table(name = "option_item")
@@ -22,7 +20,10 @@ public class OptionItem extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "option_group_id", nullable = false, foreignKey = @ForeignKey(name = "fk_option_item_group"))
+    @JoinColumn(
+            name = "option_group_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_option_item_group"))
     private OptionGroup optionGroup;
 
     @Column(name = "name", nullable = false, length = 200)

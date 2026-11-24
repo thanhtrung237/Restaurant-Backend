@@ -10,9 +10,9 @@ import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.SQLRestriction;
 
 @Entity
-@Table(name = "restaurant", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_restaurant_code", columnNames = "code")
-})
+@Table(
+        name = "restaurant",
+        uniqueConstraints = {@UniqueConstraint(name = "uk_restaurant_code", columnNames = "code")})
 @SQLRestriction("is_deleted = false")
 @DynamicUpdate
 @Getter
@@ -48,5 +48,4 @@ public class Restaurant extends BaseEntity {
 
     @Column(name = "operational_permissions", columnDefinition = "TEXT")
     private String operationalPermissions;
-
 }

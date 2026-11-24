@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
-  Hủy đặt bàn trước (RESERVED → CANCELLED)
+ * Hủy đặt bàn trước (RESERVED → CANCELLED)
  */
 @Getter
 @Setter

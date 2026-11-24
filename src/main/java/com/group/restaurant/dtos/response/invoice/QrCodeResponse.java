@@ -1,10 +1,9 @@
 package com.group.restaurant.dtos.response.invoice;
 
+import java.math.BigDecimal;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.math.BigDecimal;
 
 /**
  * Response cho sinh QR VietQR (FR-PAY-03).

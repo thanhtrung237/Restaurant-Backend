@@ -1,6 +1,9 @@
 package com.group.restaurant.configurations;
 
 import com.group.restaurant.configurations.jwt.AuthTokenFilter;
+import jakarta.servlet.DispatcherType;
+import java.util.Arrays;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -12,14 +15,9 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.util.AntPathMatcher;
-
-import jakarta.servlet.DispatcherType;
-
-import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 @RequiredArgsConstructor
@@ -36,7 +34,8 @@ public class SecurityConfig {
     @Value("${api.prefix}")
     private String apiPrefix;
 
-    @Value("${app.cors.allowed-origin-patterns:http://localhost:*,http://192.168.1.*:*,http://127.0.0.1:*}")
+    @Value(
+            "${app.cors.allowed-origin-patterns:http://localhost:*,http://192.168.1.*:*,http://127.0.0.1:*}")
     private String allowedOriginPatterns;
 
     /**
@@ -54,85 +53,106 @@ public class SecurityConfig {
 
     /** GET công khai — chỉ đọc, phục vụ luồng quét QR → xem thực đơn → xem hóa đơn. */
     private static final String[] PUBLIC_GET = {
-            "/guest/table",
-            // Quét QR bàn
-            "/tables/branch/*/qr/*",        // lấy thông tin bàn theo mã QR
-            "/tables/*/qr-url",             // xem URL QR (để in)
-            "/tables/*/qr-image",           // xem ảnh QR (để in / quét)
+        "/guest/table",
+        // Quét QR bàn
+        "/tables/branch/*/qr/*", // lấy thông tin bàn theo mã QR
+        "/tables/*/qr-url", // xem URL QR (để in)
+        "/tables/*/qr-image", // xem ảnh QR (để in / quét)
 
-            // Phiên bàn của chính khách (theo id phiên / id bàn)
-            "/table-sessions/*",            // theo dõi trạng thái phiên (chờ mở bàn → SERVING)
-            "/table-sessions/table/*/open", // phục hồi phiên khi khách F5 / mở lại link
+        // Phiên bàn của chính khách (theo id phiên / id bàn)
+        "/table-sessions/*", // theo dõi trạng thái phiên (chờ mở bàn → SERVING)
+        "/table-sessions/table/*/open", // phục hồi phiên khi khách F5 / mở lại link
 
-            // Thực đơn chi nhánh
-            // LƯU Ý: KHÔNG mở "/branches/*" — `BranchController.getBranchById` là
-            // @PreAuthorize("isAuthenticated()") và chỉ màn Thu ngân dùng (useBranch).
-            "/branches/*/menu",
-            "/branches/*/menu/overview",
-            "/dishes/*",
-            "/dishes/branch/*",
-            "/dishes/category/*",
-            "/dish-option-groups/dish/*",
-            "/option-items/group/*",
-            "/branch-dish-stocks/branch/*/out-of-stock",
+        // Thực đơn chi nhánh
+        // LƯU Ý: KHÔNG mở "/branches/*" — `BranchController.getBranchById` là
+        // @PreAuthorize("isAuthenticated()") và chỉ màn Thu ngân dùng (useBranch).
+        "/branches/*/menu",
+        "/branches/*/menu/overview",
+        "/dishes/*",
+        "/dishes/branch/*",
+        "/dishes/category/*",
+        "/dish-option-groups/dish/*",
+        "/option-items/group/*",
+        "/branch-dish-stocks/branch/*/out-of-stock",
 
-            // Món đã gọi của phiên
-            "/orders/session/*",
-            "/order-details/session/*",
-            "/table-sessions/*/bill-preview",  // tạm tính theo phiên (BR-13) — cùng nhóm với order-details/session
+        // Món đã gọi của phiên
+        "/orders/session/*",
+        "/order-details/session/*",
+        "/table-sessions/*/bill-preview", // tạm tính theo phiên (BR-13) — cùng nhóm với
+        // order-details/session
 
-            // Hóa đơn + QR chuyển khoản của phiên (khách poll chờ Thu ngân xác nhận)
-            "/invoices/*",
-            "/invoices/*/qr-code",
-            "/invoices/session/*",
-            "/invoices/session/*/qr-code",
+        // Hóa đơn + QR chuyển khoản của phiên (khách poll chờ Thu ngân xác nhận)
+        "/invoices/*",
+        "/invoices/*/qr-code",
+        "/invoices/session/*",
+        "/invoices/session/*/qr-code",
 
-            // Khuyến mãi chi nhánh (khách quét QR và nhân viên tra cứu)
-            "/promotions/branch/*/active",
-            "/promotions/branch/*/code/*",
-            "/promotion-branches/branch/*",
+        // Khuyến mãi chi nhánh (khách quét QR và nhân viên tra cứu)
+        "/promotions/branch/*/active",
+        "/promotions/branch/*/code/*",
+        "/promotion-branches/branch/*",
     };
 
     /** POST công khai — các hành động khách tự làm được trên thiết bị của mình. */
     private static final String[] PUBLIC_POST = {
-            "/invoices/session/*/qr-opened",
-            "/webhooks/sepay",
-            "/auth/login",
-            "/auth/refresh-token",
-
-            "/guest/access",                     // quét QR
-            // Staff use POST /table-sessions; guests use POST /guest/access.
-            "/table-sessions/*/request-payment",// khách bấm "Yêu cầu tính tiền"
-            "/table-sessions/*/call-staff",     // khách bấm "Gọi nhân viên"
-            "/orders",                          // khách gửi giỏ hàng
-            "/order-details/*/cancel",          // khách tự hủy món chưa vào bếp
-            "/order-details/*/staff-call",      // khách bấm "Báo nhân viên" (FR-CUS-07)
+        "/invoices/session/*/qr-opened",
+        "/webhooks/sepay",
+        "/auth/login",
+        "/auth/refresh-token",
+        "/guest/access", // quét QR
+        // Staff use POST /table-sessions; guests use POST /guest/access.
+        "/table-sessions/*/request-payment", // khách bấm "Yêu cầu tính tiền"
+        "/table-sessions/*/call-staff", // khách bấm "Gọi nhân viên"
+        "/orders", // khách gửi giỏ hàng
+        "/order-details/*/cancel", // khách tự hủy món chưa vào bếp
+        "/order-details/*/staff-call", // khách bấm "Báo nhân viên" (FR-CUS-07)
     };
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(AbstractHttpConfigurer::disable)
+        http.csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(
+                        session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class)
-                .authorizeHttpRequests(auth -> auth
-                        // Cho phép async và error dispatch để không bị AuthorizationFilter chặn lại sau khi xử lý
-                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
-                        // Container probes expose status only, never database credentials/details.
-                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/liveness",
-                                "/actuator/health/readiness").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/swagger-ui.html", "/swagger-ui/**",
-                                "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
-                        // WebSocket / STOMP handshake (A3)
-                        .requestMatchers("/ws/**").permitAll()
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, prefixed(PUBLIC_GET)).permitAll()
-                        .requestMatchers(HttpMethod.POST, prefixed(PUBLIC_POST)).permitAll()
-                        // Mọi thứ còn lại — kể cả POST /payments, POST /invoices,
-                        // /invoices/branch/**, /orders/{id}/cancel, DELETE /** — phải đăng nhập.
-                        .anyRequest().authenticated()
-                );
+                .authorizeHttpRequests(
+                        auth ->
+                                auth
+                                        // Cho phép async và error dispatch để không bị
+                                        // AuthorizationFilter chặn lại sau khi xử lý
+                                        .dispatcherTypeMatchers(
+                                                DispatcherType.ASYNC, DispatcherType.ERROR)
+                                        .permitAll()
+                                        // Container probes expose status only, never database
+                                        // credentials/details.
+                                        .requestMatchers(
+                                                HttpMethod.GET,
+                                                "/actuator/health",
+                                                "/actuator/health/liveness",
+                                                "/actuator/health/readiness")
+                                        .permitAll()
+                                        .requestMatchers(
+                                                HttpMethod.GET,
+                                                "/swagger-ui.html",
+                                                "/swagger-ui/**",
+                                                "/v3/api-docs",
+                                                "/v3/api-docs/**",
+                                                "/v3/api-docs.yaml")
+                                        .permitAll()
+                                        // WebSocket / STOMP handshake (A3)
+                                        .requestMatchers("/ws/**")
+                                        .permitAll()
+                                        .requestMatchers(HttpMethod.OPTIONS, "/**")
+                                        .permitAll()
+                                        .requestMatchers(HttpMethod.GET, prefixed(PUBLIC_GET))
+                                        .permitAll()
+                                        .requestMatchers(HttpMethod.POST, prefixed(PUBLIC_POST))
+                                        .permitAll()
+                                        // Mọi thứ còn lại — kể cả POST /payments, POST /invoices,
+                                        // /invoices/branch/**, /orders/{id}/cancel, DELETE /** —
+                                        // phải đăng nhập.
+                                        .anyRequest()
+                                        .authenticated());
         return http.build();
     }
 
@@ -143,13 +163,15 @@ public class SecurityConfig {
 
     // Reuse the actual HTTP access policy in the generated API documentation.
     boolean isPublicApiPath(String method, String path) {
-        String[] patterns = switch (method) {
-            case "GET" -> PUBLIC_GET;
-            case "POST" -> PUBLIC_POST;
-            default -> new String[0];
-        };
+        String[] patterns =
+                switch (method) {
+                    case "GET" -> PUBLIC_GET;
+                    case "POST" -> PUBLIC_POST;
+                    default -> new String[0];
+                };
         AntPathMatcher matcher = new AntPathMatcher();
-        return Arrays.stream(patterns).anyMatch(pattern -> matcher.match(apiPrefix + pattern, path));
+        return Arrays.stream(patterns)
+                .anyMatch(pattern -> matcher.match(apiPrefix + pattern, path));
     }
 
     @Bean
@@ -157,13 +179,17 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
         // Cho phép tất cả IP trong mạng local (development only)
-        config.setAllowedOriginPatterns(Arrays.stream(allowedOriginPatterns.split(","))
-                .map(String::trim).filter(origin -> !origin.isEmpty()).toList());
+        config.setAllowedOriginPatterns(
+                Arrays.stream(allowedOriginPatterns.split(","))
+                        .map(String::trim)
+                        .filter(origin -> !origin.isEmpty())
+                        .toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         // "Refresh-Token": AuthController.refreshToken đọc token từ header này.
         // Thiếu nó trong allowedHeaders → browser chặn ngay ở preflight → luồng
         // refresh token không bao giờ chạy được từ FE (chỉ chạy khi test bằng Postman).
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Refresh-Token", "X-Guest-Token"));
+        config.setAllowedHeaders(
+                List.of("Authorization", "Content-Type", "Refresh-Token", "X-Guest-Token"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

@@ -15,11 +15,10 @@ import com.group.restaurant.services.BillService;
 import com.group.restaurant.services.billing.BillBreakdown;
 import com.group.restaurant.services.billing.BillCalculator;
 import com.group.restaurant.services.billing.BillCalculator.PromotionSelection;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -33,25 +32,34 @@ public class BillServiceImpl implements BillService {
 
     @Override
     public BillPreviewResponse previewByTableSession(Long tableSessionId) {
-        TableSession session = tableSessionRepository.findById(tableSessionId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy phiên làm việc với ID: " + tableSessionId));
+        TableSession session =
+                tableSessionRepository
+                        .findById(tableSessionId)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy phiên làm việc với ID: "
+                                                        + tableSessionId));
 
         List<OrderDetail> details = orderDetailRepository.findByTableSessionId(session.getId());
 
         // Đã có hóa đơn (chưa hủy) → dùng đúng số đã chốt trên hóa đơn.
-        Invoice invoice = invoiceRepository.findByTableSessionId(session.getId())
-                .filter(i -> i.getStatus() != InvoiceStatus.CANCELLED)
-                .orElse(null);
+        Invoice invoice =
+                invoiceRepository
+                        .findByTableSessionId(session.getId())
+                        .filter(i -> i.getStatus() != InvoiceStatus.CANCELLED)
+                        .orElse(null);
 
         BillBreakdown bill;
         if (invoice != null) {
             bill = billCalculator.describeInvoice(invoice, details);
         } else {
             Branch branch = session.getBranch();
-            List<ManualDiscount> manualDiscounts = billCalculator.loadManualDiscounts(session.getId(), null);
-            bill = billCalculator.calculate(session, branch, details, manualDiscounts,
-                    PromotionSelection.auto());
+            List<ManualDiscount> manualDiscounts =
+                    billCalculator.loadManualDiscounts(session.getId(), null);
+            bill =
+                    billCalculator.calculate(
+                            session, branch, details, manualDiscounts, PromotionSelection.auto());
         }
 
         return BillPreviewResponse.builder()

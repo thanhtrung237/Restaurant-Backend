@@ -1,9 +1,8 @@
 package com.group.restaurant.services.billing;
 
+import java.math.BigDecimal;
 import lombok.Builder;
 import lombok.Value;
-
-import java.math.BigDecimal;
 
 /**
  * Kết quả tính tiền của MỘT phiên bàn — nguồn sự thật duy nhất cho hóa đơn, xem tạm tính,
@@ -38,12 +37,15 @@ public class BillBreakdown {
 
     /** Phần trăm, ví dụ 5 nghĩa là 5%. */
     BigDecimal serviceFeeRate;
+
     BigDecimal serviceFee;
 
     /** Phần trăm, ví dụ 8 nghĩa là 8%. */
     BigDecimal vatRate;
+
     /** true = VAT tính trên (tiền cơ sở + phí dịch vụ); false = chỉ trên tiền cơ sở. */
     boolean vatOnServiceFee;
+
     BigDecimal vatBase;
     BigDecimal vatAmount;
 

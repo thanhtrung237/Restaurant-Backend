@@ -4,19 +4,20 @@ import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.group.restaurant.exceptions.InvalidParamException;
 import com.group.restaurant.services.CloudinaryService;
+import java.io.IOException;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.io.IOException;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class CloudinaryServiceImpl implements CloudinaryService {
 
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-    private static final String[] ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"};
+    private static final String[] ALLOWED_TYPES = {
+        "image/jpeg", "image/png", "image/webp", "image/gif"
+    };
 
     private final Cloudinary cloudinary;
 
@@ -24,11 +25,15 @@ public class CloudinaryServiceImpl implements CloudinaryService {
     public String uploadImage(MultipartFile file, String folder) {
         validateFile(file);
         try {
-            Map<?, ?> result = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
-                    "folder", "booking-service/" + folder,
-                    "resource_type", "image",
-                    "transformation", "q_auto,f_auto,w_1200,c_limit"
-            ));
+            Map<?, ?> result =
+                    cloudinary
+                            .uploader()
+                            .upload(
+                                    file.getBytes(),
+                                    ObjectUtils.asMap(
+                                            "folder", "booking-service/" + folder,
+                                            "resource_type", "image",
+                                            "transformation", "q_auto,f_auto,w_1200,c_limit"));
             return (String) result.get("secure_url");
         } catch (IOException e) {
             throw new InvalidParamException("Không thể upload ảnh: " + e.getMessage());

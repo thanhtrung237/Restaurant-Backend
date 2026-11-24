@@ -3,9 +3,9 @@ package com.group.restaurant.models;
 import com.group.restaurant.enums.ApplyLevel;
 import com.group.restaurant.enums.PromotionStatus;
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
-import java.time.LocalDate;
 
 @Entity
 @Table(name = "promotion")
@@ -22,7 +22,10 @@ public class Promotion extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "restaurant_id", nullable = false, foreignKey = @ForeignKey(name = "fk_promotion_restaurant"))
+    @JoinColumn(
+            name = "restaurant_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_promotion_restaurant"))
     private Restaurant restaurant;
 
     @Column(name = "name", nullable = false, length = 100)

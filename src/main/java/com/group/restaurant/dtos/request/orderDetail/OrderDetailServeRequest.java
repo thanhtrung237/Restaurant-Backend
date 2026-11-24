@@ -6,5 +6,4 @@ import jakarta.validation.constraints.PositiveOrZero;
 
 public record OrderDetailServeRequest(
         @NotNull @Positive Integer quantity,
-        @NotNull @PositiveOrZero Integer expectedServedQuantity
-) {}
+        @NotNull @PositiveOrZero Integer expectedServedQuantity) {}

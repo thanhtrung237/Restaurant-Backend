@@ -4,12 +4,10 @@ import com.group.restaurant.enums.BranchStatus;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Size;
-import lombok.Getter;
-import lombok.Setter;
-
 import java.math.BigDecimal;
 import java.time.LocalTime;
-
+import lombok.Getter;
+import lombok.Setter;
 
 @Getter
 @Setter

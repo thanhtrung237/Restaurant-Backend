@@ -2,11 +2,10 @@ package com.group.restaurant.models;
 
 import com.group.restaurant.enums.PaymentMethod;
 import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.SQLRestriction;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 @Entity
 @Table(name = "payment")
@@ -23,7 +22,10 @@ public class Payment extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "invoice_id", nullable = false, foreignKey = @ForeignKey(name = "fk_payment_invoice"))
+    @JoinColumn(
+            name = "invoice_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_payment_invoice"))
     private Invoice invoice;
 
     @Column(name = "method", nullable = false)

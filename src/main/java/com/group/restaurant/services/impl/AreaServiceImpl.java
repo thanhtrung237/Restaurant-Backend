@@ -14,12 +14,11 @@ import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.DiningTableRepository;
 import com.group.restaurant.services.AreaService;
 import com.group.restaurant.utils.TenantGuard;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -35,8 +34,14 @@ public class AreaServiceImpl implements AreaService {
     @Override
     public AreaResponse createArea(AreaAddRequest request) {
         tenantGuard.assertBranchAssigned(request.getBranchId(), TenantGuard.ROLE_BRANCH_MANAGER);
-        Branch branch = branchRepository.findById(request.getBranchId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với ID: " + request.getBranchId()));
+        Branch branch =
+                branchRepository
+                        .findById(request.getBranchId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy chi nhánh với ID: "
+                                                        + request.getBranchId()));
 
         String name = request.getName().strip();
         if (areaRepository.existsByBranchIdAndNameIgnoreCase(request.getBranchId(), name)) {
@@ -46,7 +51,8 @@ public class AreaServiceImpl implements AreaService {
         if (deletedId.isPresent()) {
             Long id = deletedId.get();
             if (areaRepository.restoreDeleted(id, AreaStatus.ACTIVE.getValue()) == 0) {
-                throw new ConflictException("Khu vực '" + name + "' đã tồn tại trong chi nhánh này");
+                throw new ConflictException(
+                        "Khu vực '" + name + "' đã tồn tại trong chi nhánh này");
             }
             return buildAreaResponse(findAreaById(id));
         }
@@ -64,9 +70,11 @@ public class AreaServiceImpl implements AreaService {
     public AreaResponse updateArea(Long id, AreaUpdateRequest request) {
         Area area = findAreaForWrite(id);
 
-        if (!area.getName().equalsIgnoreCase(request.getName()) &&
-                areaRepository.existsByBranchIdAndNameIgnoreCase(area.getBranch().getId(), request.getName())) {
-            throw new ConflictException("Khu vực '" + request.getName() + "' đã tồn tại trong chi nhánh này");
+        if (!area.getName().equalsIgnoreCase(request.getName())
+                && areaRepository.existsByBranchIdAndNameIgnoreCase(
+                        area.getBranch().getId(), request.getName())) {
+            throw new ConflictException(
+                    "Khu vực '" + request.getName() + "' đã tồn tại trong chi nhánh này");
         }
 
         areaMapper.updateEntity(area, request);
@@ -89,13 +97,12 @@ public class AreaServiceImpl implements AreaService {
             throw new ResourceNotFoundException("Không tìm thấy chi nhánh với ID: " + branchId);
         }
 
-        List<Area> areas = (status != null)
-                ? areaRepository.findByBranchIdAndStatus(branchId, status)
-                : areaRepository.findByBranchId(branchId);
+        List<Area> areas =
+                (status != null)
+                        ? areaRepository.findByBranchIdAndStatus(branchId, status)
+                        : areaRepository.findByBranchId(branchId);
 
-        return areas.stream()
-                .map(this::buildAreaResponse)
-                .collect(Collectors.toList());
+        return areas.stream().map(this::buildAreaResponse).collect(Collectors.toList());
     }
 
     @Override
@@ -103,14 +110,16 @@ public class AreaServiceImpl implements AreaService {
     public List<AreaResponse> getAllAreas() {
         // Hàm này không có tham số lọc nào — trả TẤT CẢ khu vực của mọi nhà hàng.
         // Giới hạn theo nhà hàng của người đăng nhập (Quản trị nền tảng vẫn xem được hết).
-        Long currentRestaurantId = tenantGuard.isPlatformAdmin()
-                ? null
-                : tenantGuard.currentRestaurantIdOrNull();
+        Long currentRestaurantId =
+                tenantGuard.isPlatformAdmin() ? null : tenantGuard.currentRestaurantIdOrNull();
         if (currentRestaurantId != null) {
             return areaRepository.findAll().stream()
-                    .filter(a -> a.getBranch() != null
-                            && a.getBranch().getRestaurant() != null
-                            && currentRestaurantId.equals(a.getBranch().getRestaurant().getId()))
+                    .filter(
+                            a ->
+                                    a.getBranch() != null
+                                            && a.getBranch().getRestaurant() != null
+                                            && currentRestaurantId.equals(
+                                                    a.getBranch().getRestaurant().getId()))
                     .map(this::buildAreaResponse)
                     .collect(Collectors.toList());
         }
@@ -130,22 +139,33 @@ public class AreaServiceImpl implements AreaService {
     public void deleteArea(Long id) {
         Area area = findAreaForWrite(id);
         if (diningTableRepository.existsByAreaId(id)) {
-            throw new ConflictException("Khu vực còn bàn. Hãy chuyển các bàn sang khu vực khác trước khi xóa.");
+            throw new ConflictException(
+                    "Khu vực còn bàn. Hãy chuyển các bàn sang khu vực khác trước khi xóa.");
         }
         area.softDelete(null);
         areaRepository.save(area);
     }
 
     private Area findAreaForWrite(Long id) {
-        Area area = areaRepository.findForTableAssignment(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khu vực với ID: " + id));
+        Area area =
+                areaRepository
+                        .findForTableAssignment(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy khu vực với ID: " + id));
         tenantGuard.assertBranchAssigned(area.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
         return area;
     }
 
     private Area findAreaById(Long id) {
-        Area area = areaRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khu vực với ID: " + id));
+        Area area =
+                areaRepository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy khu vực với ID: " + id));
         tenantGuard.assertBranch(area.getBranch());
         return area;
     }

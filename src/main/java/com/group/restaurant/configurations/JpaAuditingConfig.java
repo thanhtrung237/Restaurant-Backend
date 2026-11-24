@@ -1,6 +1,7 @@
 package com.group.restaurant.configurations;
 
 import com.group.restaurant.configurations.jwt.AccountUserDetails;
+import java.util.Optional;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.AuditorAware;
@@ -9,8 +10,6 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.context.request.RequestContextHolder;
-
-import java.util.Optional;
 
 /**
  * Cấu hình JPA Auditing.
@@ -42,7 +41,8 @@ public class JpaAuditingConfig {
     private static String currentAuditor() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        if (auth != null && auth.isAuthenticated()
+        if (auth != null
+                && auth.isAuthenticated()
                 && !(auth instanceof AnonymousAuthenticationToken)
                 && auth.getPrincipal() instanceof AccountUserDetails details) {
             return details.getUsername();

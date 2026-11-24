@@ -1,11 +1,11 @@
 package com.group.restaurant.services;
 
 import com.group.restaurant.dtos.request.diningTable.DiningTableAddRequest;
+import com.group.restaurant.dtos.request.diningTable.DiningTableReservationRequest;
 import com.group.restaurant.dtos.request.diningTable.DiningTableUpdateRequest;
 import com.group.restaurant.dtos.response.diningTable.DiningTableResponse;
 import com.group.restaurant.dtos.response.diningTable.QrScanResponse;
 import com.group.restaurant.enums.DiningTableStatus;
-import com.group.restaurant.dtos.request.diningTable.DiningTableReservationRequest;
 import java.util.List;
 
 public interface DiningTableService {
@@ -23,7 +23,7 @@ public interface DiningTableService {
     DiningTableResponse getTableByQrCode(Long branchId, String qrCode);
 
     /**
-        Sinh URL thật cho QR code của bàn và lưu vào DB.
+     * Sinh URL thật cho QR code của bàn và lưu vào DB.
      * @param tableId  ID bàn cần sinh QR
      * @param frontendBaseUrl base URL của FE (VD: http://localhost:3000)
      * @return URL đã lưu vào qrCode field
@@ -49,7 +49,7 @@ public interface DiningTableService {
     byte[] generateQrImage(Long tableId, int size);
 
     /**
-        Xử lý khi khách quét QR bàn.
+     * Xử lý khi khách quét QR bàn.
      * Tự động phân loại và xử lý tất cả trường hợp theo đặc tả:
      *   - Bàn chưa có phiên → tạo phiên WAITING_FOR_OPEN
      *   - Bàn đang SERVING hoặc WAITING_FOR_OPEN → trả về phiên hiện tại

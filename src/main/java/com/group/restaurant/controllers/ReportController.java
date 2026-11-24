@@ -1,24 +1,23 @@
 package com.group.restaurant.controllers;
 
+import static org.springframework.http.HttpStatus.OK;
+
 import com.group.restaurant.dtos.response.base.ResponseSuccess;
 import com.group.restaurant.dtos.response.report.*;
+import com.group.restaurant.enums.OperationalPermission;
+import com.group.restaurant.services.OperationalPermissionService;
 import com.group.restaurant.services.ReportExportService;
 import com.group.restaurant.services.ReportService;
-import com.group.restaurant.services.OperationalPermissionService;
-import com.group.restaurant.enums.OperationalPermission;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.io.IOException;
-import java.io.OutputStream;
-import java.time.LocalDateTime;
-import java.util.List;
-
-import static org.springframework.http.HttpStatus.OK;
 
 /**
  * FR-RPT-01..05 — Báo cáo doanh thu & Xuất báo cáo (.xlsx / .csv)
@@ -57,10 +56,11 @@ public class ReportController {
             @RequestParam(defaultValue = "DAY") String groupBy) {
 
         requireBranchPermissions(branchIds, OperationalPermission.VIEW_REPORT);
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy báo cáo doanh thu thành công",
-                reportService.getRevenueReport(branchIds, from, to, groupBy)));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy báo cáo doanh thu thành công",
+                        reportService.getRevenueReport(branchIds, from, to, groupBy)));
     }
 
     /**
@@ -78,10 +78,11 @@ public class ReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
 
         requireBranchPermissions(branchIds, OperationalPermission.VIEW_REPORT);
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy báo cáo doanh thu theo khung giờ thành công",
-                reportService.getHourlyRevenue(branchIds, from, to)));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy báo cáo doanh thu theo khung giờ thành công",
+                        reportService.getHourlyRevenue(branchIds, from, to)));
     }
 
     /**
@@ -100,10 +101,11 @@ public class ReportController {
             @RequestParam(defaultValue = "10") int topN) {
 
         requireBranchPermissions(branchIds, OperationalPermission.VIEW_REPORT);
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy báo cáo món bán chạy/bán chậm thành công",
-                reportService.getTopDishes(branchIds, from, to, topN)));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy báo cáo món bán chạy/bán chậm thành công",
+                        reportService.getTopDishes(branchIds, from, to, topN)));
     }
 
     /**
@@ -122,10 +124,11 @@ public class ReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
 
         permissions.requireManager(restaurantId);
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy báo cáo so sánh chi nhánh thành công",
-                reportService.getBranchComparison(restaurantId, from, to)));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy báo cáo so sánh chi nhánh thành công",
+                        reportService.getBranchComparison(restaurantId, from, to)));
     }
 
     /**
@@ -139,10 +142,11 @@ public class ReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
 
         requireBranchPermissions(branchIds, OperationalPermission.VIEW_REPORT);
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Quét phát hiện bất thường AI thành công",
-                anomalyDetectionService.detectAnomalies(branchIds, from, to)));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Quét phát hiện bất thường AI thành công",
+                        anomalyDetectionService.detectAnomalies(branchIds, from, to)));
     }
 
     /**
@@ -169,7 +173,8 @@ public class ReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(defaultValue = "DAY") String groupBy,
-            HttpServletResponse response) throws IOException {
+            HttpServletResponse response)
+            throws IOException {
 
         if ("BRANCH_COMPARISON".equalsIgnoreCase(type)) {
             permissions.requireManager(restaurantId);
@@ -178,26 +183,35 @@ public class ReportController {
         }
 
         String ext = "csv".equalsIgnoreCase(format) ? "csv" : "xlsx";
-        String contentType = "csv".equalsIgnoreCase(format)
-                ? "text/csv; charset=UTF-8"
-                : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        String contentType =
+                "csv".equalsIgnoreCase(format)
+                        ? "text/csv; charset=UTF-8"
+                        : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
         String dateSuffix = from.toLocalDate().toString();
-        String fileBaseName = switch (type.toUpperCase()) {
-            case "HOURLY" -> "bao-cao-khung-gio-" + dateSuffix;
-            case "BRANCH_COMPARISON" -> "bao-cao-so-sanh-chi-nhanh-" + dateSuffix;
-            default -> "bao-cao-doanh-thu-" + dateSuffix;
-        };
+        String fileBaseName =
+                switch (type.toUpperCase()) {
+                    case "HOURLY" -> "bao-cao-khung-gio-" + dateSuffix;
+                    case "BRANCH_COMPARISON" -> "bao-cao-so-sanh-chi-nhanh-" + dateSuffix;
+                    default -> "bao-cao-doanh-thu-" + dateSuffix;
+                };
         String filename = fileBaseName + "." + ext;
 
         response.setContentType(contentType);
-        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
+        response.setHeader(
+                HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
 
         try (OutputStream outputStream = response.getOutputStream()) {
             switch (type.toUpperCase()) {
-                case "HOURLY" -> reportExportService.exportHourlyReport(branchIds, from, to, ext, outputStream);
-                case "BRANCH_COMPARISON" -> reportExportService.exportBranchComparisonReport(restaurantId, from, to, ext, outputStream);
-                default -> reportExportService.exportRevenueReport(branchIds, from, to, groupBy, ext, outputStream);
+                case "HOURLY" ->
+                        reportExportService.exportHourlyReport(
+                                branchIds, from, to, ext, outputStream);
+                case "BRANCH_COMPARISON" ->
+                        reportExportService.exportBranchComparisonReport(
+                                restaurantId, from, to, ext, outputStream);
+                default ->
+                        reportExportService.exportRevenueReport(
+                                branchIds, from, to, groupBy, ext, outputStream);
             }
             outputStream.flush();
         }
@@ -205,8 +219,11 @@ public class ReportController {
 
     private void requireBranchPermissions(List<Long> branchIds, OperationalPermission permission) {
         if (branchIds == null || branchIds.isEmpty()) {
-            throw new com.group.restaurant.exceptions.InvalidParamException("Chọn ít nhất một chi nhánh.");
+            throw new com.group.restaurant.exceptions.InvalidParamException(
+                    "Chọn ít nhất một chi nhánh.");
         }
-        branchIds.stream().distinct().forEach(branchId -> permissions.require(branchId, permission));
+        branchIds.stream()
+                .distinct()
+                .forEach(branchId -> permissions.require(branchId, permission));
     }
 }

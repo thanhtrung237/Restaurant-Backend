@@ -18,14 +18,13 @@ import com.group.restaurant.services.RestaurantService;
 import com.group.restaurant.services.audit.AuditAction;
 import com.group.restaurant.services.audit.AuditEvent;
 import com.group.restaurant.utils.TenantGuard;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -87,15 +86,16 @@ public class RestaurantServiceImpl implements RestaurantService {
 
         // BR-12: "thay đổi cấu hình chi nhánh/NHÀ HÀNG phải sinh bản ghi nhật ký".
         // Mã số thuế, tên và địa chỉ ở đây được IN LÊN HOÁ ĐƠN (FR-ADM-03) nên đổi phải có vết.
-        auditLogService.record(AuditEvent.builder()
-                .entityType("Restaurant")
-                .entityId(updatedRestaurant.getId())
-                .actionType(AuditAction.CONFIG_CHANGE)
-                .restaurantId(updatedRestaurant.getId())
-                .valueBefore(configBefore)
-                .valueAfter(configSnapshot(updatedRestaurant))
-                .reason("Quản trị NH đổi cấu hình nhà hàng")
-                .build());
+        auditLogService.record(
+                AuditEvent.builder()
+                        .entityType("Restaurant")
+                        .entityId(updatedRestaurant.getId())
+                        .actionType(AuditAction.CONFIG_CHANGE)
+                        .restaurantId(updatedRestaurant.getId())
+                        .valueBefore(configBefore)
+                        .valueAfter(configSnapshot(updatedRestaurant))
+                        .reason("Quản trị NH đổi cấu hình nhà hàng")
+                        .build());
 
         return buildRestaurantResponse(updatedRestaurant);
     }
@@ -110,8 +110,13 @@ public class RestaurantServiceImpl implements RestaurantService {
     @Override
     @Transactional(readOnly = true)
     public RestaurantResponse getRestaurantByCode(String code) {
-        Restaurant restaurant = restaurantRepository.findByCode(code)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhà hàng với mã: " + code));
+        Restaurant restaurant =
+                restaurantRepository
+                        .findByCode(code)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy nhà hàng với mã: " + code));
         tenantGuard.assertRestaurant(restaurant.getId());
         return buildRestaurantResponse(restaurant);
     }
@@ -119,25 +124,29 @@ public class RestaurantServiceImpl implements RestaurantService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<RestaurantListResponse> getAllRestaurants(
-            String keyword,
-            RestaurantStatus status,
-            Pageable pageable) {
+            String keyword, RestaurantStatus status, Pageable pageable) {
         Page<Restaurant> restaurantPage = restaurantRepository.findAll(pageable);
 
         // Danh sách nhà hàng là dữ liệu cấp nền tảng. Quản trị nhà hàng chỉ được thấy
         // nhà hàng của chính mình, không phải toàn bộ khách hàng khác của hệ thống.
-        Long currentRestaurantId = tenantGuard.isPlatformAdmin()
-                ? null
-                : tenantGuard.currentRestaurantIdOrNull();
+        Long currentRestaurantId =
+                tenantGuard.isPlatformAdmin() ? null : tenantGuard.currentRestaurantIdOrNull();
 
-        List<RestaurantListResponse> responses = restaurantPage.getContent().stream()
-                .filter(r -> currentRestaurantId == null || currentRestaurantId.equals(r.getId()))
-                .map(r -> {
-                    RestaurantListResponse resp = restaurantMapper.toListResponse(r);
-                    resp.setBranchCount((int) branchRepository.countByRestaurantId(r.getId()));
-                    return resp;
-                })
-                .collect(Collectors.toList());
+        List<RestaurantListResponse> responses =
+                restaurantPage.getContent().stream()
+                        .filter(
+                                r ->
+                                        currentRestaurantId == null
+                                                || currentRestaurantId.equals(r.getId()))
+                        .map(
+                                r -> {
+                                    RestaurantListResponse resp =
+                                            restaurantMapper.toListResponse(r);
+                                    resp.setBranchCount(
+                                            (int) branchRepository.countByRestaurantId(r.getId()));
+                                    return resp;
+                                })
+                        .collect(Collectors.toList());
 
         return PageResponse.<RestaurantListResponse>builder()
                 .content(responses)
@@ -163,12 +172,14 @@ public class RestaurantServiceImpl implements RestaurantService {
 
         long branchCount = branchRepository.countByRestaurantId(id);
         if (branchCount > 0) {
-            throw new ConflictException("Không thể xóa nhà hàng đang có " + branchCount + " chi nhánh");
+            throw new ConflictException(
+                    "Không thể xóa nhà hàng đang có " + branchCount + " chi nhánh");
         }
 
         long accountCount = accountRepository.countByRestaurantId(id);
         if (accountCount > 0) {
-            throw new ConflictException("Không thể xóa nhà hàng đang có " + accountCount + " tài khoản");
+            throw new ConflictException(
+                    "Không thể xóa nhà hàng đang có " + accountCount + " tài khoản");
         }
 
         restaurant.softDelete(null);
@@ -176,10 +187,10 @@ public class RestaurantServiceImpl implements RestaurantService {
     }
 
     /**
-      * Chốt tenant tại finder: phủ getRestaurantById / updateRestaurant / changeStatus /
-      * deleteRestaurant. Quản trị nhà hàng chỉ thao tác được trên nhà hàng của mình;
-      * Quản trị nền tảng đi xuyên (xem TenantGuard).
-      */
+     * Chốt tenant tại finder: phủ getRestaurantById / updateRestaurant / changeStatus /
+     * deleteRestaurant. Quản trị nhà hàng chỉ thao tác được trên nhà hàng của mình;
+     * Quản trị nền tảng đi xuyên (xem TenantGuard).
+     */
     /** Chuỗi rỗng / chỉ khoảng trắng ⇒ null, để cột trống luôn nhất quán một giá trị. */
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
@@ -187,16 +198,26 @@ public class RestaurantServiceImpl implements RestaurantService {
 
     /** Ảnh cấu hình nhà hàng, để so sánh trước/sau trong nhật ký (FR-ADM-03). */
     private String configSnapshot(Restaurant r) {
-        return "name=" + r.getName()
-                + "; taxCode=" + r.getTaxCode()
-                + "; address=" + r.getAddress()
-                + "; phone=" + r.getPhone()
-                + "; logoUrl=" + r.getLogoUrl();
+        return "name="
+                + r.getName()
+                + "; taxCode="
+                + r.getTaxCode()
+                + "; address="
+                + r.getAddress()
+                + "; phone="
+                + r.getPhone()
+                + "; logoUrl="
+                + r.getLogoUrl();
     }
 
     private Restaurant findRestaurantById(Long id) {
-        Restaurant restaurant = restaurantRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhà hàng với ID: " + id));
+        Restaurant restaurant =
+                restaurantRepository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy nhà hàng với ID: " + id));
         tenantGuard.assertRestaurant(restaurant.getId());
         return restaurant;
     }

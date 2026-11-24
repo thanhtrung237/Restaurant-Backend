@@ -1,14 +1,12 @@
 package com.group.restaurant;
 
 import io.github.cdimascio.dotenv.Dotenv;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.TimeZone;
-
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 // @EnableJpaAuditing đã chuyển sang JpaAuditingConfig để đi kèm bean AuditorAware
@@ -22,13 +20,9 @@ public class RestaurantBackendApplication {
 
         Path dotenvPath = Paths.get(".env");
         if (Files.exists(dotenvPath)) {
-            Dotenv dotenv = Dotenv.configure()
-                    .filename(".env")
-                    .load();
+            Dotenv dotenv = Dotenv.configure().filename(".env").load();
 
-            dotenv.entries().forEach(entry ->
-                    System.setProperty(entry.getKey(), entry.getValue())
-            );
+            dotenv.entries().forEach(entry -> System.setProperty(entry.getKey(), entry.getValue()));
         }
 
         SpringApplication.run(RestaurantBackendApplication.class, args);

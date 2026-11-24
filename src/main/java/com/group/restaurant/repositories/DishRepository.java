@@ -4,14 +4,13 @@ import com.group.restaurant.enums.CategoryStatus;
 import com.group.restaurant.enums.DishStatus;
 import com.group.restaurant.models.Dish;
 import jakarta.persistence.LockModeType;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
-import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface DishRepository extends JpaRepository<Dish, Long> {
@@ -37,17 +36,19 @@ public interface DishRepository extends JpaRepository<Dish, Long> {
     // Đẩy điều kiện xuống truy vấn thay vì lọc trong bộ nhớ.
     // ------------------------------------------------------------------------------
 
-    @Query("SELECT d FROM Dish d JOIN d.category c " +
-           "WHERE d.restaurant.id = :restaurantId AND d.branch IS NULL " +
-           "AND d.status = :dishStatus AND c.status = :categoryStatus")
+    @Query(
+            "SELECT d FROM Dish d JOIN d.category c "
+                    + "WHERE d.restaurant.id = :restaurantId AND d.branch IS NULL "
+                    + "AND d.status = :dishStatus AND c.status = :categoryStatus")
     List<Dish> findActiveRestaurantDishes(
             @Param("restaurantId") Long restaurantId,
             @Param("dishStatus") DishStatus dishStatus,
             @Param("categoryStatus") CategoryStatus categoryStatus);
 
-    @Query("SELECT d FROM Dish d JOIN d.category c " +
-           "WHERE d.branch.id = :branchId " +
-           "AND d.status = :dishStatus AND c.status = :categoryStatus")
+    @Query(
+            "SELECT d FROM Dish d JOIN d.category c "
+                    + "WHERE d.branch.id = :branchId "
+                    + "AND d.status = :dishStatus AND c.status = :categoryStatus")
     List<Dish> findActiveBranchDishes(
             @Param("branchId") Long branchId,
             @Param("dishStatus") DishStatus dishStatus,

@@ -2,15 +2,14 @@ package com.group.restaurant.repositories;
 
 import com.group.restaurant.enums.OrderDetailStatus;
 import com.group.restaurant.models.OrderDetail;
+import jakarta.persistence.LockModeType;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import jakarta.persistence.LockModeType;
-
-import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface OrderDetailRepository extends JpaRepository<OrderDetail, Long> {
@@ -26,10 +25,10 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, Long> 
     @Query("SELECT od FROM OrderDetail od WHERE od.order.tableSession.id = :sessionId")
     List<OrderDetail> findByTableSessionId(@Param("sessionId") Long sessionId);
 
-    @Query("SELECT od FROM OrderDetail od WHERE od.order.tableSession.id = :sessionId AND od.status = :status")
+    @Query(
+            "SELECT od FROM OrderDetail od WHERE od.order.tableSession.id = :sessionId AND od.status = :status")
     List<OrderDetail> findByTableSessionIdAndStatus(
-            @Param("sessionId") Long sessionId,
-            @Param("status") OrderDetailStatus status);
+            @Param("sessionId") Long sessionId, @Param("status") OrderDetailStatus status);
 
     long countByOrderId(Long orderId);
 
@@ -37,9 +36,10 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, Long> 
      * FR-MNU-02 — món đã nằm trên một hoá đơn bất kỳ (mọi trạng thái, mọi chi nhánh).
      * Dùng để chặn xoá món; @SQLRestriction đã loại bản ghi đã xoá mềm.
      */
-    @Query("SELECT COUNT(od) > 0 FROM OrderDetail od " +
-           "WHERE od.dish.id = :dishId " +
-           "AND EXISTS (SELECT 1 FROM Invoice i WHERE i.tableSession.id = od.order.tableSession.id)")
+    @Query(
+            "SELECT COUNT(od) > 0 FROM OrderDetail od "
+                    + "WHERE od.dish.id = :dishId "
+                    + "AND EXISTS (SELECT 1 FROM Invoice i WHERE i.tableSession.id = od.order.tableSession.id)")
     boolean existsOnAnyInvoice(@Param("dishId") Long dishId);
 
     // ═══════════════════════════════════════════════════════════════════
@@ -52,7 +52,9 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, Long> 
      * PENDING/PREPARING không tính vì chưa thực sự "bán" được (FR-RPT-03).
      * Trả về: [dishId, dishName, categoryName, totalQty, totalRevenue]
      */
-    @Query(value = """
+    @Query(
+            value =
+                    """
         SELECT od.dish_id,
                d.name                              AS dishName,
                c.name                              AS categoryName,
@@ -71,11 +73,12 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, Long> 
           AND ts.created_at  BETWEEN :from AND :to
         GROUP BY od.dish_id, d.name, c.name
         ORDER BY totalRevenue DESC
-        """, nativeQuery = true)
+        """,
+            nativeQuery = true)
     List<Object[]> dishSalesSummary(
             @Param("branchIds") List<Long> branchIds,
-            @Param("from")      java.time.LocalDateTime from,
-            @Param("to")        java.time.LocalDateTime to);
+            @Param("from") java.time.LocalDateTime from,
+            @Param("to") java.time.LocalDateTime to);
 
     // ═══════════════════════════════════════════════════════════════════
     // FR-RPT-04: Tỷ lệ hủy món tách theo lý do (BR-24)
@@ -85,7 +88,9 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, Long> 
      * Đếm dòng bị hủy tách theo cancel_reason và branch.
      * Trả về: [branchId, cancelReason (int), count]
      */
-    @Query(value = """
+    @Query(
+            value =
+                    """
         SELECT ts.branch_id,
                od.cancel_reason,
                COUNT(od.id) AS cnt
@@ -98,17 +103,20 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, Long> 
           AND od.is_deleted = false
           AND o.is_deleted  = false
         GROUP BY ts.branch_id, od.cancel_reason
-        """, nativeQuery = true)
+        """,
+            nativeQuery = true)
     List<Object[]> cancelCountByBranchAndReason(
             @Param("branchIds") List<Long> branchIds,
-            @Param("from")      java.time.LocalDateTime from,
-            @Param("to")        java.time.LocalDateTime to);
+            @Param("from") java.time.LocalDateTime from,
+            @Param("to") java.time.LocalDateTime to);
 
     /**
      * AI Anomaly: Tìm các phiên bàn có từ 2 lần hủy món trở lên.
      * Trả về: [sessionId, branchId, tableName, cancelCount, cancelAmount]
      */
-    @Query(value = """
+    @Query(
+            value =
+                    """
         SELECT ts.id AS sessionId,
                ts.branch_id AS branchId,
                COALESCE(dt.name, CONCAT('Bàn ', ts.table_id)) AS tableName,
@@ -125,17 +133,20 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, Long> 
         HAVING COUNT(od.id) >= 2
         ORDER BY cancelCount DESC
         LIMIT 10
-        """, nativeQuery = true)
+        """,
+            nativeQuery = true)
     List<Object[]> findSessionsWithMultipleCancellations(
             @Param("branchIds") List<Long> branchIds,
-            @Param("from")      java.time.LocalDateTime from,
-            @Param("to")        java.time.LocalDateTime to);
+            @Param("from") java.time.LocalDateTime from,
+            @Param("to") java.time.LocalDateTime to);
 
     /**
      * AI Anomaly: Tìm khung giờ có đột biến hủy món (>= 2 món trong 1 khung giờ).
      * Trả về: [branchId, hour, cancelCount]
      */
-    @Query(value = """
+    @Query(
+            value =
+                    """
         SELECT ts.branch_id AS branchId,
                HOUR(od.created_at) AS hr,
                COUNT(od.id) AS cancelCount
@@ -149,16 +160,19 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, Long> 
         HAVING COUNT(od.id) >= 2
         ORDER BY cancelCount DESC
         LIMIT 5
-        """, nativeQuery = true)
+        """,
+            nativeQuery = true)
     List<Object[]> findHourlyCancellationSpikes(
             @Param("branchIds") List<Long> branchIds,
-            @Param("from")      java.time.LocalDateTime from,
-            @Param("to")        java.time.LocalDateTime to);
+            @Param("from") java.time.LocalDateTime from,
+            @Param("to") java.time.LocalDateTime to);
 
     /** Tổng dòng món tính tiền (SERVED + CANCELLED billable) theo chi nhánh — làm mẫu số tỷ lệ hủy.
      *  Loại trừ PENDING_WEIGHT(4) vì chưa có giá chính thức.
      */
-    @Query(value = """
+    @Query(
+            value =
+                    """
         SELECT ts.branch_id, COUNT(od.id) AS total
         FROM order_detail od
         JOIN orders o      ON o.id  = od.order_id
@@ -169,9 +183,10 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, Long> 
           AND od.is_deleted = false
           AND o.is_deleted  = false
         GROUP BY ts.branch_id
-        """, nativeQuery = true)
+        """,
+            nativeQuery = true)
     List<Object[]> totalDetailCountByBranch(
             @Param("branchIds") List<Long> branchIds,
-            @Param("from")      java.time.LocalDateTime from,
-            @Param("to")        java.time.LocalDateTime to);
+            @Param("from") java.time.LocalDateTime from,
+            @Param("to") java.time.LocalDateTime to);
 }

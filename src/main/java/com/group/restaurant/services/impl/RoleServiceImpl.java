@@ -16,14 +16,13 @@ import com.group.restaurant.repositories.RestaurantRepository;
 import com.group.restaurant.repositories.RoleRepository;
 import com.group.restaurant.services.RoleService;
 import com.group.restaurant.utils.TenantGuard;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -42,8 +41,14 @@ public class RoleServiceImpl implements RoleService {
             throw new ConflictException("Mã vai trò '" + request.getCode() + "' đã tồn tại");
         }
 
-        Restaurant restaurant = restaurantRepository.findById(request.getRestaurantId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhà hàng với ID: " + request.getRestaurantId()));
+        Restaurant restaurant =
+                restaurantRepository
+                        .findById(request.getRestaurantId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy nhà hàng với ID: "
+                                                        + request.getRestaurantId()));
 
         Role role = roleMapper.toEntity(request);
         role.setRestaurant(restaurant);
@@ -72,18 +77,20 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional(readOnly = true)
     public RoleResponse getRoleByCode(String code) {
-        Role role = roleRepository.findByCode(code)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy vai trò với mã: " + code));
+        Role role =
+                roleRepository
+                        .findByCode(code)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy vai trò với mã: " + code));
         return buildRoleResponse(role);
     }
 
     @Override
     @Transactional(readOnly = true)
     public PageResponse<RoleResponse> getAllRoles(
-            Long restaurantId,
-            RoleScope scope,
-            Pageable pageable
-    ) {
+            Long restaurantId, RoleScope scope, Pageable pageable) {
         tenantGuard.assertRestaurant(restaurantId);
         // Bỏ trống restaurantId thì nhánh cuối gọi findAll() — trả dữ liệu MỌI nhà hàng.
         // Mặc định giới hạn vào nhà hàng của người đăng nhập; chỉ Quản trị nền tảng
@@ -95,21 +102,24 @@ public class RoleServiceImpl implements RoleService {
         Page<Role> rolePage;
 
         if (restaurantId != null && scope != null) {
-            List<Role> filteredRoles = roleRepository.findByRestaurantIdAndScope(restaurantId, scope);
+            List<Role> filteredRoles =
+                    roleRepository.findByRestaurantIdAndScope(restaurantId, scope);
             int start = (int) pageable.getOffset();
             int end = Math.min((start + pageable.getPageSize()), filteredRoles.size());
             List<Role> pageContent = filteredRoles.subList(start, end);
 
-            List<RoleResponse> responses = pageContent.stream()
-                    .map(this::buildRoleListResponse)
-                    .collect(Collectors.toList());
+            List<RoleResponse> responses =
+                    pageContent.stream()
+                            .map(this::buildRoleListResponse)
+                            .collect(Collectors.toList());
 
             return PageResponse.<RoleResponse>builder()
                     .content(responses)
                     .pageNumber(pageable.getPageNumber())
                     .pageSize(pageable.getPageSize())
                     .totalElements((long) filteredRoles.size())
-                    .totalPages((int) Math.ceil((double) filteredRoles.size() / pageable.getPageSize()))
+                    .totalPages(
+                            (int) Math.ceil((double) filteredRoles.size() / pageable.getPageSize()))
                     .first(pageable.getPageNumber() == 0)
                     .last(end >= filteredRoles.size())
                     .build();
@@ -119,25 +129,28 @@ public class RoleServiceImpl implements RoleService {
             int end = Math.min((start + pageable.getPageSize()), filteredRoles.size());
             List<Role> pageContent = filteredRoles.subList(start, end);
 
-            List<RoleResponse> responses = pageContent.stream()
-                    .map(this::buildRoleListResponse)
-                    .collect(Collectors.toList());
+            List<RoleResponse> responses =
+                    pageContent.stream()
+                            .map(this::buildRoleListResponse)
+                            .collect(Collectors.toList());
 
             return PageResponse.<RoleResponse>builder()
                     .content(responses)
                     .pageNumber(pageable.getPageNumber())
                     .pageSize(pageable.getPageSize())
                     .totalElements((long) filteredRoles.size())
-                    .totalPages((int) Math.ceil((double) filteredRoles.size() / pageable.getPageSize()))
+                    .totalPages(
+                            (int) Math.ceil((double) filteredRoles.size() / pageable.getPageSize()))
                     .first(pageable.getPageNumber() == 0)
                     .last(end >= filteredRoles.size())
                     .build();
         } else {
             rolePage = roleRepository.findAll(pageable);
 
-            List<RoleResponse> responses = rolePage.getContent().stream()
-                    .map(this::buildRoleListResponse)
-                    .collect(Collectors.toList());
+            List<RoleResponse> responses =
+                    rolePage.getContent().stream()
+                            .map(this::buildRoleListResponse)
+                            .collect(Collectors.toList());
 
             return PageResponse.<RoleResponse>builder()
                     .content(responses)
@@ -156,9 +169,7 @@ public class RoleServiceImpl implements RoleService {
     public List<RoleResponse> getRolesByRestaurant(Long restaurantId) {
         tenantGuard.assertRestaurant(restaurantId);
         List<Role> roles = roleRepository.findByRestaurantId(restaurantId);
-        return roles.stream()
-                .map(this::buildRoleListResponse)
-                .collect(Collectors.toList());
+        return roles.stream().map(this::buildRoleListResponse).collect(Collectors.toList());
     }
 
     @Override
@@ -167,7 +178,8 @@ public class RoleServiceImpl implements RoleService {
 
         long assignmentCount = assignmentRepository.findByRoleId(id).size();
         if (assignmentCount > 0) {
-            throw new ConflictException("Không thể xóa vai trò đang có " + assignmentCount + " phân công");
+            throw new ConflictException(
+                    "Không thể xóa vai trò đang có " + assignmentCount + " phân công");
         }
 
         role.softDelete(null);
@@ -176,9 +188,15 @@ public class RoleServiceImpl implements RoleService {
 
     /** Chốt tenant tại finder: phủ getRoleById / updateRole / deleteRole. */
     private Role findRoleById(Long id) {
-        Role role = roleRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy vai trò với ID: " + id));
-        tenantGuard.assertRestaurant(role.getRestaurant() != null ? role.getRestaurant().getId() : null);
+        Role role =
+                roleRepository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy vai trò với ID: " + id));
+        tenantGuard.assertRestaurant(
+                role.getRestaurant() != null ? role.getRestaurant().getId() : null);
         return role;
     }
 

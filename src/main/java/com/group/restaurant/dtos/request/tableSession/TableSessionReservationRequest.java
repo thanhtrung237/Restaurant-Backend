@@ -2,10 +2,9 @@ package com.group.restaurant.dtos.request.tableSession;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.time.LocalDateTime;
 
 /**
  * FR-TBL-03 — Đặt bàn trước (RESERVED).

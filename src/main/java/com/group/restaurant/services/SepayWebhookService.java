@@ -3,13 +3,12 @@ package com.group.restaurant.services;
 import com.group.restaurant.models.SepayDiscordNotice;
 import com.group.restaurant.repositories.SepayDiscordNoticeRepository;
 import jakarta.persistence.EntityManager;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.util.Locale;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -21,22 +20,40 @@ public class SepayWebhookService {
     private final EntityManager entityManager;
 
     @Transactional
-    public void record(long transactionId, String gateway, String accountNumber, String type,
-                       String content, BigDecimal amount, BigDecimal balance) {
+    public void record(
+            long transactionId,
+            String gateway,
+            String accountNumber,
+            String type,
+            String content,
+            BigDecimal amount,
+            BigDecimal balance) {
         boolean incoming = "in".equals(type);
-        if (!(incoming || "out".equals(type)) || amount.signum() <= 0
-                || amount.stripTrailingZeros().scale() > 0 || !sepay.matchesDestination(gateway, accountNumber)) return;
+        if (!(incoming || "out".equals(type))
+                || amount.signum() <= 0
+                || amount.stripTrailingZeros().scale() > 0
+                || !sepay.matchesDestination(gateway, accountNumber)) return;
 
         boolean notify = discord.enabled();
         if (notify && hasNotice(transactionId)) return;
 
         Long invoiceId = incoming ? sepay.invoiceId(content) : null;
-        boolean paid = invoiceId != null && payments.recordVerifiedSepayTransfer(invoiceId, transactionId, amount);
+        boolean paid =
+                invoiceId != null
+                        && payments.recordVerifiedSepayTransfer(invoiceId, transactionId, amount);
         if (notify) {
-            String outcome = paid ? sepay.invoiceCode(invoiceId) + " · Đã thanh toán"
-                    : incoming ? "Chờ đối chiếu" : "Tiền ra";
-            String message = "MB " + (incoming ? "+" : "−") + vnd(amount)
-                    + " · " + outcome + " · SePay #" + transactionId;
+            String outcome =
+                    paid
+                            ? sepay.invoiceCode(invoiceId) + " · Đã thanh toán"
+                            : incoming ? "Chờ đối chiếu" : "Tiền ra";
+            String message =
+                    "MB "
+                            + (incoming ? "+" : "−")
+                            + vnd(amount)
+                            + " · "
+                            + outcome
+                            + " · SePay #"
+                            + transactionId;
             if (balance != null && balance.signum() != 0) {
                 message += "\nSố dư sau giao dịch · " + vnd(balance);
             }

@@ -11,6 +11,7 @@ public class ResponseSuccess<T> {
 
     private final int status;
     private final String message;
+
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final T data;
 

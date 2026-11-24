@@ -5,20 +5,18 @@ import com.group.restaurant.dtos.request.branch.BranchUpdateRequest;
 import com.group.restaurant.dtos.response.branch.BranchListResponse;
 import com.group.restaurant.dtos.response.branch.BranchResponse;
 import com.group.restaurant.models.Branch;
+import java.time.format.DateTimeFormatter;
+import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 import org.mapstruct.ReportingPolicy;
-import org.mapstruct.AfterMapping;
-
-import java.time.format.DateTimeFormatter;
 
 @Mapper(
-    componentModel = "spring", 
-    unmappedTargetPolicy = ReportingPolicy.IGNORE,
-    nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE
-)
+        componentModel = "spring",
+        unmappedTargetPolicy = ReportingPolicy.IGNORE,
+        nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public abstract class BranchMapper {
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");

@@ -5,12 +5,14 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
 
-
-
 @Entity
-@Table(name = "branch_dish_stock", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_branch_dish_stock", columnNames = {"branch_id", "dish_id"})
-})
+@Table(
+        name = "branch_dish_stock",
+        uniqueConstraints = {
+            @UniqueConstraint(
+                    name = "uk_branch_dish_stock",
+                    columnNames = {"branch_id", "dish_id"})
+        })
 @SQLRestriction("is_deleted = false")
 @Getter
 @Setter
@@ -24,12 +26,16 @@ public class BranchDishStock extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "branch_id", nullable = false,
+    @JoinColumn(
+            name = "branch_id",
+            nullable = false,
             foreignKey = @ForeignKey(name = "fk_branch_dish_stock_branch"))
     private Branch branch;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "dish_id", nullable = false,
+    @JoinColumn(
+            name = "dish_id",
+            nullable = false,
             foreignKey = @ForeignKey(name = "fk_branch_dish_stock_dish"))
     private Dish dish;
 

@@ -6,9 +6,6 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-
 import java.security.Key;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -16,6 +13,8 @@ import java.time.ZoneId;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 @Component
 public class JwtUtil {
@@ -38,7 +37,11 @@ public class JwtUtil {
         if (account.getRestaurant() != null) {
             claims.put("restaurantId", account.getRestaurant().getId());
         }
-        return buildToken(claims, account.getUsername(), jwtAccessExpirationMs, getSignKey(TokenType.ACCESS_TOKEN));
+        return buildToken(
+                claims,
+                account.getUsername(),
+                jwtAccessExpirationMs,
+                getSignKey(TokenType.ACCESS_TOKEN));
     }
 
     public String generateRefreshToken(Account account) {
@@ -47,11 +50,15 @@ public class JwtUtil {
         if (account.getRestaurant() != null) {
             claims.put("restaurantId", account.getRestaurant().getId());
         }
-        return buildToken(claims, account.getUsername(), (long) jwtRefreshExpirationDays * 24 * 60 * 60 * 1000,
+        return buildToken(
+                claims,
+                account.getUsername(),
+                (long) jwtRefreshExpirationDays * 24 * 60 * 60 * 1000,
                 getSignKey(TokenType.REFRESH_TOKEN));
     }
 
-    private String buildToken(Map<String, Object> claims, String subject, long expirationMs, Key key) {
+    private String buildToken(
+            Map<String, Object> claims, String subject, long expirationMs, Key key) {
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(subject)
@@ -71,12 +78,13 @@ public class JwtUtil {
     }
 
     public Long getAccountIdFromToken(String token, TokenType type) {
-        Object id = Jwts.parserBuilder()
-                .setSigningKey(getSignKey(type))
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .get("accountId");
+        Object id =
+                Jwts.parserBuilder()
+                        .setSigningKey(getSignKey(type))
+                        .build()
+                        .parseClaimsJws(token)
+                        .getBody()
+                        .get("accountId");
         return id != null ? ((Number) id).longValue() : null;
     }
 
@@ -90,12 +98,13 @@ public class JwtUtil {
     }
 
     public LocalDate getExpirationDate(String token, TokenType type) {
-        Date exp = Jwts.parserBuilder()
-                .setSigningKey(getSignKey(type))
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .getExpiration();
+        Date exp =
+                Jwts.parserBuilder()
+                        .setSigningKey(getSignKey(type))
+                        .build()
+                        .parseClaimsJws(token)
+                        .getBody()
+                        .getExpiration();
         return exp.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
     }
 

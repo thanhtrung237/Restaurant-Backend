@@ -33,7 +33,8 @@ public class SecurityUtils {
         if (details == null) {
             throw new ResourceNotFoundException("Chưa đăng nhập");
         }
-        return accountRepository.findByIdWithAssignments(details.getAccountId())
+        return accountRepository
+                .findByIdWithAssignments(details.getAccountId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản"));
     }
 
@@ -51,7 +52,8 @@ public class SecurityUtils {
 
     private AccountUserDetails currentUserDetails() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()
+        if (auth == null
+                || !auth.isAuthenticated()
                 || auth instanceof AnonymousAuthenticationToken
                 || !(auth.getPrincipal() instanceof AccountUserDetails details)) {
             return null;

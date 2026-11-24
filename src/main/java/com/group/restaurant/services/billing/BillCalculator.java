@@ -8,12 +8,11 @@ import com.group.restaurant.repositories.ManualDiscountRepository;
 import com.group.restaurant.repositories.OrderRepository;
 import com.group.restaurant.services.promotion.PromotionEngine;
 import com.group.restaurant.services.promotion.PromotionResult;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 /**
  * BỘ TÍNH TIỀN DUY NHẤT của hệ thống (BR-13). createInvoice, tính lại hóa đơn khi có chiết khấu
@@ -34,7 +33,10 @@ public class BillCalculator {
 
     /** Cách chọn khuyến mãi cấp hóa đơn. */
     public static final class PromotionSelection {
-        enum Mode {AUTO, LOCKED}
+        enum Mode {
+            AUTO,
+            LOCKED
+        }
 
         final Mode mode;
         final Long promotionId;
@@ -42,7 +44,12 @@ public class BillCalculator {
         final BigDecimal lockedAmount;
         final java.util.Set<Long> excludedIds;
 
-        private PromotionSelection(Mode mode, Long id, String name, BigDecimal amount, java.util.Set<Long> excludedIds) {
+        private PromotionSelection(
+                Mode mode,
+                Long id,
+                String name,
+                BigDecimal amount,
+                java.util.Set<Long> excludedIds) {
             this.mode = mode;
             this.promotionId = id;
             this.promotionName = name;
@@ -64,7 +71,8 @@ public class BillCalculator {
          * tính lại vì chiết khấu tay đổi — không chọn lại để khỏi đổi số khách đã thấy.
          */
         public static PromotionSelection locked(Long promotionId, String name, BigDecimal amount) {
-            return new PromotionSelection(Mode.LOCKED, promotionId, name, amount, java.util.Set.of());
+            return new PromotionSelection(
+                    Mode.LOCKED, promotionId, name, amount, java.util.Set.of());
         }
     }
 
@@ -110,12 +118,19 @@ public class BillCalculator {
         if (d.getPrice() != null) {
             net = d.getPrice();
         } else {
-            BigDecimal qty = d.getWeightKg() != null
-                    ? d.getWeightKg()
-                    : BigDecimal.valueOf(d.getQuantity() != null ? d.getQuantity() : 1);
-            net = d.getPriceAtOrderTime() != null ? d.getPriceAtOrderTime().multiply(qty) : BigDecimal.ZERO;
+            BigDecimal qty =
+                    d.getWeightKg() != null
+                            ? d.getWeightKg()
+                            : BigDecimal.valueOf(d.getQuantity() != null ? d.getQuantity() : 1);
+            net =
+                    d.getPriceAtOrderTime() != null
+                            ? d.getPriceAtOrderTime().multiply(qty)
+                            : BigDecimal.ZERO;
         }
-        BigDecimal promo = d.getPromotionDiscountAmount() != null ? d.getPromotionDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal promo =
+                d.getPromotionDiscountAmount() != null
+                        ? d.getPromotionDiscountAmount()
+                        : BigDecimal.ZERO;
         return round(net.add(promo));
     }
 
@@ -151,8 +166,12 @@ public class BillCalculator {
      * @param manualDiscounts chiết khấu tay (xem {@link #loadManualDiscounts})
      * @param selection       cách chọn KM đơn
      */
-    public BillBreakdown calculate(TableSession session, Branch branch, List<OrderDetail> details,
-                                   List<ManualDiscount> manualDiscounts, PromotionSelection selection) {
+    public BillBreakdown calculate(
+            TableSession session,
+            Branch branch,
+            List<OrderDetail> details,
+            List<ManualDiscount> manualDiscounts,
+            PromotionSelection selection) {
         // 1) Tiền hàng gốc và KM món, làm tròn từng dòng
         BigDecimal gross = BigDecimal.ZERO;
         BigDecimal itemPromo = BigDecimal.ZERO;
@@ -190,12 +209,14 @@ public class BillCalculator {
         BigDecimal base = afterPromo.subtract(manual);
 
         // 4) Phí dịch vụ và VAT theo snapshot của phiên (BR-08)
-        BigDecimal serviceFeeRate = session.getServiceFeeRateAtOpen() != null
-                ? session.getServiceFeeRateAtOpen() : BigDecimal.ZERO;
+        BigDecimal serviceFeeRate =
+                session.getServiceFeeRateAtOpen() != null
+                        ? session.getServiceFeeRateAtOpen()
+                        : BigDecimal.ZERO;
         BigDecimal serviceFee = percentOf(base, serviceFeeRate);
 
-        BigDecimal vatRate = session.getVatRateAtOpen() != null
-                ? session.getVatRateAtOpen() : BigDecimal.ZERO;
+        BigDecimal vatRate =
+                session.getVatRateAtOpen() != null ? session.getVatRateAtOpen() : BigDecimal.ZERO;
         boolean vatOnFee = isVatOnServiceFee(branch);
         BigDecimal vatBase = vatOnFee ? base.add(serviceFee) : base;
         BigDecimal vatAmount = percentOf(vatBase, vatRate);
@@ -245,13 +266,20 @@ public class BillCalculator {
 
         BigDecimal base = gross.subtract(totalPromo).subtract(manual).max(BigDecimal.ZERO);
 
-        // Hóa đơn là dữ liệu lịch sử: phiên/chi nhánh gốc có thể đã bị xóa mềm → đọc qua SoftDeleteSafe.
+        // Hóa đơn là dữ liệu lịch sử: phiên/chi nhánh gốc có thể đã bị xóa mềm → đọc qua
+        // SoftDeleteSafe.
         TableSession session = invoice.getTableSession();
-        BigDecimal serviceFeeRate = nz(SoftDeleteSafe.get(session, TableSession::getServiceFeeRateAtOpen));
+        BigDecimal serviceFeeRate =
+                nz(SoftDeleteSafe.get(session, TableSession::getServiceFeeRateAtOpen));
         BigDecimal vatRate = nz(SoftDeleteSafe.get(session, TableSession::getVatRateAtOpen));
 
-        boolean vatOnFee = inferVatOnServiceFee(base, serviceFee, vatRate, vatAmount,
-                isVatOnServiceFee(invoice.getBranch()));
+        boolean vatOnFee =
+                inferVatOnServiceFee(
+                        base,
+                        serviceFee,
+                        vatRate,
+                        vatAmount,
+                        isVatOnServiceFee(invoice.getBranch()));
         BigDecimal vatBase = vatOnFee ? base.add(serviceFee) : base;
 
         Promotion promo = invoice.getPromotion();
@@ -276,18 +304,22 @@ public class BillCalculator {
 
     // ---------------------------------------------------------------- Chi tiết nội bộ
 
-    private PromotionResult resolveOrderPromotion(TableSession session, Branch branch,
-                                                  PromotionSelection selection, BigDecimal afterItemPromo) {
+    private PromotionResult resolveOrderPromotion(
+            TableSession session,
+            Branch branch,
+            PromotionSelection selection,
+            BigDecimal afterItemPromo) {
         PromotionSelection sel = selection != null ? selection : PromotionSelection.auto();
         if (sel.mode == PromotionSelection.Mode.LOCKED) {
-            if (sel.promotionId == null || sel.lockedAmount == null) return PromotionResult.noPromotion();
+            if (sel.promotionId == null || sel.lockedAmount == null)
+                return PromotionResult.noPromotion();
             return new PromotionResult(sel.promotionId, sel.promotionName, sel.lockedAmount, 0);
         }
         Long branchId = session.getBranch() != null ? session.getBranch().getId() : branch.getId();
         Long restaurantId = branch.getRestaurant().getId();
         double base = afterItemPromo.doubleValue();
-        return promotionEngine.calculateOrderPromotion(branchId, restaurantId, base,
-                sel.promotionId, sel.excludedIds);
+        return promotionEngine.calculateOrderPromotion(
+                branchId, restaurantId, base, sel.promotionId, sel.excludedIds);
     }
 
     private static BigDecimal manualAmount(ManualDiscount md, BigDecimal base) {
@@ -311,8 +343,12 @@ public class BillCalculator {
      * Suy cờ VAT đã dùng lúc lập hóa đơn từ chính số tiền đã lưu, để hóa đơn cũ không đổi theo
      * cờ hiện tại của chi nhánh. Không phân biệt được (hai cách ra cùng số) thì dùng cờ hiện tại.
      */
-    private static boolean inferVatOnServiceFee(BigDecimal base, BigDecimal serviceFee, BigDecimal vatRate,
-                                                BigDecimal storedVat, boolean fallback) {
+    private static boolean inferVatOnServiceFee(
+            BigDecimal base,
+            BigDecimal serviceFee,
+            BigDecimal vatRate,
+            BigDecimal storedVat,
+            boolean fallback) {
         BigDecimal onFee = percentOf(base.add(serviceFee), vatRate);
         BigDecimal notOnFee = percentOf(base, vatRate);
         boolean matchOnFee = onFee.compareTo(storedVat) == 0;

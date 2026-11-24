@@ -3,10 +3,9 @@ package com.group.restaurant.services;
 import com.group.restaurant.dtos.response.auditLog.AuditLogResponse;
 import com.group.restaurant.dtos.response.base.PageResponse;
 import com.group.restaurant.services.audit.AuditEvent;
-import org.springframework.data.domain.Pageable;
-
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.data.domain.Pageable;
 
 public interface AuditLogService {
 
@@ -34,8 +33,7 @@ public interface AuditLogService {
             List<String> actionTypes,
             LocalDateTime startDate,
             LocalDateTime endDate,
-            Pageable pageable
-    );
+            Pageable pageable);
 
     List<AuditLogResponse> getAuditLogsByRestaurant(Long restaurantId);
 

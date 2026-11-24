@@ -1,5 +1,12 @@
 package com.group.restaurant.services.impl;
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.EncodeHintType;
+import com.google.zxing.WriterException;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import com.group.restaurant.dtos.request.diningTable.DiningTableAddRequest;
 import com.group.restaurant.dtos.request.diningTable.DiningTableReservationRequest;
 import com.group.restaurant.dtos.request.diningTable.DiningTableUpdateRequest;
@@ -7,6 +14,7 @@ import com.group.restaurant.dtos.response.diningTable.DiningTableResponse;
 import com.group.restaurant.dtos.response.diningTable.QrScanResponse;
 import com.group.restaurant.enums.BranchStatus;
 import com.group.restaurant.enums.DiningTableStatus;
+import com.group.restaurant.enums.OperationalPermission;
 import com.group.restaurant.enums.TableSessionStatus;
 import com.group.restaurant.exceptions.ConflictException;
 import com.group.restaurant.exceptions.InvalidParamException;
@@ -21,21 +29,8 @@ import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.DiningTableRepository;
 import com.group.restaurant.repositories.TableSessionRepository;
 import com.group.restaurant.services.DiningTableService;
-import com.group.restaurant.utils.TenantGuard;
-import com.group.restaurant.enums.OperationalPermission;
 import com.group.restaurant.services.OperationalPermissionService;
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.EncodeHintType;
-import com.google.zxing.WriterException;
-import com.google.zxing.client.j2se.MatrixToImageWriter;
-import com.google.zxing.common.BitMatrix;
-import com.google.zxing.qrcode.QRCodeWriter;
-import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
+import com.group.restaurant.utils.TenantGuard;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.EnumMap;
@@ -43,6 +38,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -60,9 +59,14 @@ public class DiningTableServiceImpl implements DiningTableService {
 
     @Override
     public DiningTableResponse createTable(DiningTableAddRequest request) {
-        Branch branch = branchRepository.findById(request.getBranchId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy chi nhánh với ID: " + request.getBranchId()));
+        Branch branch =
+                branchRepository
+                        .findById(request.getBranchId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy chi nhánh với ID: "
+                                                        + request.getBranchId()));
         assertTableNameNotRetired(branch.getId(), request.getName());
 
         Area area = null;
@@ -70,9 +74,13 @@ public class DiningTableServiceImpl implements DiningTableService {
             area = findAreaInBranch(request.getAreaId(), branch.getId());
         }
 
-        if (request.getQrCode() != null && !request.getQrCode().isBlank() &&
-                diningTableRepository.findByBranchIdAndQrCode(request.getBranchId(), request.getQrCode()).isPresent()) {
-            throw new ConflictException("Mã QR '" + request.getQrCode() + "' đã tồn tại trong chi nhánh này");
+        if (request.getQrCode() != null
+                && !request.getQrCode().isBlank()
+                && diningTableRepository
+                        .findByBranchIdAndQrCode(request.getBranchId(), request.getQrCode())
+                        .isPresent()) {
+            throw new ConflictException(
+                    "Mã QR '" + request.getQrCode() + "' đã tồn tại trong chi nhánh này");
         }
 
         DiningTable table = diningTableMapper.toEntity(request);
@@ -87,7 +95,8 @@ public class DiningTableServiceImpl implements DiningTableService {
     @Override
     public DiningTableResponse updateTable(Long id, DiningTableUpdateRequest request) {
         DiningTable table = findTableForWrite(id);
-        tenantGuard.assertBranchAssigned(table.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
+        tenantGuard.assertBranchAssigned(
+                table.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
         if (request.getName() != null && !request.getName().equals(table.getName())) {
             assertTableNameNotRetired(table.getBranch().getId(), request.getName());
         }
@@ -101,11 +110,14 @@ public class DiningTableServiceImpl implements DiningTableService {
             table.setArea(findAreaInBranch(request.getAreaId(), table.getBranch().getId()));
         }
 
-        if (request.getQrCode() != null && !request.getQrCode().isBlank() &&
-                !request.getQrCode().equals(table.getQrCode())) {
-            if (diningTableRepository.findByBranchIdAndQrCode(table.getBranch().getId(), request.getQrCode())
+        if (request.getQrCode() != null
+                && !request.getQrCode().isBlank()
+                && !request.getQrCode().equals(table.getQrCode())) {
+            if (diningTableRepository
+                    .findByBranchIdAndQrCode(table.getBranch().getId(), request.getQrCode())
                     .isPresent()) {
-                throw new ConflictException("Mã QR '" + request.getQrCode() + "' đã tồn tại trong chi nhánh này");
+                throw new ConflictException(
+                        "Mã QR '" + request.getQrCode() + "' đã tồn tại trong chi nhánh này");
             }
         }
 
@@ -115,9 +127,13 @@ public class DiningTableServiceImpl implements DiningTableService {
     }
 
     private Area findAreaInBranch(Long areaId, Long branchId) {
-        return areaRepository.findForTableAssignment(areaId)
+        return areaRepository
+                .findForTableAssignment(areaId)
                 .filter(area -> branchId.equals(area.getBranch().getId()))
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khu vực trong chi nhánh của bàn"));
+                .orElseThrow(
+                        () ->
+                                new ResourceNotFoundException(
+                                        "Không tìm thấy khu vực trong chi nhánh của bàn"));
     }
 
     @Override
@@ -134,13 +150,12 @@ public class DiningTableServiceImpl implements DiningTableService {
             throw new ResourceNotFoundException("Không tìm thấy chi nhánh với ID: " + branchId);
         }
 
-        List<DiningTable> tables = (status != null)
-                ? diningTableRepository.findByBranchIdAndStatus(branchId, status)
-                : diningTableRepository.findByBranchId(branchId);
+        List<DiningTable> tables =
+                (status != null)
+                        ? diningTableRepository.findByBranchIdAndStatus(branchId, status)
+                        : diningTableRepository.findByBranchId(branchId);
 
-        return tables.stream()
-                .map(this::buildDiningTableResponse)
-                .collect(Collectors.toList());
+        return tables.stream().map(this::buildDiningTableResponse).collect(Collectors.toList());
     }
 
     @Override
@@ -151,46 +166,83 @@ public class DiningTableServiceImpl implements DiningTableService {
         }
 
         List<DiningTable> tables = diningTableRepository.findByAreaId(areaId);
-        return tables.stream()
-                .map(this::buildDiningTableResponse)
-                .collect(Collectors.toList());
+        return tables.stream().map(this::buildDiningTableResponse).collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
     public DiningTableResponse getTableByQrCode(Long branchId, String qrCode) {
-        DiningTable table = diningTableRepository.findByBranchIdAndQrCode(branchId, qrCode)
-                .orElseGet(() -> {
-                    // Fallback 1: Thay khoảng trắng bằng gạch nối (VD: "QR B1 T01" -> "QR-B1-T01")
-                    String dashed = qrCode.trim().replaceAll("\\s+", "-");
-                    Optional<DiningTable> dashedOpt = diningTableRepository.findByBranchIdAndQrCode(branchId, dashed);
-                    if (dashedOpt.isPresent()) return dashedOpt.get();
+        DiningTable table =
+                diningTableRepository
+                        .findByBranchIdAndQrCode(branchId, qrCode)
+                        .orElseGet(
+                                () -> {
+                                    // Fallback 1: Thay khoảng trắng bằng gạch nối (VD: "QR B1 T01"
+                                    // -> "QR-B1-T01")
+                                    String dashed = qrCode.trim().replaceAll("\\s+", "-");
+                                    Optional<DiningTable> dashedOpt =
+                                            diningTableRepository.findByBranchIdAndQrCode(
+                                                    branchId, dashed);
+                                    if (dashedOpt.isPresent()) return dashedOpt.get();
 
-                    // Fallback 2: Thử tìm theo tên bàn hoặc URL kết thúc bằng qrCode
-                    List<DiningTable> tables = diningTableRepository.findByBranchId(branchId);
-                    return tables.stream()
-                            .filter(t -> (t.getQrCode() != null && (t.getQrCode().equalsIgnoreCase(dashed)
-                                    || t.getQrCode().equalsIgnoreCase(qrCode)
-                                    || t.getQrCode().endsWith("/" + qrCode)
-                                    || t.getQrCode().endsWith("-" + dashed)))
-                                    || t.getName().equalsIgnoreCase(qrCode)
-                                    || t.getName().equalsIgnoreCase("Bàn " + qrCode)
-                                    || String.valueOf(t.getId()).equals(qrCode)
-                                    || t.getName().replaceAll("\\s+", "").equalsIgnoreCase(qrCode.replaceAll("\\s+", "")))
-                            .findFirst()
-                            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn với mã QR: " + qrCode));
-                });
+                                    // Fallback 2: Thử tìm theo tên bàn hoặc URL kết thúc bằng
+                                    // qrCode
+                                    List<DiningTable> tables =
+                                            diningTableRepository.findByBranchId(branchId);
+                                    return tables.stream()
+                                            .filter(
+                                                    t ->
+                                                            (t.getQrCode() != null
+                                                                            && (t.getQrCode()
+                                                                                            .equalsIgnoreCase(
+                                                                                                    dashed)
+                                                                                    || t.getQrCode()
+                                                                                            .equalsIgnoreCase(
+                                                                                                    qrCode)
+                                                                                    || t.getQrCode()
+                                                                                            .endsWith(
+                                                                                                    "/"
+                                                                                                            + qrCode)
+                                                                                    || t.getQrCode()
+                                                                                            .endsWith(
+                                                                                                    "-"
+                                                                                                            + dashed)))
+                                                                    || t.getName()
+                                                                            .equalsIgnoreCase(
+                                                                                    qrCode)
+                                                                    || t.getName()
+                                                                            .equalsIgnoreCase(
+                                                                                    "Bàn " + qrCode)
+                                                                    || String.valueOf(t.getId())
+                                                                            .equals(qrCode)
+                                                                    || t.getName()
+                                                                            .replaceAll("\\s+", "")
+                                                                            .equalsIgnoreCase(
+                                                                                    qrCode
+                                                                                            .replaceAll(
+                                                                                                    "\\s+",
+                                                                                                    "")))
+                                            .findFirst()
+                                            .orElseThrow(
+                                                    () ->
+                                                            new ResourceNotFoundException(
+                                                                    "Không tìm thấy bàn với mã QR: "
+                                                                            + qrCode));
+                                });
         return buildDiningTableResponse(table);
     }
 
     @Override
     public void changeStatus(Long id, DiningTableStatus status) {
         DiningTable table = findTableForWrite(id);
-        tenantGuard.assertBranchAssigned(table.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
-        if (status == DiningTableStatus.RESERVED || table.getStatus() == DiningTableStatus.RESERVED) {
+        tenantGuard.assertBranchAssigned(
+                table.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
+        if (status == DiningTableStatus.RESERVED
+                || table.getStatus() == DiningTableStatus.RESERVED) {
             throw new ConflictException("Hãy dùng thao tác đặt bàn hoặc hủy đặt bàn.");
         }
-        if (status == DiningTableStatus.INACTIVE || table.getStatus() == DiningTableStatus.INACTIVE) {
+        if (status == DiningTableStatus.INACTIVE
+                || table.getStatus() == DiningTableStatus.INACTIVE) {
             assertTableIdle(table);
         }
         table.setStatus(status);
@@ -200,41 +252,51 @@ public class DiningTableServiceImpl implements DiningTableService {
     @Override
     public void deleteTable(Long id) {
         DiningTable table = findTableForWrite(id);
-        tenantGuard.assertBranchAssigned(table.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
+        tenantGuard.assertBranchAssigned(
+                table.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
         assertTableIdle(table);
         if (tableSessionRepository.countHistoryByTableId(id) > 0) {
-            throw new ConflictException("Bàn đã có lịch sử. Hãy chọn Ngừng sử dụng để giữ dữ liệu.");
+            throw new ConflictException(
+                    "Bàn đã có lịch sử. Hãy chọn Ngừng sử dụng để giữ dữ liệu.");
         }
         table.softDelete(null);
         diningTableRepository.save(table);
     }
 
     private void assertTableIdle(DiningTable table) {
-        if (table.getStatus() == DiningTableStatus.OCCUPIED || table.getStatus() == DiningTableStatus.RESERVED
+        if (table.getStatus() == DiningTableStatus.OCCUPIED
+                || table.getStatus() == DiningTableStatus.RESERVED
                 || tableSessionRepository.countActiveSessionsByTableId(table.getId()) > 0) {
-            throw new ConflictException("Bàn còn phiên hoạt động hoặc lịch đặt trước. Hãy xử lý phiên trước khi tiếp tục.");
+            throw new ConflictException(
+                    "Bàn còn phiên hoạt động hoặc lịch đặt trước. Hãy xử lý phiên trước khi tiếp tục.");
         }
     }
 
     private void assertTableNameNotRetired(Long branchId, String name) {
         if (diningTableRepository.countDeletedWithName(branchId, name) > 0) {
-            throw new ConflictException("Tên bàn đã từng được dùng. Hãy chọn tên khác để tránh trùng với mã QR cũ.");
+            throw new ConflictException(
+                    "Tên bàn đã từng được dùng. Hãy chọn tên khác để tránh trùng với mã QR cũ.");
         }
     }
 
     private DiningTable findTableForWrite(Long id) {
-        return diningTableRepository.findForGuestAdmission(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn với ID: " + id));
+        return diningTableRepository
+                .findForGuestAdmission(id)
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Không tìm thấy bàn với ID: " + id));
     }
 
     private DiningTable findTableById(Long id) {
-        return diningTableRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn với ID: " + id));
+        return diningTableRepository
+                .findById(id)
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Không tìm thấy bàn với ID: " + id));
     }
 
     private DiningTableResponse buildDiningTableResponse(DiningTable table) {
         DiningTableResponse response = diningTableMapper.toResponse(table);
-        boolean hasOpenSession = tableSessionRepository.countActiveSessionsByTableId(table.getId()) > 0;
+        boolean hasOpenSession =
+                tableSessionRepository.countActiveSessionsByTableId(table.getId()) > 0;
         response.setHasOpenSession(hasOpenSession);
         return response;
     }
@@ -246,13 +308,15 @@ public class DiningTableServiceImpl implements DiningTableService {
 
         // 1. Bàn phải ở trạng thái AVAILABLE mới được đặt trước (BR-29)
         if (table.getStatus() != DiningTableStatus.AVAILABLE) {
-            throw new ConflictException("Bàn đang không ở trạng thái trống, không thể thực hiện đặt trước");
+            throw new ConflictException(
+                    "Bàn đang không ở trạng thái trống, không thể thực hiện đặt trước");
         }
 
         // 2. Bàn không được đang có phiên phục vụ hoạt động
         boolean hasActiveSession = tableSessionRepository.countActiveSessionsByTableId(tableId) > 0;
         if (hasActiveSession) {
-            throw new ConflictException("Bàn đang có phiên phục vụ hoạt động, không thể thực hiện đặt trước");
+            throw new ConflictException(
+                    "Bàn đang có phiên phục vụ hoạt động, không thể thực hiện đặt trước");
         }
 
         // 3. Đổi trạng thái Bàn sang RESERVED (3)
@@ -260,16 +324,17 @@ public class DiningTableServiceImpl implements DiningTableService {
         DiningTable updatedTable = diningTableRepository.save(table);
 
         // 4. Tạo bản ghi Phiên bàn (TableSession) ghi nhận thông tin đặt bàn
-        TableSession reservationSession = TableSession.builder()
-                .table(table)
-                .status(TableSessionStatus.RESERVED)
-                .branch(table.getBranch())
-                .customerName(request.getCustomerName())
-                .customerPhone(request.getCustomerPhone())
-                .guestCount(request.getGuestCount())
-                .reservationTime(request.getReservationTime())
-                .note(request.getNote())
-                .build();
+        TableSession reservationSession =
+                TableSession.builder()
+                        .table(table)
+                        .status(TableSessionStatus.RESERVED)
+                        .branch(table.getBranch())
+                        .customerName(request.getCustomerName())
+                        .customerPhone(request.getCustomerPhone())
+                        .guestCount(request.getGuestCount())
+                        .reservationTime(request.getReservationTime())
+                        .note(request.getNote())
+                        .build();
         tableSessionRepository.save(reservationSession);
 
         return buildDiningTableResponse(updatedTable);
@@ -286,17 +351,21 @@ public class DiningTableServiceImpl implements DiningTableService {
             throw new ConflictException("Bàn đã ngừng sử dụng.");
         }
 
-        String baseUrl = (frontendBaseUrl != null && !frontendBaseUrl.isBlank())
-                ? frontendBaseUrl.replaceAll("/$", "")
-                : "http://localhost:5173";
+        String baseUrl =
+                (frontendBaseUrl != null && !frontendBaseUrl.isBlank())
+                        ? frontendBaseUrl.replaceAll("/$", "")
+                        : "http://localhost:5173";
 
         // Sinh mã định danh sạch (không phải URL) — VD: "QR-B1-Bàn-01"
         // Chỉ sinh lại nếu chưa có hoặc đang lưu URL cũ từ cơ chế cũ
-        if (table.getQrCode() == null || table.getQrCode().isBlank()
+        if (table.getQrCode() == null
+                || table.getQrCode().isBlank()
                 || table.getQrCode().startsWith("http")) {
-            String cleanName = table.getName().trim()
-                    .replaceAll("[^\\w\\dÀ-ỹà-ỹ\\s-]", "")
-                    .replaceAll("\\s+", "-");
+            String cleanName =
+                    table.getName()
+                            .trim()
+                            .replaceAll("[^\\w\\dÀ-ỹà-ỹ\\s-]", "")
+                            .replaceAll("\\s+", "-");
             String code = "QR-B" + table.getBranch().getId() + "-" + cleanName;
             table.setQrCode(code);
             diningTableRepository.save(table);
@@ -305,8 +374,12 @@ public class DiningTableServiceImpl implements DiningTableService {
         // Trả về URL hoàn chỉnh để FE biết nội dung cần mã hoá vào QR code
         // FE sẽ dùng thư viện (qrcode.react) để tự vẽ ảnh QR từ URL này
         String customerUrl = baseUrl + "/ban/" + table.getQrCode();
-        log.info("[FR-TBL-02] Mã QR bàn #{} ({}): code={}, url={}",
-                table.getId(), table.getName(), table.getQrCode(), customerUrl);
+        log.info(
+                "[FR-TBL-02] Mã QR bàn #{} ({}): code={}, url={}",
+                table.getId(),
+                table.getName(),
+                table.getQrCode(),
+                customerUrl);
         return customerUrl;
     }
 
@@ -324,7 +397,9 @@ public class DiningTableServiceImpl implements DiningTableService {
         String qrContent = table.getQrCode();
         if (qrContent == null || qrContent.isBlank()) {
             throw new InvalidParamException(
-                "Bàn chưa có mã QR. Vui lòng gọi POST /tables/" + tableId + "/generate-qr trước.");
+                    "Bàn chưa có mã QR. Vui lòng gọi POST /tables/"
+                            + tableId
+                            + "/generate-qr trước.");
         }
 
         try {
@@ -345,7 +420,8 @@ public class DiningTableServiceImpl implements DiningTableService {
             }
 
             QRCodeWriter writer = new QRCodeWriter();
-            BitMatrix bitMatrix = writer.encode(urlToEncode, BarcodeFormat.QR_CODE, imageSize, imageSize, hints);
+            BitMatrix bitMatrix =
+                    writer.encode(urlToEncode, BarcodeFormat.QR_CODE, imageSize, imageSize, hints);
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             MatrixToImageWriter.writeToStream(bitMatrix, "PNG", outputStream);
@@ -358,7 +434,7 @@ public class DiningTableServiceImpl implements DiningTableService {
     }
 
     /**
-    Xử lý quét QR bàn — logic trung tâm của luồng khách.
+     * Xử lý quét QR bàn — logic trung tâm của luồng khách.
      *
      * Các trường hợp theo đặc tả:
      * 1. Chi nhánh ngưng → BRANCH_INACTIVE
@@ -383,12 +459,16 @@ public class DiningTableServiceImpl implements DiningTableService {
                     .branchName(branch.getName())
                     .tableStatus(table.getStatus())
                     .scanAction(QrScanResponse.ScanAction.BRANCH_INACTIVE)
-                    .message("Chi nhánh " + branch.getName() + " tạm ngưng hoạt động. Vui lòng liên hệ nhân viên.")
+                    .message(
+                            "Chi nhánh "
+                                    + branch.getName()
+                                    + " tạm ngưng hoạt động. Vui lòng liên hệ nhân viên.")
                     .build();
         }
 
         // ── Kiểm tra phiên active của bàn ───────────────────────────────────
-        Optional<TableSession> activeSession = tableSessionRepository.findActiveSessionByTableId(table.getId());
+        Optional<TableSession> activeSession =
+                tableSessionRepository.findActiveSessionByTableId(table.getId());
 
         if (activeSession.isPresent()) {
             TableSession session = activeSession.get();
@@ -406,7 +486,10 @@ public class DiningTableServiceImpl implements DiningTableService {
                         .sessionStatus(session.getStatus())
                         .tableStatus(table.getStatus())
                         .scanAction(QrScanResponse.ScanAction.RESERVED)
-                        .message("Bàn " + table.getName() + " đã được đặt trước. Vui lòng gặp nhân viên để được hỗ trợ.")
+                        .message(
+                                "Bàn "
+                                        + table.getName()
+                                        + " đã được đặt trước. Vui lòng gặp nhân viên để được hỗ trợ.")
                         .build();
             }
 
@@ -415,12 +498,13 @@ public class DiningTableServiceImpl implements DiningTableService {
                     || session.getStatus() == TableSessionStatus.SERVING
                     || session.getStatus() == TableSessionStatus.WAITING_FOR_PAY) {
 
-                String message = switch (session.getStatus()) {
-                    case WAITING_FOR_OPEN -> "Đang chờ nhân viên xác nhận mở bàn...";
-                    case SERVING          -> "Chào mừng! Bàn " + table.getName() + " đang phục vụ.";
-                    case WAITING_FOR_PAY  -> "Bàn đang chờ thanh toán.";
-                    default               -> "Tham gia phiên hiện tại.";
-                };
+                String message =
+                        switch (session.getStatus()) {
+                            case WAITING_FOR_OPEN -> "Đang chờ nhân viên xác nhận mở bàn...";
+                            case SERVING -> "Chào mừng! Bàn " + table.getName() + " đang phục vụ.";
+                            case WAITING_FOR_PAY -> "Bàn đang chờ thanh toán.";
+                            default -> "Tham gia phiên hiện tại.";
+                        };
 
                 return QrScanResponse.builder()
                         .tableId(table.getId())
@@ -439,11 +523,12 @@ public class DiningTableServiceImpl implements DiningTableService {
         }
 
         // ── TH4: Bàn chưa có phiên → tạo phiên WAITING_FOR_OPEN ────────────
-        TableSession newSession = TableSession.builder()
-                .table(table)
-                .branch(branch)
-                .status(TableSessionStatus.WAITING_FOR_OPEN)
-                .build();
+        TableSession newSession =
+                TableSession.builder()
+                        .table(table)
+                        .branch(branch)
+                        .status(TableSessionStatus.WAITING_FOR_OPEN)
+                        .build();
 
         TableSession saved = tableSessionRepository.save(newSession);
 
@@ -451,8 +536,11 @@ public class DiningTableServiceImpl implements DiningTableService {
         table.setStatus(DiningTableStatus.OCCUPIED);
         diningTableRepository.save(table);
 
-        log.info("[FR-CUS-01] Quét QR bàn #{} ({}) → Tạo phiên #{} WAITING_FOR_OPEN",
-                table.getId(), table.getName(), saved.getId());
+        log.info(
+                "[FR-CUS-01] Quét QR bàn #{} ({}) → Tạo phiên #{} WAITING_FOR_OPEN",
+                table.getId(),
+                table.getName(),
+                saved.getId());
 
         return QrScanResponse.builder()
                 .tableId(table.getId())
@@ -465,7 +553,10 @@ public class DiningTableServiceImpl implements DiningTableService {
                 .sessionStatus(saved.getStatus())
                 .tableStatus(table.getStatus())
                 .scanAction(QrScanResponse.ScanAction.WAITING_FOR_STAFF)
-                .message("Đang chờ nhân viên xác nhận mở bàn " + table.getName() + ". Vui lòng chờ trong giây lát.")
+                .message(
+                        "Đang chờ nhân viên xác nhận mở bàn "
+                                + table.getName()
+                                + ". Vui lòng chờ trong giây lát.")
                 .build();
     }
 
@@ -481,10 +572,12 @@ public class DiningTableServiceImpl implements DiningTableService {
         table.setStatus(DiningTableStatus.AVAILABLE);
         diningTableRepository.save(table);
 
-        tableSessionRepository.findActiveSessionByTableIdAndStatus(tableId, TableSessionStatus.RESERVED)
-                .ifPresent(session -> {
-                    session.setStatus(TableSessionStatus.CANCELLED);
-                    tableSessionRepository.save(session);
-                });
+        tableSessionRepository
+                .findActiveSessionByTableIdAndStatus(tableId, TableSessionStatus.RESERVED)
+                .ifPresent(
+                        session -> {
+                            session.setStatus(TableSessionStatus.CANCELLED);
+                            tableSessionRepository.save(session);
+                        });
     }
 }

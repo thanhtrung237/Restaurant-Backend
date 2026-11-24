@@ -18,6 +18,9 @@ import com.group.restaurant.services.AuditLogService;
 import com.group.restaurant.services.audit.AuditAction;
 import com.group.restaurant.services.audit.AuditEvent;
 import com.group.restaurant.utils.TenantGuard;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -29,10 +32,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -76,8 +75,13 @@ public class AuditLogServiceImpl implements AuditLogService {
         try {
             recordInTransaction(event);
         } catch (Exception e) {
-            log.error("Không ghi được nhật ký cho {} #{} ({}): {}",
-                    event.getEntityType(), event.getEntityId(), event.getActionType(), e.getMessage(), e);
+            log.error(
+                    "Không ghi được nhật ký cho {} #{} ({}): {}",
+                    event.getEntityType(),
+                    event.getEntityId(),
+                    event.getActionType(),
+                    e.getMessage(),
+                    e);
         }
     }
 
@@ -90,42 +94,48 @@ public class AuditLogServiceImpl implements AuditLogService {
             performedBy = accountRepository.findById(event.getPerformedByAccountId()).orElse(null);
         }
 
-        Long restaurantId = event.getRestaurantId() != null
-                ? event.getRestaurantId()
-                : (performedBy != null && performedBy.getRestaurant() != null
-                        ? performedBy.getRestaurant().getId()
-                        : null);
+        Long restaurantId =
+                event.getRestaurantId() != null
+                        ? event.getRestaurantId()
+                        : (performedBy != null && performedBy.getRestaurant() != null
+                                ? performedBy.getRestaurant().getId()
+                                : null);
 
-        Restaurant restaurant = restaurantId != null
-                ? restaurantRepository.findById(restaurantId).orElse(null)
-                : null;
-        Branch branch = event.getBranchId() != null
-                ? branchRepository.findById(event.getBranchId()).orElse(null)
-                : null;
-        Account approvedBy = event.getApprovedByAccountId() != null
-                ? accountRepository.findById(event.getApprovedByAccountId()).orElse(null)
-                : null;
+        Restaurant restaurant =
+                restaurantId != null
+                        ? restaurantRepository.findById(restaurantId).orElse(null)
+                        : null;
+        Branch branch =
+                event.getBranchId() != null
+                        ? branchRepository.findById(event.getBranchId()).orElse(null)
+                        : null;
+        Account approvedBy =
+                event.getApprovedByAccountId() != null
+                        ? accountRepository.findById(event.getApprovedByAccountId()).orElse(null)
+                        : null;
 
-        AuditLog entry = AuditLog.builder()
-                .restaurant(restaurant)
-                .branch(branch)
-                .performedBy(performedBy)
-                .approvedBy(approvedBy)
-                .occurredAt(LocalDateTime.now())
-                .entityType(event.getEntityType())
-                .entityId(event.getEntityId())
-                .actionType(event.getActionType())
-                .valueBefore(event.getValueBefore())
-                .valueAfter(event.getValueAfter())
-                .reason(event.getReason())
-                .build();
+        AuditLog entry =
+                AuditLog.builder()
+                        .restaurant(restaurant)
+                        .branch(branch)
+                        .performedBy(performedBy)
+                        .approvedBy(approvedBy)
+                        .occurredAt(LocalDateTime.now())
+                        .entityType(event.getEntityType())
+                        .entityId(event.getEntityId())
+                        .actionType(event.getActionType())
+                        .valueBefore(event.getValueBefore())
+                        .valueAfter(event.getValueAfter())
+                        .reason(event.getReason())
+                        .build();
 
         auditLogRepository.save(entry);
     }
 
     private Account currentAccountOrNull() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()
+        if (auth == null
+                || !auth.isAuthenticated()
                 || auth instanceof AnonymousAuthenticationToken
                 || !(auth.getPrincipal() instanceof AccountUserDetails details)) {
             return null;
@@ -179,21 +189,23 @@ public class AuditLogServiceImpl implements AuditLogService {
         boolean filterByDate = startDate != null && endDate != null;
         boolean filterByAction = actionTypes != null && !actionTypes.isEmpty();
 
-        Page<AuditLog> auditLogPage = auditLogRepository.search(
-                restaurantId,
-                entityType,
-                filterByDate,
-                filterByDate ? startDate : EPOCH,
-                filterByDate ? endDate : EPOCH,
-                filterByBranch,
-                filterByBranch ? scopeBranchIds : NO_BRANCH_IDS,
-                filterByAction,
-                filterByAction ? actionTypes : NO_ACTION_TYPES,
-                pageable);
+        Page<AuditLog> auditLogPage =
+                auditLogRepository.search(
+                        restaurantId,
+                        entityType,
+                        filterByDate,
+                        filterByDate ? startDate : EPOCH,
+                        filterByDate ? endDate : EPOCH,
+                        filterByBranch,
+                        filterByBranch ? scopeBranchIds : NO_BRANCH_IDS,
+                        filterByAction,
+                        filterByAction ? actionTypes : NO_ACTION_TYPES,
+                        pageable);
 
-        List<AuditLogResponse> responses = auditLogPage.getContent().stream()
-                .map(auditLogMapper::toResponse)
-                .collect(Collectors.toList());
+        List<AuditLogResponse> responses =
+                auditLogPage.getContent().stream()
+                        .map(auditLogMapper::toResponse)
+                        .collect(Collectors.toList());
 
         return PageResponse.<AuditLogResponse>builder()
                 .content(responses)
@@ -217,13 +229,12 @@ public class AuditLogServiceImpl implements AuditLogService {
         }
         // be-issues mục 16: Pageable.unpaged() ở đây trả về RỖNG dù có dữ liệu.
         // Dùng truy vấn trả List trực tiếp, đã sắp mới-nhất-trước.
-        List<AuditLog> auditLogs = allowedBranchIds == null
-                ? auditLogRepository.findByRestaurantIdOrderByOccurredAtDesc(restaurantId)
-                : auditLogRepository.findBranchScopedByRestaurantList(
-                        restaurantId, allowedBranchIds);
-        return auditLogs.stream()
-                .map(auditLogMapper::toResponse)
-                .collect(Collectors.toList());
+        List<AuditLog> auditLogs =
+                allowedBranchIds == null
+                        ? auditLogRepository.findByRestaurantIdOrderByOccurredAtDesc(restaurantId)
+                        : auditLogRepository.findBranchScopedByRestaurantList(
+                                restaurantId, allowedBranchIds);
+        return auditLogs.stream().map(auditLogMapper::toResponse).collect(Collectors.toList());
     }
 
     @Override
@@ -247,36 +258,44 @@ public class AuditLogServiceImpl implements AuditLogService {
         if (allowedBranchIds != null && allowedBranchIds.isEmpty()) {
             return List.of();
         }
-        List<AuditLog> auditLogs = allowedBranchIds == null
-                ? auditLogRepository.findByEntityTypeOrderByOccurredAtDesc(entityType)
-                : auditLogRepository.findBranchScopedByEntityTypeList(
-                        entityType, allowedBranchIds);
+        List<AuditLog> auditLogs =
+                allowedBranchIds == null
+                        ? auditLogRepository.findByEntityTypeOrderByOccurredAtDesc(entityType)
+                        : auditLogRepository.findBranchScopedByEntityTypeList(
+                                entityType, allowedBranchIds);
         return auditLogs.stream()
-                .filter(a -> platformAdmin || restaurantId == null
-                        || (a.getRestaurant() != null
-                            && restaurantId.equals(a.getRestaurant().getId())))
+                .filter(
+                        a ->
+                                platformAdmin
+                                        || restaurantId == null
+                                        || (a.getRestaurant() != null
+                                                && restaurantId.equals(a.getRestaurant().getId())))
                 .map(auditLogMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<AuditLogResponse> getAuditLogsByPerformedBy(Long accountId) {
-        accountRepository.findById(accountId).ifPresent(acc ->
-                tenantGuard.assertRestaurant(
-                        acc.getRestaurant() != null ? acc.getRestaurant().getId() : null));
+        accountRepository
+                .findById(accountId)
+                .ifPresent(
+                        acc ->
+                                tenantGuard.assertRestaurant(
+                                        acc.getRestaurant() != null
+                                                ? acc.getRestaurant().getId()
+                                                : null));
         List<Long> allowedBranchIds =
                 tenantGuard.assignedBranchIdsOrNull(TenantGuard.ROLE_BRANCH_MANAGER);
         if (allowedBranchIds != null && allowedBranchIds.isEmpty()) {
             return List.of();
         }
         // be-issues mục 16 — xem ghi chú ở getAuditLogsByRestaurant.
-        List<AuditLog> auditLogs = allowedBranchIds == null
-                ? auditLogRepository.findByPerformedByIdOrderByOccurredAtDesc(accountId)
-                : auditLogRepository.findBranchScopedByPerformedByList(
-                        accountId, allowedBranchIds);
-        return auditLogs.stream()
-                .map(auditLogMapper::toResponse)
-                .collect(Collectors.toList());
+        List<AuditLog> auditLogs =
+                allowedBranchIds == null
+                        ? auditLogRepository.findByPerformedByIdOrderByOccurredAtDesc(accountId)
+                        : auditLogRepository.findBranchScopedByPerformedByList(
+                                accountId, allowedBranchIds);
+        return auditLogs.stream().map(auditLogMapper::toResponse).collect(Collectors.toList());
     }
 
     /**
@@ -312,7 +331,10 @@ public class AuditLogServiceImpl implements AuditLogService {
             return false;
         }
         return assignmentRepository.findByAccountId(performedBy.getId()).stream()
-                .anyMatch(a -> a.getBranch() != null && allowedBranchIds.contains(a.getBranch().getId()));
+                .anyMatch(
+                        a ->
+                                a.getBranch() != null
+                                        && allowedBranchIds.contains(a.getBranch().getId()));
     }
 
     /**
@@ -320,6 +342,7 @@ public class AuditLogServiceImpl implements AuditLogService {
      * JPQL không nhận danh sách rỗng trong `IN`, nên truyền danh sách một phần tử không khớp gì.
      */
     private static final LocalDateTime EPOCH = LocalDateTime.of(1970, 1, 1, 0, 0);
+
     private static final List<Long> NO_BRANCH_IDS = List.of(-1L);
     private static final List<String> NO_ACTION_TYPES = List.of("");
 
@@ -337,7 +360,11 @@ public class AuditLogServiceImpl implements AuditLogService {
     }
 
     private AuditLog findAuditLogById(Long id) {
-        return auditLogRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhật ký với ID: " + id));
+        return auditLogRepository
+                .findById(id)
+                .orElseThrow(
+                        () ->
+                                new ResourceNotFoundException(
+                                        "Không tìm thấy nhật ký với ID: " + id));
     }
 }

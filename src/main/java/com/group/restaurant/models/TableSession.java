@@ -2,11 +2,10 @@ package com.group.restaurant.models;
 
 import com.group.restaurant.enums.TableSessionStatus;
 import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.SQLRestriction;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 @Entity
 @Table(name = "table_session")
@@ -19,9 +18,9 @@ import java.time.LocalDateTime;
 public class TableSession extends BaseEntity {
     @Column(name = "guest_access_version", length = 36)
     private String guestAccessVersion;
+
     @Column(name = "guest_join_code", length = 8)
     private String guestJoinCode;
-
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,12 +42,16 @@ public class TableSession extends BaseEntity {
     }
 
     public boolean canAddTakeawayItems(boolean hasInvoice) {
-        return isTakeaway() && (status == TableSessionStatus.SERVING
-                || (status == TableSessionStatus.WAITING_FOR_PAY && !hasInvoice));
+        return isTakeaway()
+                && (status == TableSessionStatus.SERVING
+                        || (status == TableSessionStatus.WAITING_FOR_PAY && !hasInvoice));
     }
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "branch_id", nullable = false, foreignKey = @ForeignKey(name = "fk_session_branch"))
+    @JoinColumn(
+            name = "branch_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_session_branch"))
     private Branch branch;
 
     @Column(name = "guest_count")
@@ -100,6 +103,8 @@ public class TableSession extends BaseEntity {
     private String reservationNote;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "merged_into_session_id", foreignKey = @ForeignKey(name = "fk_session_merged_into"))
+    @JoinColumn(
+            name = "merged_into_session_id",
+            foreignKey = @ForeignKey(name = "fk_session_merged_into"))
     private TableSession mergedIntoSession;
 }

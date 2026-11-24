@@ -2,7 +2,6 @@ package com.group.restaurant.services;
 
 import com.group.restaurant.dtos.request.dishOptionGroup.DishOptionGroupAddRequest;
 import com.group.restaurant.dtos.response.dishOptionGroup.DishOptionGroupResponse;
-
 import java.util.List;
 
 public interface DishOptionGroupService {

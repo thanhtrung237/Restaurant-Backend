@@ -1,10 +1,9 @@
 package com.group.restaurant.dtos.response.report;
 
-import lombok.Builder;
-import lombok.Getter;
-
 import java.math.BigDecimal;
 import java.util.List;
+import lombok.Builder;
+import lombok.Getter;
 
 /**
  *  Món bán chạy / bán chậm
@@ -28,8 +27,8 @@ public class TopDishResponse {
         private Long dishId;
         private String dishName;
         private String categoryName;
-        private Long totalQuantity;       // Tổng số lượng bán
-        private BigDecimal totalRevenue;  // Tổng doanh thu
-        private int rank;                 // Thứ hạng
+        private Long totalQuantity; // Tổng số lượng bán
+        private BigDecimal totalRevenue; // Tổng doanh thu
+        private int rank; // Thứ hạng
     }
 }

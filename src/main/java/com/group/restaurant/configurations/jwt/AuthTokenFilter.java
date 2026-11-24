@@ -9,6 +9,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.Date;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -19,9 +21,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import java.io.IOException;
-import java.util.Date;
-
 @Component
 @RequiredArgsConstructor
 public class AuthTokenFilter extends OncePerRequestFilter {
@@ -30,9 +29,10 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     private final AccountUserDetailsService accountUserDetailsService;
 
     @Override
-    protected void doFilterInternal(@NonNull HttpServletRequest request,
-                                    @NonNull HttpServletResponse response,
-                                    @NonNull FilterChain filterChain)
+    protected void doFilterInternal(
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain)
             throws ServletException, IOException {
         try {
             String jwt = parseJwt(request);
@@ -52,8 +52,10 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                 UserDetails userDetails = accountUserDetailsService.loadByAccountId(accountId);
 
                 UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
+                authentication.setDetails(
+                        new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (ExpiredJwtException e) {
@@ -78,14 +80,16 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         return null;
     }
 
-    private void sendError(HttpServletResponse response, HttpServletRequest request, String message) throws IOException {
-        ResponseError error = ResponseError.builder()
-                .timestamp(new Date())
-                .status(HttpServletResponse.SC_UNAUTHORIZED)
-                .error("Unauthorized")
-                .path(request.getRequestURI())
-                .message(message)
-                .build();
+    private void sendError(HttpServletResponse response, HttpServletRequest request, String message)
+            throws IOException {
+        ResponseError error =
+                ResponseError.builder()
+                        .timestamp(new Date())
+                        .status(HttpServletResponse.SC_UNAUTHORIZED)
+                        .error("Unauthorized")
+                        .path(request.getRequestURI())
+                        .message(message)
+                        .build();
         response.setContentType("application/json;charset=UTF-8");
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.getWriter().write(new ObjectMapper().writeValueAsString(error));

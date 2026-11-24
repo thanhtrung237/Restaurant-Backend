@@ -23,7 +23,10 @@ import org.mapstruct.ReportingPolicy;
  *
  * Hoá đơn là dữ liệu lịch sử: phải đọc được kể cả khi bàn hay chi nhánh gốc đã bị xoá.
  */
-@Mapper(componentModel = "spring", uses = {PaymentMapper.class}, unmappedTargetPolicy = ReportingPolicy.IGNORE,
+@Mapper(
+        componentModel = "spring",
+        uses = {PaymentMapper.class},
+        unmappedTargetPolicy = ReportingPolicy.IGNORE,
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,
         imports = {SoftDeleteSafe.class, Branch.class, TableSession.class, Promotion.class})
 public interface InvoiceMapper {
@@ -33,13 +36,26 @@ public interface InvoiceMapper {
     @Mapping(target = "promotion.id", source = "promotionId")
     Invoice toEntity(InvoiceCreateRequest request);
 
-    @Mapping(target = "branchId", expression = "java(SoftDeleteSafe.get(invoice.getBranch(), Branch::getId))")
-    @Mapping(target = "branchName", expression = "java(SoftDeleteSafe.get(invoice.getBranch(), Branch::getName))")
-    @Mapping(target = "tableSessionId", expression = "java(SoftDeleteSafe.get(invoice.getTableSession(), TableSession::getId))")
-    @Mapping(target = "takeaway", expression = "java(SoftDeleteSafe.get(invoice.getTableSession(), TableSession::isTakeaway))")
+    @Mapping(
+            target = "branchId",
+            expression = "java(SoftDeleteSafe.get(invoice.getBranch(), Branch::getId))")
+    @Mapping(
+            target = "branchName",
+            expression = "java(SoftDeleteSafe.get(invoice.getBranch(), Branch::getName))")
+    @Mapping(
+            target = "tableSessionId",
+            expression = "java(SoftDeleteSafe.get(invoice.getTableSession(), TableSession::getId))")
+    @Mapping(
+            target = "takeaway",
+            expression =
+                    "java(SoftDeleteSafe.get(invoice.getTableSession(), TableSession::isTakeaway))")
     @Mapping(target = "tableName", expression = "java(InvoiceMapper.tableNameOf(invoice))")
-    @Mapping(target = "promotionId", expression = "java(SoftDeleteSafe.get(invoice.getPromotion(), Promotion::getId))")
-    @Mapping(target = "promotionName", expression = "java(SoftDeleteSafe.get(invoice.getPromotion(), Promotion::getName))")
+    @Mapping(
+            target = "promotionId",
+            expression = "java(SoftDeleteSafe.get(invoice.getPromotion(), Promotion::getId))")
+    @Mapping(
+            target = "promotionName",
+            expression = "java(SoftDeleteSafe.get(invoice.getPromotion(), Promotion::getName))")
     @Mapping(target = "payments", source = "payments")
     @Mapping(target = "totalPaid", ignore = true)
     @Mapping(target = "remainingAmount", ignore = true)
@@ -47,7 +63,9 @@ public interface InvoiceMapper {
     //            eInvoiceProvider, eInvoiceAttemptCount vì tên field khớp
     InvoiceResponse toResponse(Invoice invoice);
 
-    @Mapping(target = "branchName", expression = "java(SoftDeleteSafe.get(invoice.getBranch(), Branch::getName))")
+    @Mapping(
+            target = "branchName",
+            expression = "java(SoftDeleteSafe.get(invoice.getBranch(), Branch::getName))")
     @Mapping(target = "tableName", expression = "java(InvoiceMapper.tableNameOf(invoice))")
     InvoiceListResponse toListResponse(Invoice invoice);
 
@@ -56,8 +74,11 @@ public interface InvoiceMapper {
      * là proxy của bản ghi đã xoá mềm. Một lớp bọc là đủ vì lambda chạy bên trong try/catch.
      */
     static String tableNameOf(Invoice invoice) {
-        return SoftDeleteSafe.get(invoice.getTableSession(),
-                session -> session.isTakeaway() ? session.getDisplayName()
-                        : SoftDeleteSafe.get(session.getTable(), table -> table.getName()));
+        return SoftDeleteSafe.get(
+                invoice.getTableSession(),
+                session ->
+                        session.isTakeaway()
+                                ? session.getDisplayName()
+                                : SoftDeleteSafe.get(session.getTable(), table -> table.getName()));
     }
 }

@@ -2,7 +2,6 @@ package com.group.restaurant.services;
 
 import com.group.restaurant.dtos.request.tableSession.*;
 import com.group.restaurant.dtos.response.tableSession.TableSessionResponse;
-
 import java.util.List;
 
 public interface TableSessionService {
@@ -44,7 +43,8 @@ public interface TableSessionService {
     void deleteSession(Long id);
 
     // Khách gọi nhân viên hỗ trợ tại bàn (FR-CUS-07)
-    // orderDetailId: ID dòng món cụ thể nếu khách báo từ món đã vào bếp, null nếu gọi nhân viên chung
+    // orderDetailId: ID dòng món cụ thể nếu khách báo từ món đã vào bếp, null nếu gọi nhân viên
+    // chung
     void callStaff(Long id, Long orderDetailId);
 
     // Chuyển bàn (FR-SRV-06, BR-28)

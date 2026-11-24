@@ -1,15 +1,16 @@
 package com.group.restaurant.utils;
 
 import com.group.restaurant.exceptions.InvalidParamException;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 
 public class DateUtils {
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
+    private static final DateTimeFormatter DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     public static String formatDate(LocalDate date) {
         if (date == null) {
@@ -43,7 +44,8 @@ public class DateUtils {
         try {
             return LocalDateTime.parse(dateTimeStr, DATE_TIME_FORMATTER);
         } catch (DateTimeParseException e) {
-            throw new InvalidParamException("Sai định dạng ngày giờ. Định dạng đúng: HH:mm dd/MM/yyyy");
+            throw new InvalidParamException(
+                    "Sai định dạng ngày giờ. Định dạng đúng: HH:mm dd/MM/yyyy");
         }
     }
 }

@@ -17,14 +17,13 @@ import com.group.restaurant.repositories.OptionItemRepository;
 import com.group.restaurant.repositories.RestaurantRepository;
 import com.group.restaurant.services.OptionGroupService;
 import com.group.restaurant.utils.TenantGuard;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -42,17 +41,27 @@ public class OptionGroupServiceImpl implements OptionGroupService {
     public OptionGroupResponse createOptionGroup(OptionGroupAddRequest request) {
         tenantGuard.assertRestaurant(request.getRestaurantId());
         // Validate restaurant exists
-        Restaurant restaurant = restaurantRepository.findById(request.getRestaurantId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy nhà hàng với ID: " + request.getRestaurantId()));
+        Restaurant restaurant =
+                restaurantRepository
+                        .findById(request.getRestaurantId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy nhà hàng với ID: "
+                                                        + request.getRestaurantId()));
 
         // Check duplicate name in same restaurant
-        if (optionGroupRepository.existsByRestaurantIdAndName(request.getRestaurantId(), request.getName())) {
-            throw new ConflictException("Nhóm tùy chọn với tên '" + request.getName() + "' đã tồn tại trong nhà hàng này");
+        if (optionGroupRepository.existsByRestaurantIdAndName(
+                request.getRestaurantId(), request.getName())) {
+            throw new ConflictException(
+                    "Nhóm tùy chọn với tên '"
+                            + request.getName()
+                            + "' đã tồn tại trong nhà hàng này");
         }
 
         // Validate minSelect/maxSelect logic
-        validateSelectionRange(request.getSelectionType(), request.getMinSelect(), request.getMaxSelect());
+        validateSelectionRange(
+                request.getSelectionType(), request.getMinSelect(), request.getMaxSelect());
 
         OptionGroup optionGroup = optionGroupMapper.toEntity(request);
         optionGroup.setRestaurant(restaurant);
@@ -69,16 +78,27 @@ public class OptionGroupServiceImpl implements OptionGroupService {
         if (request.getName() != null && !request.getName().equals(optionGroup.getName())) {
             if (optionGroupRepository.existsByRestaurantIdAndName(
                     optionGroup.getRestaurant().getId(), request.getName())) {
-                throw new ConflictException("Nhóm tùy chọn với tên '" + request.getName() + "' đã tồn tại trong nhà hàng này");
+                throw new ConflictException(
+                        "Nhóm tùy chọn với tên '"
+                                + request.getName()
+                                + "' đã tồn tại trong nhà hàng này");
             }
         }
 
         // Validate minSelect/maxSelect if changed
-        SelectionType selectionType = request.getSelectionType() != null ? 
-                request.getSelectionType() : optionGroup.getSelectionType();
-        int minSelect = request.getMinSelect() != null ? request.getMinSelect() : optionGroup.getMinSelect();
-        int maxSelect = request.getMaxSelect() != null ? request.getMaxSelect() : optionGroup.getMaxSelect();
-        
+        SelectionType selectionType =
+                request.getSelectionType() != null
+                        ? request.getSelectionType()
+                        : optionGroup.getSelectionType();
+        int minSelect =
+                request.getMinSelect() != null
+                        ? request.getMinSelect()
+                        : optionGroup.getMinSelect();
+        int maxSelect =
+                request.getMaxSelect() != null
+                        ? request.getMaxSelect()
+                        : optionGroup.getMaxSelect();
+
         validateSelectionRange(selectionType, minSelect, maxSelect);
 
         optionGroupMapper.updateEntity(optionGroup, request);
@@ -105,7 +125,8 @@ public class OptionGroupServiceImpl implements OptionGroupService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<OptionGroupResponse> getAllOptionGroups(Long restaurantId, String keyword, Pageable pageable) {
+    public PageResponse<OptionGroupResponse> getAllOptionGroups(
+            Long restaurantId, String keyword, Pageable pageable) {
         tenantGuard.assertRestaurant(restaurantId);
         // Bỏ trống restaurantId thì nhánh cuối gọi findAll() — trả nhóm tùy chọn của
         // MỌI nhà hàng. Mặc định giới hạn vào nhà hàng của người đăng nhập.
@@ -114,10 +135,11 @@ public class OptionGroupServiceImpl implements OptionGroupService {
         }
 
         Page<OptionGroup> page;
-        
+
         if (restaurantId != null && keyword != null && !keyword.trim().isEmpty()) {
-            page = optionGroupRepository.findByRestaurantIdAndNameContainingIgnoreCase(
-                    restaurantId, keyword.trim(), pageable);
+            page =
+                    optionGroupRepository.findByRestaurantIdAndNameContainingIgnoreCase(
+                            restaurantId, keyword.trim(), pageable);
         } else if (restaurantId != null) {
             page = optionGroupRepository.findByRestaurantId(restaurantId, pageable);
         } else if (keyword != null && !keyword.trim().isEmpty()) {
@@ -126,9 +148,10 @@ public class OptionGroupServiceImpl implements OptionGroupService {
             page = optionGroupRepository.findAll(pageable);
         }
 
-        List<OptionGroupResponse> content = page.getContent().stream()
-                .map(optionGroupMapper::toResponse)
-                .collect(Collectors.toList());
+        List<OptionGroupResponse> content =
+                page.getContent().stream()
+                        .map(optionGroupMapper::toResponse)
+                        .collect(Collectors.toList());
 
         return PageResponse.<OptionGroupResponse>builder()
                 .content(content)
@@ -144,18 +167,24 @@ public class OptionGroupServiceImpl implements OptionGroupService {
     @Override
     public void deleteOptionGroup(Long id) {
         OptionGroup optionGroup = findById(id);
-        
+
         // Cascade soft delete: OptionItems
-        optionItemRepository.findByOptionGroupId(id).forEach(item -> {
-            item.softDelete(null);
-            optionItemRepository.save(item);
-        });
+        optionItemRepository
+                .findByOptionGroupId(id)
+                .forEach(
+                        item -> {
+                            item.softDelete(null);
+                            optionItemRepository.save(item);
+                        });
 
         // Cascade soft delete: DishOptionGroup links
-        dishOptionGroupRepository.findByOptionGroupId(id).forEach(link -> {
-            link.softDelete(null);
-            dishOptionGroupRepository.save(link);
-        });
+        dishOptionGroupRepository
+                .findByOptionGroupId(id)
+                .forEach(
+                        link -> {
+                            link.softDelete(null);
+                            dishOptionGroupRepository.save(link);
+                        });
 
         // Soft delete the group itself
         optionGroup.softDelete(null);
@@ -163,15 +192,21 @@ public class OptionGroupServiceImpl implements OptionGroupService {
     }
 
     private OptionGroup findById(Long id) {
-        OptionGroup group = optionGroupRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhóm tùy chọn với ID: " + id));
+        OptionGroup group =
+                optionGroupRepository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy nhóm tùy chọn với ID: " + id));
         tenantGuard.assertRestaurant(group.getRestaurant().getId());
         return group;
     }
 
     private void validateSelectionRange(SelectionType selectionType, int minSelect, int maxSelect) {
         if (minSelect > maxSelect) {
-            throw new InvalidParamException("Số lượng chọn tối thiểu không được lớn hơn số lượng chọn tối đa");
+            throw new InvalidParamException(
+                    "Số lượng chọn tối thiểu không được lớn hơn số lượng chọn tối đa");
         }
 
         if (selectionType == SelectionType.REQUIRED && minSelect < 1) {

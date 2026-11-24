@@ -5,9 +5,8 @@ import com.group.restaurant.dtos.request.account.AccountUpdateRequest;
 import com.group.restaurant.dtos.response.account.AccountResponse;
 import com.group.restaurant.dtos.response.base.PageResponse;
 import com.group.restaurant.enums.AccountStatus;
-import org.springframework.data.domain.Pageable;
-
 import java.util.List;
+import org.springframework.data.domain.Pageable;
 
 public interface AccountService {
 
@@ -20,10 +19,7 @@ public interface AccountService {
     AccountResponse getAccountByUsername(String username);
 
     PageResponse<AccountResponse> getAllAccounts(
-            Long restaurantId,
-            AccountStatus status,
-            Pageable pageable
-    );
+            Long restaurantId, AccountStatus status, Pageable pageable);
 
     List<AccountResponse> getAccountsByRestaurant(Long restaurantId);
 

@@ -2,10 +2,9 @@ package com.group.restaurant.enums;
 
 import jakarta.persistence.Converter;
 
-
 public enum SelectionType implements BaseEnum<SelectionType> {
-    REQUIRED(0),   // Bắt buộc chọn
-    OPTIONAL(1);   // Không bắt buộc
+    REQUIRED(0), // Bắt buộc chọn
+    OPTIONAL(1); // Không bắt buộc
 
     private final int value;
 

@@ -2,13 +2,12 @@ package com.group.restaurant.dtos.response.report;
 
 import com.group.restaurant.enums.AnomalySeverity;
 import com.group.restaurant.enums.AnomalyType;
+import java.time.LocalDateTime;
+import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
-import java.util.Map;
 
 @Data
 @Builder
@@ -27,4 +26,3 @@ public class AnomalyAlert {
     private Double anomalyScore;
     private Map<String, Object> metrics;
 }
-

@@ -7,17 +7,16 @@ import com.group.restaurant.models.Account;
 import com.group.restaurant.models.Assignment;
 import com.group.restaurant.models.Branch;
 import com.group.restaurant.repositories.BranchRepository;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * Chốt cách ly dữ liệu giữa các nhà hàng (multi-tenant).
@@ -49,7 +48,8 @@ public class TenantGuard {
     public Long currentRestaurantIdOrNull() {
         AccountUserDetails details = currentUserOrNull();
         if (details != null && details.getRestaurantId() == null && !isPlatformAdmin()) {
-            throw new AccessDeniedException("Tài khoản chưa được gán nhà hàng hoặc quyền nền tảng hợp lệ.");
+            throw new AccessDeniedException(
+                    "Tài khoản chưa được gán nhà hàng hoặc quyền nền tảng hợp lệ.");
         }
         return details != null ? details.getRestaurantId() : null;
     }
@@ -61,9 +61,15 @@ public class TenantGuard {
             return false;
         }
         Account account = details.getAccount();
-        return account.getAssignments() != null && account.getAssignments().stream()
-                .map(Assignment::getRole)
-                .anyMatch(role -> role != null && (role.getScope() == RoleScope.PLATFORM || "PLATFORM_ADMIN".equals(role.getCode())));
+        return account.getAssignments() != null
+                && account.getAssignments().stream()
+                        .map(Assignment::getRole)
+                        .anyMatch(
+                                role ->
+                                        role != null
+                                                && (role.getScope() == RoleScope.PLATFORM
+                                                        || "PLATFORM_ADMIN"
+                                                                .equals(role.getCode())));
     }
 
     /**
@@ -76,8 +82,7 @@ public class TenantGuard {
             return;
         }
         if (!current.equals(restaurantId)) {
-            throw new AccessDeniedException(
-                    "Không có quyền truy cập dữ liệu của nhà hàng khác");
+            throw new AccessDeniedException("Không có quyền truy cập dữ liệu của nhà hàng khác");
         }
     }
 
@@ -90,9 +95,13 @@ public class TenantGuard {
         if (current == null || isPlatformAdmin() || branchId == null) {
             return;
         }
-        Branch branch = branchRepository.findById(branchId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy chi nhánh với ID: " + branchId));
+        Branch branch =
+                branchRepository
+                        .findById(branchId)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy chi nhánh với ID: " + branchId));
         assertBranch(branch);
     }
 
@@ -102,10 +111,10 @@ public class TenantGuard {
         if (current == null || isPlatformAdmin() || branch == null) {
             return;
         }
-        Long ownerRestaurantId = branch.getRestaurant() != null ? branch.getRestaurant().getId() : null;
+        Long ownerRestaurantId =
+                branch.getRestaurant() != null ? branch.getRestaurant().getId() : null;
         if (ownerRestaurantId == null || !current.equals(ownerRestaurantId)) {
-            throw new AccessDeniedException(
-                    "Chi nhánh không thuộc nhà hàng của bạn");
+            throw new AccessDeniedException("Chi nhánh không thuộc nhà hàng của bạn");
         }
     }
 
@@ -119,6 +128,7 @@ public class TenantGuard {
 
     /** Mã vai trò, khớp cột `role.code` trong DB và phần sau "ROLE_" của authority. */
     public static final String ROLE_MANAGER = "MANAGER";
+
     public static final String ROLE_BRANCH_MANAGER = "BRANCH_MANAGER";
     public static final String ROLE_WAITER = "WAITER";
     public static final String ROLE_CASHIER = "CASHIER";
@@ -126,22 +136,30 @@ public class TenantGuard {
     /** FR-MNU-02/04: chỉ quản trị nhà hàng sửa món chung, quản lý chi nhánh sửa món riêng được phân công. */
     public void assertMenuDishWrite(Long restaurantId, Branch branch) {
         assertRestaurant(restaurantId);
-        if (branch != null && (branch.getRestaurant() == null
-                || !Objects.equals(restaurantId, branch.getRestaurant().getId()))) {
+        if (branch != null
+                && (branch.getRestaurant() == null
+                        || !Objects.equals(restaurantId, branch.getRestaurant().getId()))) {
             throw new AccessDeniedException("Chi nhánh không thuộc nhà hàng của món");
         }
 
         AccountUserDetails details = currentUserOrNull();
-        if (details != null && details.getAuthorities().stream()
-                .anyMatch(authority -> ("ROLE_" + ROLE_MANAGER).equals(authority.getAuthority()))) {
+        if (details != null
+                && details.getAuthorities().stream()
+                        .anyMatch(
+                                authority ->
+                                        ("ROLE_" + ROLE_MANAGER)
+                                                .equals(authority.getAuthority()))) {
             return;
         }
-        if (details != null && details.getAccount().getAssignments() != null && branch != null
-                && assignmentsMatching(details, new String[]{ROLE_BRANCH_MANAGER})
-                .anyMatch(branch.getId()::equals)) {
+        if (details != null
+                && details.getAccount().getAssignments() != null
+                && branch != null
+                && assignmentsMatching(details, new String[] {ROLE_BRANCH_MANAGER})
+                        .anyMatch(branch.getId()::equals)) {
             return;
         }
-        throw new AccessDeniedException("Bạn chỉ được quản lý món riêng của chi nhánh được phân công");
+        throw new AccessDeniedException(
+                "Bạn chỉ được quản lý món riêng của chi nhánh được phân công");
     }
 
     /**
@@ -186,17 +204,17 @@ public class TenantGuard {
             return;
         }
 
-        boolean assigned = assignmentsMatching(details, allowedRoleCodes)
-                .anyMatch(branchId::equals);
+        boolean assigned =
+                assignmentsMatching(details, allowedRoleCodes).anyMatch(branchId::equals);
         if (!assigned) {
-            throw new AccessDeniedException(
-                    "Bạn không được phân công ở chi nhánh này");
+            throw new AccessDeniedException("Bạn không được phân công ở chi nhánh này");
         }
     }
 
     public void assertBranchRole(Branch branch, String roleCode) {
         AccountUserDetails details = currentUserOrNull();
-        if (details == null || !Objects.equals(details.getRestaurantId(), branch.getRestaurant().getId())
+        if (details == null
+                || !Objects.equals(details.getRestaurantId(), branch.getRestaurant().getId())
                 || assignmentsMatching(details, roleCode).noneMatch(branch.getId()::equals)) {
             throw new AccessDeniedException("Bạn không được phân công quản lý chi nhánh này.");
         }
@@ -222,16 +240,19 @@ public class TenantGuard {
     /** Có ít nhất một vai trò phạm vi NHÀ HÀNG (Quản trị NH) ⇒ mọi chi nhánh của nhà hàng. */
     private boolean hasRestaurantScopeRole(AccountUserDetails details) {
         Account account = details.getAccount();
-        return account.getAssignments() != null && account.getAssignments().stream()
-                .map(Assignment::getRole)
-                .anyMatch(role -> role != null && role.getScope() == RoleScope.RESTAURANT);
+        return account.getAssignments() != null
+                && account.getAssignments().stream()
+                        .map(Assignment::getRole)
+                        .anyMatch(role -> role != null && role.getScope() == RoleScope.RESTAURANT);
     }
 
     /** Id chi nhánh của các phân công khớp danh sách vai trò (rỗng = mọi vai trò). */
-    private Stream<Long> assignmentsMatching(AccountUserDetails details, String... allowedRoleCodes) {
-        Set<String> allowed = allowedRoleCodes == null || allowedRoleCodes.length == 0
-                ? null
-                : Set.of(allowedRoleCodes);
+    private Stream<Long> assignmentsMatching(
+            AccountUserDetails details, String... allowedRoleCodes) {
+        Set<String> allowed =
+                allowedRoleCodes == null || allowedRoleCodes.length == 0
+                        ? null
+                        : Set.of(allowedRoleCodes);
         return details.getAccount().getAssignments().stream()
                 .filter(a -> a.getBranch() != null && a.getRole() != null)
                 .filter(a -> allowed == null || allowed.contains(a.getRole().getCode()))
@@ -240,7 +261,8 @@ public class TenantGuard {
 
     private AccountUserDetails currentUserOrNull() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()
+        if (auth == null
+                || !auth.isAuthenticated()
                 || auth instanceof AnonymousAuthenticationToken
                 || !(auth.getPrincipal() instanceof AccountUserDetails details)) {
             return null;

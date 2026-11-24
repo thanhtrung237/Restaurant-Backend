@@ -5,4 +5,3 @@ public enum AnomalySeverity {
     WARNING,
     CRITICAL
 }
-

@@ -1,5 +1,7 @@
 package com.group.restaurant.services.guest;
 
+import static org.springframework.http.HttpStatus.*;
+
 import com.group.restaurant.dtos.request.tableSession.TableSessionCreateRequest;
 import com.group.restaurant.dtos.response.tableSession.TableSessionResponse;
 import com.group.restaurant.enums.*;
@@ -19,19 +21,30 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import static org.springframework.http.HttpStatus.*;
 
 @Service
 @RequiredArgsConstructor
 public class GuestAdmissionService {
-    @PersistenceContext
-    private EntityManager entityManager;
-    public record AccessRequest(@NotNull Long branchId, @NotBlank @Size(max=200) String qrCode,
-                                @Min(1) @Max(100) Integer guestCount,
-                                @Pattern(regexp="[0-9]{8}") String joinCode, @Valid GuestLocation location) {}
+    @PersistenceContext private EntityManager entityManager;
+
+    public record AccessRequest(
+            @NotNull Long branchId,
+            @NotBlank @Size(max = 200) String qrCode,
+            @Min(1) @Max(100) Integer guestCount,
+            @Pattern(regexp = "[0-9]{8}") String joinCode,
+            @Valid GuestLocation location) {}
+
     public record AccessResponse(String token, TableSessionResponse session) {}
-    public record TableInfo(Long tableId, Long branchId, String tableName, String branchName,
-                            String restaurantName, boolean locationRequired, boolean joinRequired) {}
+
+    public record TableInfo(
+            Long tableId,
+            Long branchId,
+            String tableName,
+            String branchName,
+            String restaurantName,
+            boolean locationRequired,
+            boolean joinRequired) {}
+
     private static final SecureRandom RANDOM = new SecureRandom();
     private final DiningTableRepository tables;
     private final TableSessionRepository sessions;
@@ -41,41 +54,55 @@ public class GuestAdmissionService {
     private final GuestRateLimiter limiter;
     private final TenantGuard tenantGuard;
 
-    @Transactional(readOnly=true)
+    @Transactional(readOnly = true)
     public TableInfo info(Long branchId, String qrCode) {
         DiningTable table = findTable(branchId, qrCode);
         ensureTableActive(table);
         Branch branch = table.getBranch();
-        return new TableInfo(table.getId(), branch.getId(), table.getName(), branch.getName(),
-                branch.getRestaurant().getName(), branch.isGeofenceEnabled(),
+        return new TableInfo(
+                table.getId(),
+                branch.getId(),
+                table.getName(),
+                branch.getName(),
+                branch.getRestaurant().getName(),
+                branch.isGeofenceEnabled(),
                 sessions.findActiveSessionByTableId(table.getId()).isPresent());
     }
 
     @Transactional
     public AccessResponse enter(AccessRequest request, String remoteAddress) {
-        // Consume before DB writes and before checking QR/code validity. Never trust X-Forwarded-For here.
+        // Consume before DB writes and before checking QR/code validity. Never trust
+        // X-Forwarded-For here.
         limiter.check("admit-ip:" + remoteAddress, 20, 60_000);
         DiningTable table = findTable(request.branchId(), request.qrCode());
         limiter.check("admit-ip-table:" + remoteAddress + ":" + table.getId(), 5, 60_000);
         limiter.check("admit-branch:" + table.getBranch().getId(), 300, 60_000);
-        table = tables.findForGuestAdmission(table.getId()).orElseThrow(() -> new ResponseStatusException(NOT_FOUND));
+        table =
+                tables.findForGuestAdmission(table.getId())
+                        .orElseThrow(() -> new ResponseStatusException(NOT_FOUND));
         entityManager.refresh(table, LockModeType.PESSIMISTIC_WRITE);
         ensureActive(table);
         TableSession existing = sessions.findActiveForGuestAdmission(table.getId()).orElse(null);
         TableSessionResponse response;
         if (existing != null) {
             if (existing.getStatus() == TableSessionStatus.RESERVED) {
-                throw new ResponseStatusException(CONFLICT, "Bàn đang được đặt trước. Vui lòng liên hệ nhân viên.");
+                throw new ResponseStatusException(
+                        CONFLICT, "Bàn đang được đặt trước. Vui lòng liên hệ nhân viên.");
             }
             // Normal admission uses the same location policy as opening a table.
             // A staff code is only an explicit fallback when location is unavailable.
             boolean staffCodeVerified = false;
             if (request.joinCode() != null) {
-                staffCodeVerified = existing.getGuestJoinCode() != null
-                        && MessageDigest.isEqual(existing.getGuestJoinCode().getBytes(StandardCharsets.UTF_8),
-                        request.joinCode().getBytes(StandardCharsets.UTF_8));
+                staffCodeVerified =
+                        existing.getGuestJoinCode() != null
+                                && MessageDigest.isEqual(
+                                        existing.getGuestJoinCode()
+                                                .getBytes(StandardCharsets.UTF_8),
+                                        request.joinCode().getBytes(StandardCharsets.UTF_8));
                 if (!staffCodeVerified) {
-                    throw new ResponseStatusException(FORBIDDEN, "Mã hỗ trợ không đúng. Vui lòng kiểm tra lại với nhân viên tại bàn.");
+                    throw new ResponseStatusException(
+                            FORBIDDEN,
+                            "Mã hỗ trợ không đúng. Vui lòng kiểm tra lại với nhân viên tại bàn.");
                 }
             }
             geofence.verify(table.getBranch(), request.location(), staffCodeVerified);
@@ -95,12 +122,19 @@ public class GuestAdmissionService {
 
     @Transactional
     public String staffCode(Long sessionId) {
-        TableSession session = sessions.findForUpdate(sessionId)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Không tìm thấy phiên bàn."));
-        tenantGuard.assertBranchAssigned(session.getBranch().getId(), "WAITER", "BRANCH_MANAGER", "MANAGER", "CASHIER");
-        if (session.getStatus() != TableSessionStatus.WAITING_FOR_OPEN && session.getStatus() != TableSessionStatus.SERVING
+        TableSession session =
+                sessions.findForUpdate(sessionId)
+                        .orElseThrow(
+                                () ->
+                                        new ResponseStatusException(
+                                                NOT_FOUND, "Không tìm thấy phiên bàn."));
+        tenantGuard.assertBranchAssigned(
+                session.getBranch().getId(), "WAITER", "BRANCH_MANAGER", "MANAGER", "CASHIER");
+        if (session.getStatus() != TableSessionStatus.WAITING_FOR_OPEN
+                && session.getStatus() != TableSessionStatus.SERVING
                 && session.getStatus() != TableSessionStatus.WAITING_FOR_PAY) {
-            throw new ResponseStatusException(CONFLICT, "Chỉ cấp mã cho phiên đang chờ mở, phục vụ hoặc chờ thanh toán.");
+            throw new ResponseStatusException(
+                    CONFLICT, "Chỉ cấp mã cho phiên đang chờ mở, phục vụ hoặc chờ thanh toán.");
         }
         if (session.getGuestJoinCode() == null) {
             session.setGuestJoinCode(String.format("%08d", RANDOM.nextInt(100_000_000)));
@@ -113,11 +147,13 @@ public class GuestAdmissionService {
         return tables.findByBranchIdAndQrCode(branchId, qrCode)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Mã QR không hợp lệ."));
     }
+
     private void ensureActive(DiningTable table) {
         ensureTableActive(table);
         if (table.getBranch().getStatus() != BranchStatus.ACTIVE
                 || table.getBranch().getRestaurant().getStatus() != RestaurantStatus.ACTIVE) {
-            throw new ResponseStatusException(FORBIDDEN, "Chi nhánh hoặc nhà hàng đang ngừng hoạt động.");
+            throw new ResponseStatusException(
+                    FORBIDDEN, "Chi nhánh hoặc nhà hàng đang ngừng hoạt động.");
         }
     }
 

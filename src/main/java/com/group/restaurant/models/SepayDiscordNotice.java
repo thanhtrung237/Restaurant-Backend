@@ -4,19 +4,17 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.time.Instant;
 
 @Entity
 @Table(name = "sepay_discord_notice")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SepayDiscordNotice {
-    @Id
-    private Long transactionId;
+    @Id private Long transactionId;
 
     @Column(nullable = false, length = 500)
     private String message;

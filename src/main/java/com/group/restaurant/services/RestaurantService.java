@@ -19,10 +19,7 @@ public interface RestaurantService {
     RestaurantResponse getRestaurantByCode(String code);
 
     PageResponse<RestaurantListResponse> getAllRestaurants(
-            String keyword,
-            RestaurantStatus status,
-            Pageable pageable
-    );
+            String keyword, RestaurantStatus status, Pageable pageable);
 
     void changeStatus(Long id, RestaurantStatus status);
 

@@ -1,5 +1,8 @@
 package com.group.restaurant;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.group.restaurant.dtos.request.dishOptionGroup.DishOptionGroupAddRequest;
 import com.group.restaurant.enums.CategoryStatus;
 import com.group.restaurant.enums.DishStatus;
@@ -13,16 +16,12 @@ import com.group.restaurant.repositories.DishOptionGroupRepository;
 import com.group.restaurant.services.DishOptionGroupService;
 import com.group.restaurant.utils.TenantGuard;
 import jakarta.persistence.EntityManager;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @Transactional
@@ -39,13 +38,30 @@ class DishOptionGroupRelinkTest {
         restaurant.setCode("RELINK-TEST");
         restaurant.setName("Nhà hàng kiểm thử");
         entities.persist(restaurant);
-        Category category = Category.builder().restaurant(restaurant).name("Khai vị").status(CategoryStatus.ACTIVE).build();
+        Category category =
+                Category.builder()
+                        .restaurant(restaurant)
+                        .name("Khai vị")
+                        .status(CategoryStatus.ACTIVE)
+                        .build();
         entities.persist(category);
-        Dish dish = Dish.builder().restaurant(restaurant).category(category).name("Tàu hủ")
-                .basePrice(BigDecimal.valueOf(15000)).soldByWeight(false).status(DishStatus.ACTIVE).build();
+        Dish dish =
+                Dish.builder()
+                        .restaurant(restaurant)
+                        .category(category)
+                        .name("Tàu hủ")
+                        .basePrice(BigDecimal.valueOf(15000))
+                        .soldByWeight(false)
+                        .status(DishStatus.ACTIVE)
+                        .build();
         entities.persist(dish);
-        OptionGroup group = OptionGroup.builder().restaurant(restaurant).name("Topping")
-                .selectionType(SelectionType.OPTIONAL).maxSelect(3).build();
+        OptionGroup group =
+                OptionGroup.builder()
+                        .restaurant(restaurant)
+                        .name("Topping")
+                        .selectionType(SelectionType.OPTIONAL)
+                        .maxSelect(3)
+                        .build();
         entities.persist(group);
 
         var request = new DishOptionGroupAddRequest();
@@ -68,6 +84,7 @@ class DishOptionGroupRelinkTest {
         assertThat(row.getIsDeleted()).isFalse();
         assertThat(row.getDeletedAt()).isNull();
         assertThat(row.getDeletedBy()).isNull();
-        assertThatThrownBy(() -> service.linkDishToOptionGroup(request)).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> service.linkDishToOptionGroup(request))
+                .isInstanceOf(ConflictException.class);
     }
 }

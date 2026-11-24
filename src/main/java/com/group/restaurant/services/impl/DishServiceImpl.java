@@ -14,15 +14,19 @@ import com.group.restaurant.models.Branch;
 import com.group.restaurant.models.Category;
 import com.group.restaurant.models.Dish;
 import com.group.restaurant.models.Restaurant;
+import com.group.restaurant.repositories.BranchDishStockRepository;
 import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.CategoryRepository;
 import com.group.restaurant.repositories.DishOverrideRepository;
 import com.group.restaurant.repositories.DishRepository;
-import com.group.restaurant.repositories.BranchDishStockRepository;
 import com.group.restaurant.repositories.OrderDetailRepository;
 import com.group.restaurant.repositories.RestaurantRepository;
 import com.group.restaurant.services.DishService;
 import com.group.restaurant.utils.TenantGuard;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -30,11 +34,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -54,13 +53,25 @@ public class DishServiceImpl implements DishService {
     @Override
     public DishResponse createDish(DishAddRequest request) {
         tenantGuard.assertRestaurant(request.getRestaurantId());
-        Restaurant restaurant = restaurantRepository.findById(request.getRestaurantId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy nhà hàng với ID: " + request.getRestaurantId()));
+        Restaurant restaurant =
+                restaurantRepository
+                        .findById(request.getRestaurantId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy nhà hàng với ID: "
+                                                        + request.getRestaurantId()));
 
-        Branch branch = request.getBranchId() == null ? null : branchRepository.findById(request.getBranchId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy chi nhánh với ID: " + request.getBranchId()));
+        Branch branch =
+                request.getBranchId() == null
+                        ? null
+                        : branchRepository
+                                .findById(request.getBranchId())
+                                .orElseThrow(
+                                        () ->
+                                                new ResourceNotFoundException(
+                                                        "Không tìm thấy chi nhánh với ID: "
+                                                                + request.getBranchId()));
         tenantGuard.assertMenuDishWrite(restaurant.getId(), branch);
         Category category = findMenuCategory(request.getCategoryId(), restaurant.getId());
 
@@ -83,7 +94,8 @@ public class DishServiceImpl implements DishService {
         Dish dish = findWritableDish(id);
 
         if (request.getCategoryId() != null) {
-            dish.setCategory(findMenuCategory(request.getCategoryId(), dish.getRestaurant().getId()));
+            dish.setCategory(
+                    findMenuCategory(request.getCategoryId(), dish.getRestaurant().getId()));
         }
 
         dishMapper.updateEntity(dish, request);
@@ -100,7 +112,8 @@ public class DishServiceImpl implements DishService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<DishResponse> getDishesByRestaurant(Long restaurantId, DishStatus status, Pageable pageable) {
+    public PageResponse<DishResponse> getDishesByRestaurant(
+            Long restaurantId, DishStatus status, Pageable pageable) {
         tenantGuard.assertRestaurant(restaurantId);
         List<Dish> dishes;
 
@@ -110,9 +123,8 @@ public class DishServiceImpl implements DishService {
             dishes = dishRepository.findByRestaurantId(restaurantId);
         }
 
-        List<DishResponse> responses = dishes.stream()
-                .map(dishMapper::toResponse)
-                .collect(Collectors.toList());
+        List<DishResponse> responses =
+                dishes.stream().map(dishMapper::toResponse).collect(Collectors.toList());
 
         int start = (int) pageable.getOffset();
         int end = Math.min((start + pageable.getPageSize()), responses.size());
@@ -135,8 +147,7 @@ public class DishServiceImpl implements DishService {
     @Transactional(readOnly = true)
     public List<DishResponse> getDishesByBranch(Long branchId) {
         tenantGuard.assertBranch(branchId);
-        return dishRepository.findByBranchId(branchId)
-                .stream()
+        return dishRepository.findByBranchId(branchId).stream()
                 .map(dishMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -144,8 +155,7 @@ public class DishServiceImpl implements DishService {
     @Override
     @Transactional(readOnly = true)
     public List<DishResponse> getDishesByCategory(Long categoryId) {
-        return dishRepository.findByCategoryId(categoryId)
-                .stream()
+        return dishRepository.findByCategoryId(categoryId).stream()
                 .map(dishMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -183,19 +193,32 @@ public class DishServiceImpl implements DishService {
             return 0;
         }
 
-        Set<Long> hiddenBranchIds = dishOverrideRepository.findByDishId(id).stream()
-                .filter(override -> Boolean.TRUE.equals(override.getIsHidden()))
-                .map(override -> override.getBranch() != null ? override.getBranch().getId() : null)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+        Set<Long> hiddenBranchIds =
+                dishOverrideRepository.findByDishId(id).stream()
+                        .filter(override -> Boolean.TRUE.equals(override.getIsHidden()))
+                        .map(
+                                override ->
+                                        override.getBranch() != null
+                                                ? override.getBranch().getId()
+                                                : null)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
 
-        return (int) branchRepository.findByRestaurantIdAndStatus(restaurantId, BranchStatus.ACTIVE).stream()
-                .filter(branch -> !hiddenBranchIds.contains(branch.getId()))
-                .filter(branch -> branchDishStockRepository
-                        .findByBranchIdAndDishId(branch.getId(), id)
-                        .map(stock -> stock.getStatus() != StockStatus.OUT_OF_STOCK)
-                        .orElse(true))
-                .count();
+        return (int)
+                branchRepository
+                        .findByRestaurantIdAndStatus(restaurantId, BranchStatus.ACTIVE)
+                        .stream()
+                        .filter(branch -> !hiddenBranchIds.contains(branch.getId()))
+                        .filter(
+                                branch ->
+                                        branchDishStockRepository
+                                                .findByBranchIdAndDishId(branch.getId(), id)
+                                                .map(
+                                                        stock ->
+                                                                stock.getStatus()
+                                                                        != StockStatus.OUT_OF_STOCK)
+                                                .orElse(true))
+                        .count();
     }
 
     @Override
@@ -210,10 +233,13 @@ public class DishServiceImpl implements DishService {
         }
 
         // Cascade soft delete: DishOverride
-        dishOverrideRepository.findByDishId(id).forEach(dishOverride -> {
-            dishOverride.softDelete(null);
-            dishOverrideRepository.save(dishOverride);
-        });
+        dishOverrideRepository
+                .findByDishId(id)
+                .forEach(
+                        dishOverride -> {
+                            dishOverride.softDelete(null);
+                            dishOverrideRepository.save(dishOverride);
+                        });
 
         dish.softDelete(null);
         dishRepository.save(dish);
@@ -226,8 +252,13 @@ public class DishServiceImpl implements DishService {
     }
 
     private Category findMenuCategory(Long id, Long restaurantId) {
-        Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy danh mục với ID: " + id));
+        Category category =
+                categoryRepository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy danh mục với ID: " + id));
         if (!restaurantId.equals(category.getRestaurant().getId())) {
             throw new AccessDeniedException("Danh mục không thuộc nhà hàng của món");
         }
@@ -235,9 +266,15 @@ public class DishServiceImpl implements DishService {
     }
 
     private Dish findById(Long id) {
-        Dish dish = dishRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món ăn với ID: " + id));
-        tenantGuard.assertRestaurant(dish.getRestaurant() != null ? dish.getRestaurant().getId() : null);
+        Dish dish =
+                dishRepository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy món ăn với ID: " + id));
+        tenantGuard.assertRestaurant(
+                dish.getRestaurant() != null ? dish.getRestaurant().getId() : null);
         return dish;
     }
 }

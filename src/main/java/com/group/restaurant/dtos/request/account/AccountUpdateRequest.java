@@ -11,6 +11,7 @@ public class AccountUpdateRequest {
 
     @Size(max = 100, message = "Họ tên không được vượt quá 100 ký tự")
     private String fullName;
+
     // QĐ-03: mã nhân viên là mã cố định do hệ thống sinh — KHÔNG có trong DTO cập nhật
     // (giống restaurant.code và branch.code).
 

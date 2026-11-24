@@ -20,7 +20,10 @@ public class Category extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "restaurant_id", nullable = false, foreignKey = @ForeignKey(name = "fk_category_restaurant"))
+    @JoinColumn(
+            name = "restaurant_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_category_restaurant"))
     private Restaurant restaurant;
 
     @Column(name = "name", nullable = false, length = 200)

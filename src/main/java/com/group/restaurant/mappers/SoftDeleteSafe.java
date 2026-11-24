@@ -1,7 +1,6 @@
 package com.group.restaurant.mappers;
 
 import jakarta.persistence.EntityNotFoundException;
-
 import java.util.function.Function;
 
 /**
@@ -22,8 +21,7 @@ import java.util.function.Function;
  */
 public final class SoftDeleteSafe {
 
-    private SoftDeleteSafe() {
-    }
+    private SoftDeleteSafe() {}
 
     /**
      * @param ref    thực thể được tham chiếu (có thể null, có thể là proxy của bản ghi đã xoá mềm)

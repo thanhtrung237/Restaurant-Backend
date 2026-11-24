@@ -4,7 +4,6 @@ import com.group.restaurant.dtos.request.manualDiscount.ManualDiscountAddRequest
 import com.group.restaurant.dtos.response.invoice.InvoiceResponse;
 import com.group.restaurant.dtos.response.manualDiscount.ManualDiscountResponse;
 import com.group.restaurant.models.InvoiceDiscountApproval;
-
 import java.util.List;
 
 public interface ManualDiscountService {

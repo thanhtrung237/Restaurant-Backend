@@ -19,14 +19,13 @@ import com.group.restaurant.services.SepayTransfer;
 import com.group.restaurant.services.audit.AuditAction;
 import com.group.restaurant.services.audit.AuditEvent;
 import com.group.restaurant.utils.TenantGuard;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -43,50 +42,73 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public PaymentResponse processPayment(PaymentAddRequest request) {
-        Invoice invoice = invoiceRepository.findForPayment(request.getInvoiceId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy hóa đơn với ID: " + request.getInvoiceId()));
+        Invoice invoice =
+                invoiceRepository
+                        .findForPayment(request.getInvoiceId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy hóa đơn với ID: "
+                                                        + request.getInvoiceId()));
         // invoiceId đến từ client: Thu ngân chỉ được thu tiền hóa đơn của nhà hàng mình.
         tenantGuard.assertBranchAssigned(invoice.getBranch().getId());
-        boolean takeaway = invoice.getTableSession() != null && invoice.getTableSession().isTakeaway();
+        boolean takeaway =
+                invoice.getTableSession() != null && invoice.getTableSession().isTakeaway();
         if (takeaway) {
-            tenantGuard.assertBranchAssigned(invoice.getBranch().getId(),
-                    TenantGuard.ROLE_CASHIER, TenantGuard.ROLE_BRANCH_MANAGER, TenantGuard.ROLE_MANAGER);
+            tenantGuard.assertBranchAssigned(
+                    invoice.getBranch().getId(),
+                    TenantGuard.ROLE_CASHIER,
+                    TenantGuard.ROLE_BRANCH_MANAGER,
+                    TenantGuard.ROLE_MANAGER);
         }
 
         if (invoice.getStatus() == InvoiceStatus.PAID) {
             throw new ConflictException("Hóa đơn này đã được thanh toán đầy đủ trước đó");
         }
         if (invoice.getStatus() == InvoiceStatus.ISSUED) {
-            throw new ConflictException("Hóa đơn này đã được thanh toán và phát hành điện tử, không thể thanh toán thêm");
+            throw new ConflictException(
+                    "Hóa đơn này đã được thanh toán và phát hành điện tử, không thể thanh toán thêm");
         }
         if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
             throw new ConflictException("Hóa đơn này đã bị hủy, không thể thanh toán");
         }
 
-        BigDecimal remaining = invoice.getGrandTotal().subtract(paymentRepository.sumAmountByInvoiceId(invoice.getId()));
+        BigDecimal remaining =
+                invoice.getGrandTotal()
+                        .subtract(paymentRepository.sumAmountByInvoiceId(invoice.getId()));
         if (request.getAmount().compareTo(remaining) > 0) {
-            throw new ConflictException("Số tiền thu vượt số tiền còn phải trả. Vui lòng kiểm tra lại hóa đơn.");
+            throw new ConflictException(
+                    "Số tiền thu vượt số tiền còn phải trả. Vui lòng kiểm tra lại hóa đơn.");
         }
         Payment payment = paymentMapper.toEntity(request);
         return buildPaymentResponse(savePayment(invoice, payment));
     }
 
     @Override
-    public boolean recordVerifiedSepayTransfer(Long invoiceId, Long transactionId, BigDecimal amount) {
+    public boolean recordVerifiedSepayTransfer(
+            Long invoiceId, Long transactionId, BigDecimal amount) {
         if (amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 0) return false;
 
         Invoice invoice = invoiceRepository.findForPayment(invoiceId).orElse(null);
-        if (invoice == null || invoice.getStatus() != InvoiceStatus.PENDING
-                || !sepay.enabledFor(invoice.getBranch()) || invoice.getTableSession() == null
+        if (invoice == null
+                || invoice.getStatus() != InvoiceStatus.PENDING
+                || !sepay.enabledFor(invoice.getBranch())
+                || invoice.getTableSession() == null
                 || invoice.getTableSession().getStatus() != TableSessionStatus.WAITING_FOR_PAY
                 || paymentRepository.existsBySepayTransactionId(transactionId)) return false;
 
-        BigDecimal remaining = invoice.getGrandTotal().subtract(paymentRepository.sumAmountByInvoiceId(invoiceId));
+        BigDecimal remaining =
+                invoice.getGrandTotal().subtract(paymentRepository.sumAmountByInvoiceId(invoiceId));
         if (amount.compareTo(remaining) != 0) return false;
 
-        savePayment(invoice, Payment.builder().method(PaymentMethod.BANK_TRANSFER).amount(amount)
-                .transactionRef("SePay #" + transactionId).sepayTransactionId(transactionId).build());
+        savePayment(
+                invoice,
+                Payment.builder()
+                        .method(PaymentMethod.BANK_TRANSFER)
+                        .amount(amount)
+                        .transactionRef("SePay #" + transactionId)
+                        .sepayTransactionId(transactionId)
+                        .build());
         orderNotificationService.notifyBankPaymentVerified(invoice.getTableSession());
         return true;
     }
@@ -112,19 +134,27 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         // FR-LOG-01: mọi lần thu tiền đều phải có vết để đối soát ca/két.
-        auditLogService.record(AuditEvent.builder()
-                .entityType("Payment")
-                .entityId(savedPayment.getId())
-                .actionType(AuditAction.PAYMENT)
-                .branchId(invoice.getBranch() != null ? invoice.getBranch().getId() : null)
-                .valueAfter("invoice=" + invoice.getInvoiceNumber()
-                        + "; method=" + savedPayment.getMethod()
-                        + "; amount=" + savedPayment.getAmount()
-                        + "; totalPaid=" + totalPaid
-                        + "; grandTotal=" + invoice.getGrandTotal()
-                        + "; invoiceStatus=" + invoice.getStatus())
-                .reason(fullyPaid ? "Thu đủ tiền hóa đơn" : "Thu một phần hóa đơn")
-                .build());
+        auditLogService.record(
+                AuditEvent.builder()
+                        .entityType("Payment")
+                        .entityId(savedPayment.getId())
+                        .actionType(AuditAction.PAYMENT)
+                        .branchId(invoice.getBranch() != null ? invoice.getBranch().getId() : null)
+                        .valueAfter(
+                                "invoice="
+                                        + invoice.getInvoiceNumber()
+                                        + "; method="
+                                        + savedPayment.getMethod()
+                                        + "; amount="
+                                        + savedPayment.getAmount()
+                                        + "; totalPaid="
+                                        + totalPaid
+                                        + "; grandTotal="
+                                        + invoice.getGrandTotal()
+                                        + "; invoiceStatus="
+                                        + invoice.getStatus())
+                        .reason(fullyPaid ? "Thu đủ tiền hóa đơn" : "Thu một phần hóa đơn")
+                        .build());
 
         orderNotificationService.notifyTakeawayUpdated(invoice.getTableSession());
         return savedPayment;
@@ -133,22 +163,29 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional(readOnly = true)
     public List<PaymentResponse> getPaymentsByInvoice(Long invoiceId) {
-        Invoice invoice = invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy hóa đơn với ID: " + invoiceId));
+        Invoice invoice =
+                invoiceRepository
+                        .findById(invoiceId)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy hóa đơn với ID: " + invoiceId));
         tenantGuard.assertBranch(invoice.getBranch());
 
         List<Payment> payments = paymentRepository.findByInvoiceId(invoiceId);
-        return payments.stream()
-                .map(this::buildPaymentResponse)
-                .collect(Collectors.toList());
+        return payments.stream().map(this::buildPaymentResponse).collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
     public PaymentResponse getPaymentById(Long id) {
-        Payment payment = paymentRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thanh toán với ID: " + id));
+        Payment payment =
+                paymentRepository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy thanh toán với ID: " + id));
         return buildPaymentResponse(payment);
     }
 

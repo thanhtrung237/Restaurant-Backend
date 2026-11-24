@@ -1,17 +1,16 @@
 package com.group.restaurant.controllers;
 
+import static org.springframework.http.HttpStatus.CREATED;
+import static org.springframework.http.HttpStatus.OK;
+
 import com.group.restaurant.dtos.response.base.ResponseSuccess;
 import com.group.restaurant.services.TakeawayService;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-
-import static org.springframework.http.HttpStatus.CREATED;
-import static org.springframework.http.HttpStatus.OK;
 
 @RestController
 @RequiredArgsConstructor
@@ -28,8 +27,12 @@ public class TakeawayController {
     @PostMapping
     public ResponseEntity<ResponseSuccess<TakeawayService.Entry>> create(
             @PathVariable Long branchId, @Valid @RequestBody TakeawayService.Create request) {
-        return ResponseEntity.status(CREATED).body(
-                new ResponseSuccess<>(CREATED, "Đã gửi đơn mang về", takeaways.create(branchId, request)));
+        return ResponseEntity.status(CREATED)
+                .body(
+                        new ResponseSuccess<>(
+                                CREATED,
+                                "Đã gửi đơn mang về",
+                                takeaways.create(branchId, request)));
     }
 
     @PutMapping("/{id}/handoff")

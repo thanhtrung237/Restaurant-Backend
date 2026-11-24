@@ -5,7 +5,6 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
 
-
 @Entity
 @Table(name = "option_group")
 @SQLRestriction("is_deleted = false")
@@ -21,7 +20,10 @@ public class OptionGroup extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "restaurant_id", nullable = false, foreignKey = @ForeignKey(name = "fk_option_group_restaurant"))
+    @JoinColumn(
+            name = "restaurant_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_option_group_restaurant"))
     private Restaurant restaurant;
 
     @Column(name = "name", nullable = false, length = 200)

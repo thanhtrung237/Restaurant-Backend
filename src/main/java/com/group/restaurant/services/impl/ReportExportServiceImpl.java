@@ -6,7 +6,6 @@ import com.group.restaurant.dtos.response.report.RevenueReportResponse;
 import com.group.restaurant.enums.InvoiceStatus;
 import com.group.restaurant.models.Branch;
 import com.group.restaurant.models.Invoice;
-import com.group.restaurant.models.Payment;
 import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.InvoiceRepository;
 import com.group.restaurant.services.AuditLogService;
@@ -15,16 +14,6 @@ import com.group.restaurant.services.ReportService;
 import com.group.restaurant.services.audit.AuditAction;
 import com.group.restaurant.services.audit.AuditEvent;
 import com.group.restaurant.utils.SecurityUtils;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.streaming.SXSSFSheet;
-import org.apache.poi.xssf.streaming.SXSSFWorkbook;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -36,6 +25,15 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.streaming.SXSSFSheet;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -45,10 +43,13 @@ public class ReportExportServiceImpl implements ReportExportService {
 
     private static final int CHUNK_SIZE = 500;
     private static final int SXSSF_WINDOW_SIZE = 100;
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+    private static final DateTimeFormatter DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    private static final List<InvoiceStatus> PAID_STATUSES = List.of(InvoiceStatus.PAID, InvoiceStatus.ISSUED);
+    private static final List<InvoiceStatus> PAID_STATUSES =
+            List.of(InvoiceStatus.PAID, InvoiceStatus.ISSUED);
 
     private final InvoiceRepository invoiceRepository;
     private final BranchRepository branchRepository;
@@ -67,18 +68,25 @@ public class ReportExportServiceImpl implements ReportExportService {
 
         validateBranchIds(branchIds);
 
-        RevenueReportResponse summary = reportService.getRevenueReport(branchIds, from, to, groupBy);
+        RevenueReportResponse summary =
+                reportService.getRevenueReport(branchIds, from, to, groupBy);
         List<Branch> branches = branchRepository.findAllById(branchIds);
-        String branchNames = branches.stream().map(Branch::getName).collect(Collectors.joining(", "));
+        String branchNames =
+                branches.stream().map(Branch::getName).collect(Collectors.joining(", "));
 
         // Ghi log nhật ký EXPORT (QĐ-19 / BC-6 / FR-LOG-01)
-        recordAuditLog("Báo cáo doanh thu (" + groupBy + ")", format, branchIds.size() == 1 ? branchIds.get(0) : null);
+        recordAuditLog(
+                "Báo cáo doanh thu (" + groupBy + ")",
+                format,
+                branchIds.size() == 1 ? branchIds.get(0) : null);
 
         boolean isCsv = "csv".equalsIgnoreCase(format);
         if (isCsv) {
-            exportRevenueReportCsv(branchIds, from, to, groupBy, summary, branchNames, outputStream);
+            exportRevenueReportCsv(
+                    branchIds, from, to, groupBy, summary, branchNames, outputStream);
         } else {
-            exportRevenueReportExcel(branchIds, from, to, groupBy, summary, branchNames, outputStream);
+            exportRevenueReportExcel(
+                    branchIds, from, to, groupBy, summary, branchNames, outputStream);
         }
     }
 
@@ -94,9 +102,13 @@ public class ReportExportServiceImpl implements ReportExportService {
 
         HourlyRevenueResponse hourly = reportService.getHourlyRevenue(branchIds, from, to);
         List<Branch> branches = branchRepository.findAllById(branchIds);
-        String branchNames = branches.stream().map(Branch::getName).collect(Collectors.joining(", "));
+        String branchNames =
+                branches.stream().map(Branch::getName).collect(Collectors.joining(", "));
 
-        recordAuditLog("Báo cáo doanh thu theo khung giờ", format, branchIds.size() == 1 ? branchIds.get(0) : null);
+        recordAuditLog(
+                "Báo cáo doanh thu theo khung giờ",
+                format,
+                branchIds.size() == 1 ? branchIds.get(0) : null);
 
         boolean isCsv = "csv".equalsIgnoreCase(format);
         if (isCsv) {
@@ -118,7 +130,8 @@ public class ReportExportServiceImpl implements ReportExportService {
             throw new IllegalArgumentException("restaurantId không được để trống");
         }
 
-        BranchRevenueCompareResponse comparison = reportService.getBranchComparison(restaurantId, from, to);
+        BranchRevenueCompareResponse comparison =
+                reportService.getBranchComparison(restaurantId, from, to);
 
         recordAuditLog("Báo cáo so sánh chi nhánh (nhà hàng #" + restaurantId + ")", format, null);
 
@@ -160,10 +173,30 @@ public class ReportExportServiceImpl implements ReportExportService {
             titleCell.setCellStyle(styles.titleStyle);
 
             // Thông tin chung
-            createMetaRow(sheetSummary, rowIdx++, "Kỳ báo cáo:", from.format(DATE_TIME_FORMATTER) + "  đến  " + to.format(DATE_TIME_FORMATTER), styles);
-            createMetaRow(sheetSummary, rowIdx++, "Chi nhánh:", branchNames.isEmpty() ? "Tất cả chi nhánh" : branchNames, styles);
-            createMetaRow(sheetSummary, rowIdx++, "Thời điểm xuất:", LocalDateTime.now().format(DATE_TIME_FORMATTER), styles);
-            createMetaRow(sheetSummary, rowIdx++, "Nhóm xu hướng theo:", "MONTH".equalsIgnoreCase(groupBy) ? "Tháng" : "Ngày", styles);
+            createMetaRow(
+                    sheetSummary,
+                    rowIdx++,
+                    "Kỳ báo cáo:",
+                    from.format(DATE_TIME_FORMATTER) + "  đến  " + to.format(DATE_TIME_FORMATTER),
+                    styles);
+            createMetaRow(
+                    sheetSummary,
+                    rowIdx++,
+                    "Chi nhánh:",
+                    branchNames.isEmpty() ? "Tất cả chi nhánh" : branchNames,
+                    styles);
+            createMetaRow(
+                    sheetSummary,
+                    rowIdx++,
+                    "Thời điểm xuất:",
+                    LocalDateTime.now().format(DATE_TIME_FORMATTER),
+                    styles);
+            createMetaRow(
+                    sheetSummary,
+                    rowIdx++,
+                    "Nhóm xu hướng theo:",
+                    "MONTH".equalsIgnoreCase(groupBy) ? "Tháng" : "Ngày",
+                    styles);
             rowIdx++; // Dòng trống
 
             // Bảng 1: Chỉ số tổng quan
@@ -175,10 +208,42 @@ public class ReportExportServiceImpl implements ReportExportService {
             String[] kpiHeaders = {"Chỉ số", "Giá trị kỳ này", "Giá trị kỳ trước", "Tăng trưởng"};
             createHeaderRow(sheetSummary, rowIdx++, kpiHeaders, styles);
 
-            createKpiRow(sheetSummary, rowIdx++, "Tổng doanh thu", summary.getTotalRevenue(), summary.getPreviousPeriodRevenue(), summary.getRevenueGrowthPercent(), styles, true);
-            createKpiRow(sheetSummary, rowIdx++, "Tổng số hóa đơn", summary.getTotalInvoices(), null, null, styles, false);
-            createKpiRow(sheetSummary, rowIdx++, "Tổng số lượt khách", summary.getTotalGuests(), null, null, styles, false);
-            createKpiRow(sheetSummary, rowIdx++, "Doanh thu TB/hóa đơn", summary.getAvgRevenuePerInvoice(), null, null, styles, true);
+            createKpiRow(
+                    sheetSummary,
+                    rowIdx++,
+                    "Tổng doanh thu",
+                    summary.getTotalRevenue(),
+                    summary.getPreviousPeriodRevenue(),
+                    summary.getRevenueGrowthPercent(),
+                    styles,
+                    true);
+            createKpiRow(
+                    sheetSummary,
+                    rowIdx++,
+                    "Tổng số hóa đơn",
+                    summary.getTotalInvoices(),
+                    null,
+                    null,
+                    styles,
+                    false);
+            createKpiRow(
+                    sheetSummary,
+                    rowIdx++,
+                    "Tổng số lượt khách",
+                    summary.getTotalGuests(),
+                    null,
+                    null,
+                    styles,
+                    false);
+            createKpiRow(
+                    sheetSummary,
+                    rowIdx++,
+                    "Doanh thu TB/hóa đơn",
+                    summary.getAvgRevenuePerInvoice(),
+                    null,
+                    null,
+                    styles,
+                    true);
             rowIdx++; // Dòng trống
 
             // Bảng 2: Doanh thu theo phương thức thanh toán
@@ -190,9 +255,12 @@ public class ReportExportServiceImpl implements ReportExportService {
             String[] methodHeaders = {"Phương thức thanh toán", "Doanh thu (VNĐ)", "Tỷ trọng (%)"};
             createHeaderRow(sheetSummary, rowIdx++, methodHeaders, styles);
 
-            BigDecimal totalRev = summary.getTotalRevenue() != null ? summary.getTotalRevenue() : BigDecimal.ZERO;
-            if (summary.getRevenueByPaymentMethod() != null && !summary.getRevenueByPaymentMethod().isEmpty()) {
-                for (Map.Entry<String, BigDecimal> entry : summary.getRevenueByPaymentMethod().entrySet()) {
+            BigDecimal totalRev =
+                    summary.getTotalRevenue() != null ? summary.getTotalRevenue() : BigDecimal.ZERO;
+            if (summary.getRevenueByPaymentMethod() != null
+                    && !summary.getRevenueByPaymentMethod().isEmpty()) {
+                for (Map.Entry<String, BigDecimal> entry :
+                        summary.getRevenueByPaymentMethod().entrySet()) {
                     Row r = sheetSummary.createRow(rowIdx++);
                     Cell c0 = r.createCell(0);
                     c0.setCellValue(translatePaymentMethod(entry.getKey()));
@@ -203,8 +271,10 @@ public class ReportExportServiceImpl implements ReportExportService {
                     c1.setCellStyle(styles.currencyStyle);
 
                     Cell c2 = r.createCell(2);
-                    double share = totalRev.compareTo(BigDecimal.ZERO) > 0
-                            ? entry.getValue().doubleValue() / totalRev.doubleValue() : 0.0;
+                    double share =
+                            totalRev.compareTo(BigDecimal.ZERO) > 0
+                                    ? entry.getValue().doubleValue() / totalRev.doubleValue()
+                                    : 0.0;
                     c2.setCellValue(share);
                     c2.setCellStyle(styles.percentStyle);
                 }
@@ -247,10 +317,20 @@ public class ReportExportServiceImpl implements ReportExportService {
             SXSSFSheet sheetInvoices = workbook.createSheet("Chi tiết hóa đơn");
 
             String[] invoiceHeaders = {
-                    "STT", "Mã hóa đơn", "Chi nhánh", "Bàn", "Thời gian lập",
-                    "Tiền món (VNĐ)", "Khuyến mãi (VNĐ)", "Chiết khấu tay (VNĐ)",
-                    "Phí DV (VNĐ)", "VAT (VNĐ)", "Tổng cộng (VNĐ)", "Trạng thái",
-                    "Phương thức thanh toán", "Ghi chú"
+                "STT",
+                "Mã hóa đơn",
+                "Chi nhánh",
+                "Bàn",
+                "Thời gian lập",
+                "Tiền món (VNĐ)",
+                "Khuyến mãi (VNĐ)",
+                "Chiết khấu tay (VNĐ)",
+                "Phí DV (VNĐ)",
+                "VAT (VNĐ)",
+                "Tổng cộng (VNĐ)",
+                "Trạng thái",
+                "Phương thức thanh toán",
+                "Ghi chú"
             };
             createHeaderRow(sheetInvoices, 0, invoiceHeaders, styles);
 
@@ -259,8 +339,13 @@ public class ReportExportServiceImpl implements ReportExportService {
             int invoiceRowIdx = 1;
             Page<Invoice> invoicePage;
             do {
-                invoicePage = invoiceRepository.findInvoicesForReport(
-                        branchIds, PAID_STATUSES, from, to, PageRequest.of(page++, CHUNK_SIZE));
+                invoicePage =
+                        invoiceRepository.findInvoicesForReport(
+                                branchIds,
+                                PAID_STATUSES,
+                                from,
+                                to,
+                                PageRequest.of(page++, CHUNK_SIZE));
 
                 for (Invoice inv : invoicePage.getContent()) {
                     Row r = sheetInvoices.createRow(invoiceRowIdx);
@@ -282,31 +367,46 @@ public class ReportExportServiceImpl implements ReportExportService {
                     c3.setCellStyle(styles.dataCenterStyle);
 
                     Cell c4 = r.createCell(4);
-                    c4.setCellValue(inv.getCreatedAt() != null ? inv.getCreatedAt().format(DATE_TIME_FORMATTER) : "");
+                    c4.setCellValue(
+                            inv.getCreatedAt() != null
+                                    ? inv.getCreatedAt().format(DATE_TIME_FORMATTER)
+                                    : "");
                     c4.setCellStyle(styles.dataCenterStyle);
 
                     Cell c5 = r.createCell(5);
-                    c5.setCellValue(inv.getSubTotalBeforeDiscount() != null ? inv.getSubTotalBeforeDiscount().doubleValue() : 0.0);
+                    c5.setCellValue(
+                            inv.getSubTotalBeforeDiscount() != null
+                                    ? inv.getSubTotalBeforeDiscount().doubleValue()
+                                    : 0.0);
                     c5.setCellStyle(styles.currencyStyle);
 
                     Cell c6 = r.createCell(6);
-                    c6.setCellValue(inv.getTotalPromotionDiscount() != null ? inv.getTotalPromotionDiscount().doubleValue() : 0.0);
+                    c6.setCellValue(
+                            inv.getTotalPromotionDiscount() != null
+                                    ? inv.getTotalPromotionDiscount().doubleValue()
+                                    : 0.0);
                     c6.setCellStyle(styles.currencyStyle);
 
                     Cell c7 = r.createCell(7);
-                    c7.setCellValue(inv.getTotalManualDiscount() != null ? inv.getTotalManualDiscount().doubleValue() : 0.0);
+                    c7.setCellValue(
+                            inv.getTotalManualDiscount() != null
+                                    ? inv.getTotalManualDiscount().doubleValue()
+                                    : 0.0);
                     c7.setCellStyle(styles.currencyStyle);
 
                     Cell c8 = r.createCell(8);
-                    c8.setCellValue(inv.getServiceFee() != null ? inv.getServiceFee().doubleValue() : 0.0);
+                    c8.setCellValue(
+                            inv.getServiceFee() != null ? inv.getServiceFee().doubleValue() : 0.0);
                     c8.setCellStyle(styles.currencyStyle);
 
                     Cell c9 = r.createCell(9);
-                    c9.setCellValue(inv.getVatAmount() != null ? inv.getVatAmount().doubleValue() : 0.0);
+                    c9.setCellValue(
+                            inv.getVatAmount() != null ? inv.getVatAmount().doubleValue() : 0.0);
                     c9.setCellStyle(styles.currencyStyle);
 
                     Cell c10 = r.createCell(10);
-                    c10.setCellValue(inv.getGrandTotal() != null ? inv.getGrandTotal().doubleValue() : 0.0);
+                    c10.setCellValue(
+                            inv.getGrandTotal() != null ? inv.getGrandTotal().doubleValue() : 0.0);
                     c10.setCellStyle(styles.currencyStyle);
 
                     Cell c11 = r.createCell(11);
@@ -324,11 +424,16 @@ public class ReportExportServiceImpl implements ReportExportService {
                     invoiceRowIdx++;
                 }
 
-                log.debug("Đã xuất chunk hóa đơn trang {}, tổng bản ghi: {}", page - 1, invoiceRowIdx - 1);
+                log.debug(
+                        "Đã xuất chunk hóa đơn trang {}, tổng bản ghi: {}",
+                        page - 1,
+                        invoiceRowIdx - 1);
             } while (invoicePage.hasNext());
 
             // Thiết lập độ rộng cột cho sheet chi tiết
-            int[] colWidths = {2000, 4500, 6000, 3000, 5000, 4000, 4000, 4000, 3500, 3500, 4500, 3500, 5000, 6000};
+            int[] colWidths = {
+                2000, 4500, 6000, 3000, 5000, 4000, 4000, 4000, 3500, 3500, 4500, 3500, 5000, 6000
+            };
             for (int i = 0; i < colWidths.length; i++) {
                 sheetInvoices.setColumnWidth(i, colWidths[i]);
             }
@@ -352,15 +457,25 @@ public class ReportExportServiceImpl implements ReportExportService {
 
         try {
             writeUtf8Bom(outputStream);
-            BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
+            BufferedWriter writer =
+                    new BufferedWriter(
+                            new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
 
             writer.write("BÁO CÁO DOANH THU");
             writer.newLine();
-            writer.write("Kỳ báo cáo," + escapeCsv(from.format(DATE_TIME_FORMATTER) + " đến " + to.format(DATE_TIME_FORMATTER)));
+            writer.write(
+                    "Kỳ báo cáo,"
+                            + escapeCsv(
+                                    from.format(DATE_TIME_FORMATTER)
+                                            + " đến "
+                                            + to.format(DATE_TIME_FORMATTER)));
             writer.newLine();
-            writer.write("Chi nhánh," + escapeCsv(branchNames.isEmpty() ? "Tất cả chi nhánh" : branchNames));
+            writer.write(
+                    "Chi nhánh,"
+                            + escapeCsv(branchNames.isEmpty() ? "Tất cả chi nhánh" : branchNames));
             writer.newLine();
-            writer.write("Thời điểm xuất," + escapeCsv(LocalDateTime.now().format(DATE_TIME_FORMATTER)));
+            writer.write(
+                    "Thời điểm xuất," + escapeCsv(LocalDateTime.now().format(DATE_TIME_FORMATTER)));
             writer.newLine();
             writer.newLine();
 
@@ -376,7 +491,9 @@ public class ReportExportServiceImpl implements ReportExportService {
             writer.write("Doanh thu TB/hóa đơn (VNĐ)," + summary.getAvgRevenuePerInvoice());
             writer.newLine();
             if (summary.getRevenueGrowthPercent() != null) {
-                writer.write("Tăng trưởng (%)," + String.format("%.2f%%", summary.getRevenueGrowthPercent()));
+                writer.write(
+                        "Tăng trưởng (%),"
+                                + String.format("%.2f%%", summary.getRevenueGrowthPercent()));
                 writer.newLine();
             }
             writer.newLine();
@@ -384,33 +501,61 @@ public class ReportExportServiceImpl implements ReportExportService {
             // Chi tiết hóa đơn (Chunking)
             writer.write("CHI TIẾT HÓA ĐƠN");
             writer.newLine();
-            writer.write("STT,Mã hóa đơn,Chi nhánh,Bàn,Thời gian lập,Tiền món (VNĐ),Khuyến mãi (VNĐ),Chiết khấu tay (VNĐ),Phí DV (VNĐ),VAT (VNĐ),Tổng cộng (VNĐ),Trạng thái,Phương thức thanh toán,Ghi chú");
+            writer.write(
+                    "STT,Mã hóa đơn,Chi nhánh,Bàn,Thời gian lập,Tiền món (VNĐ),Khuyến mãi (VNĐ),Chiết khấu tay (VNĐ),Phí DV (VNĐ),VAT (VNĐ),Tổng cộng (VNĐ),Trạng thái,Phương thức thanh toán,Ghi chú");
             writer.newLine();
 
             int page = 0;
             int stt = 1;
             Page<Invoice> invoicePage;
             do {
-                invoicePage = invoiceRepository.findInvoicesForReport(
-                        branchIds, PAID_STATUSES, from, to, PageRequest.of(page++, CHUNK_SIZE));
+                invoicePage =
+                        invoiceRepository.findInvoicesForReport(
+                                branchIds,
+                                PAID_STATUSES,
+                                from,
+                                to,
+                                PageRequest.of(page++, CHUNK_SIZE));
 
                 for (Invoice inv : invoicePage.getContent()) {
-                    String line = String.join(",",
-                            String.valueOf(stt++),
-                            escapeCsv(inv.getInvoiceNumber()),
-                            escapeCsv(inv.getBranch() != null ? inv.getBranch().getName() : ""),
-                            escapeCsv(getTableName(inv)),
-                            escapeCsv(inv.getCreatedAt() != null ? inv.getCreatedAt().format(DATE_TIME_FORMATTER) : ""),
-                            inv.getSubTotalBeforeDiscount() != null ? inv.getSubTotalBeforeDiscount().toString() : "0",
-                            inv.getTotalPromotionDiscount() != null ? inv.getTotalPromotionDiscount().toString() : "0",
-                            inv.getTotalManualDiscount() != null ? inv.getTotalManualDiscount().toString() : "0",
-                            inv.getServiceFee() != null ? inv.getServiceFee().toString() : "0",
-                            inv.getVatAmount() != null ? inv.getVatAmount().toString() : "0",
-                            inv.getGrandTotal() != null ? inv.getGrandTotal().toString() : "0",
-                            escapeCsv(translateInvoiceStatus(inv.getStatus())),
-                            escapeCsv(getPaymentMethods(inv)),
-                            escapeCsv(inv.getInvoiceNote() != null ? inv.getInvoiceNote() : "")
-                    );
+                    String line =
+                            String.join(
+                                    ",",
+                                    String.valueOf(stt++),
+                                    escapeCsv(inv.getInvoiceNumber()),
+                                    escapeCsv(
+                                            inv.getBranch() != null
+                                                    ? inv.getBranch().getName()
+                                                    : ""),
+                                    escapeCsv(getTableName(inv)),
+                                    escapeCsv(
+                                            inv.getCreatedAt() != null
+                                                    ? inv.getCreatedAt().format(DATE_TIME_FORMATTER)
+                                                    : ""),
+                                    inv.getSubTotalBeforeDiscount() != null
+                                            ? inv.getSubTotalBeforeDiscount().toString()
+                                            : "0",
+                                    inv.getTotalPromotionDiscount() != null
+                                            ? inv.getTotalPromotionDiscount().toString()
+                                            : "0",
+                                    inv.getTotalManualDiscount() != null
+                                            ? inv.getTotalManualDiscount().toString()
+                                            : "0",
+                                    inv.getServiceFee() != null
+                                            ? inv.getServiceFee().toString()
+                                            : "0",
+                                    inv.getVatAmount() != null
+                                            ? inv.getVatAmount().toString()
+                                            : "0",
+                                    inv.getGrandTotal() != null
+                                            ? inv.getGrandTotal().toString()
+                                            : "0",
+                                    escapeCsv(translateInvoiceStatus(inv.getStatus())),
+                                    escapeCsv(getPaymentMethods(inv)),
+                                    escapeCsv(
+                                            inv.getInvoiceNote() != null
+                                                    ? inv.getInvoiceNote()
+                                                    : ""));
                     writer.write(line);
                     writer.newLine();
                 }
@@ -449,9 +594,24 @@ public class ReportExportServiceImpl implements ReportExportService {
             titleCell.setCellValue("BÁO CÁO DOANH THU THEO KHUNG GIỜ");
             titleCell.setCellStyle(styles.titleStyle);
 
-            createMetaRow(sheet, rowIdx++, "Kỳ báo cáo:", from.format(DATE_TIME_FORMATTER) + "  đến  " + to.format(DATE_TIME_FORMATTER), styles);
-            createMetaRow(sheet, rowIdx++, "Chi nhánh:", branchNames.isEmpty() ? "Tất cả chi nhánh" : branchNames, styles);
-            createMetaRow(sheet, rowIdx++, "Thời điểm xuất:", LocalDateTime.now().format(DATE_TIME_FORMATTER), styles);
+            createMetaRow(
+                    sheet,
+                    rowIdx++,
+                    "Kỳ báo cáo:",
+                    from.format(DATE_TIME_FORMATTER) + "  đến  " + to.format(DATE_TIME_FORMATTER),
+                    styles);
+            createMetaRow(
+                    sheet,
+                    rowIdx++,
+                    "Chi nhánh:",
+                    branchNames.isEmpty() ? "Tất cả chi nhánh" : branchNames,
+                    styles);
+            createMetaRow(
+                    sheet,
+                    rowIdx++,
+                    "Thời điểm xuất:",
+                    LocalDateTime.now().format(DATE_TIME_FORMATTER),
+                    styles);
             rowIdx++;
 
             // Bảng 1: Theo khung giờ trong ngày
@@ -475,7 +635,8 @@ public class ReportExportServiceImpl implements ReportExportService {
                     c1.setCellStyle(styles.dataCenterStyle);
 
                     Cell c2 = r.createCell(2);
-                    c2.setCellValue(slot.getRevenue() != null ? slot.getRevenue().doubleValue() : 0.0);
+                    c2.setCellValue(
+                            slot.getRevenue() != null ? slot.getRevenue().doubleValue() : 0.0);
                     c2.setCellStyle(styles.currencyStyle);
 
                     Cell c3 = r.createCell(3);
@@ -502,7 +663,8 @@ public class ReportExportServiceImpl implements ReportExportService {
                     c0.setCellStyle(styles.dataLeftStyle);
 
                     Cell c1 = r.createCell(1);
-                    c1.setCellValue(slot.getRevenue() != null ? slot.getRevenue().doubleValue() : 0.0);
+                    c1.setCellValue(
+                            slot.getRevenue() != null ? slot.getRevenue().doubleValue() : 0.0);
                     c1.setCellStyle(styles.currencyStyle);
 
                     Cell c2 = r.createCell(2);
@@ -530,15 +692,25 @@ public class ReportExportServiceImpl implements ReportExportService {
 
         try {
             writeUtf8Bom(outputStream);
-            BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
+            BufferedWriter writer =
+                    new BufferedWriter(
+                            new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
 
             writer.write("BÁO CÁO DOANH THU THEO KHUNG GIỜ");
             writer.newLine();
-            writer.write("Kỳ báo cáo," + escapeCsv(from.format(DATE_TIME_FORMATTER) + " đến " + to.format(DATE_TIME_FORMATTER)));
+            writer.write(
+                    "Kỳ báo cáo,"
+                            + escapeCsv(
+                                    from.format(DATE_TIME_FORMATTER)
+                                            + " đến "
+                                            + to.format(DATE_TIME_FORMATTER)));
             writer.newLine();
-            writer.write("Chi nhánh," + escapeCsv(branchNames.isEmpty() ? "Tất cả chi nhánh" : branchNames));
+            writer.write(
+                    "Chi nhánh,"
+                            + escapeCsv(branchNames.isEmpty() ? "Tất cả chi nhánh" : branchNames));
             writer.newLine();
-            writer.write("Thời điểm xuất," + escapeCsv(LocalDateTime.now().format(DATE_TIME_FORMATTER)));
+            writer.write(
+                    "Thời điểm xuất," + escapeCsv(LocalDateTime.now().format(DATE_TIME_FORMATTER)));
             writer.newLine();
             writer.newLine();
 
@@ -549,12 +721,13 @@ public class ReportExportServiceImpl implements ReportExportService {
 
             if (hourly.getHourlySlots() != null) {
                 for (HourlyRevenueResponse.HourSlot slot : hourly.getHourlySlots()) {
-                    writer.write(String.join(",",
-                            String.valueOf(slot.getHour()),
-                            escapeCsv(slot.getLabel()),
-                            slot.getRevenue() != null ? slot.getRevenue().toString() : "0",
-                            String.valueOf(slot.getTableCount())
-                    ));
+                    writer.write(
+                            String.join(
+                                    ",",
+                                    String.valueOf(slot.getHour()),
+                                    escapeCsv(slot.getLabel()),
+                                    slot.getRevenue() != null ? slot.getRevenue().toString() : "0",
+                                    String.valueOf(slot.getTableCount())));
                     writer.newLine();
                 }
             }
@@ -567,11 +740,12 @@ public class ReportExportServiceImpl implements ReportExportService {
 
             if (hourly.getDayOfWeekSlots() != null) {
                 for (HourlyRevenueResponse.DayOfWeekSlot slot : hourly.getDayOfWeekSlots()) {
-                    writer.write(String.join(",",
-                            escapeCsv(slot.getLabel()),
-                            slot.getRevenue() != null ? slot.getRevenue().toString() : "0",
-                            String.valueOf(slot.getInvoiceCount())
-                    ));
+                    writer.write(
+                            String.join(
+                                    ",",
+                                    escapeCsv(slot.getLabel()),
+                                    slot.getRevenue() != null ? slot.getRevenue().toString() : "0",
+                                    String.valueOf(slot.getInvoiceCount())));
                     writer.newLine();
                 }
             }
@@ -607,9 +781,19 @@ public class ReportExportServiceImpl implements ReportExportService {
             titleCell.setCellValue("BÁO CÁO SO SÁNH DOANH THU CHI NHÁNH");
             titleCell.setCellStyle(styles.titleStyle);
 
-            createMetaRow(sheet, rowIdx++, "Kỳ báo cáo:", from.format(DATE_TIME_FORMATTER) + "  đến  " + to.format(DATE_TIME_FORMATTER), styles);
+            createMetaRow(
+                    sheet,
+                    rowIdx++,
+                    "Kỳ báo cáo:",
+                    from.format(DATE_TIME_FORMATTER) + "  đến  " + to.format(DATE_TIME_FORMATTER),
+                    styles);
             createMetaRow(sheet, rowIdx++, "Mã nhà hàng:", String.valueOf(restaurantId), styles);
-            createMetaRow(sheet, rowIdx++, "Thời điểm xuất:", LocalDateTime.now().format(DATE_TIME_FORMATTER), styles);
+            createMetaRow(
+                    sheet,
+                    rowIdx++,
+                    "Thời điểm xuất:",
+                    LocalDateTime.now().format(DATE_TIME_FORMATTER),
+                    styles);
             rowIdx++;
 
             // Chỉ số trung bình toàn hệ thống
@@ -621,9 +805,32 @@ public class ReportExportServiceImpl implements ReportExportService {
             String[] avgHeaders = {"Chỉ số", "Giá trị trung bình"};
             createHeaderRow(sheet, rowIdx++, avgHeaders, styles);
 
-            createSimpleRow(sheet, rowIdx++, "Doanh thu trung bình chi nhánh", comparison.getAvgRevenue() != null ? comparison.getAvgRevenue().doubleValue() : 0.0, styles.currencyStyle, styles);
-            createSimpleRow(sheet, rowIdx++, "Giá trị trung bình / hóa đơn", comparison.getAvgInvoiceValue() != null ? comparison.getAvgInvoiceValue().doubleValue() : 0.0, styles.currencyStyle, styles);
-            createSimpleRow(sheet, rowIdx++, "Tỷ lệ hủy món trung bình", (comparison.getAvgCancelRate() != null ? comparison.getAvgCancelRate() : 0.0) / 100.0, styles.percentStyle, styles);
+            createSimpleRow(
+                    sheet,
+                    rowIdx++,
+                    "Doanh thu trung bình chi nhánh",
+                    comparison.getAvgRevenue() != null
+                            ? comparison.getAvgRevenue().doubleValue()
+                            : 0.0,
+                    styles.currencyStyle,
+                    styles);
+            createSimpleRow(
+                    sheet,
+                    rowIdx++,
+                    "Giá trị trung bình / hóa đơn",
+                    comparison.getAvgInvoiceValue() != null
+                            ? comparison.getAvgInvoiceValue().doubleValue()
+                            : 0.0,
+                    styles.currencyStyle,
+                    styles);
+            createSimpleRow(
+                    sheet,
+                    rowIdx++,
+                    "Tỷ lệ hủy món trung bình",
+                    (comparison.getAvgCancelRate() != null ? comparison.getAvgCancelRate() : 0.0)
+                            / 100.0,
+                    styles.percentStyle,
+                    styles);
             rowIdx++;
 
             // Bảng chi tiết từng chi nhánh
@@ -633,9 +840,16 @@ public class ReportExportServiceImpl implements ReportExportService {
             sec2Cell.setCellStyle(styles.sectionStyle);
 
             String[] branchHeaders = {
-                    "Xếp hạng", "Mã CN", "Tên chi nhánh", "Doanh thu (VNĐ)",
-                    "Số hóa đơn", "TB/hóa đơn (VNĐ)", "Hủy lỗi nhà hàng",
-                    "Hủy khách đổi ý", "Tỷ lệ hủy (%)", "Cảnh báo bất thường"
+                "Xếp hạng",
+                "Mã CN",
+                "Tên chi nhánh",
+                "Doanh thu (VNĐ)",
+                "Số hóa đơn",
+                "TB/hóa đơn (VNĐ)",
+                "Hủy lỗi nhà hàng",
+                "Hủy khách đổi ý",
+                "Tỷ lệ hủy (%)",
+                "Cảnh báo bất thường"
             };
             createHeaderRow(sheet, rowIdx++, branchHeaders, styles);
 
@@ -656,7 +870,8 @@ public class ReportExportServiceImpl implements ReportExportService {
                     c2.setCellStyle(styles.dataLeftStyle);
 
                     Cell c3 = r.createCell(3);
-                    c3.setCellValue(b.getTotalRevenue() != null ? b.getTotalRevenue().doubleValue() : 0.0);
+                    c3.setCellValue(
+                            b.getTotalRevenue() != null ? b.getTotalRevenue().doubleValue() : 0.0);
                     c3.setCellStyle(styles.currencyStyle);
 
                     Cell c4 = r.createCell(4);
@@ -664,7 +879,10 @@ public class ReportExportServiceImpl implements ReportExportService {
                     c4.setCellStyle(styles.integerStyle);
 
                     Cell c5 = r.createCell(5);
-                    c5.setCellValue(b.getAvgInvoiceValue() != null ? b.getAvgInvoiceValue().doubleValue() : 0.0);
+                    c5.setCellValue(
+                            b.getAvgInvoiceValue() != null
+                                    ? b.getAvgInvoiceValue().doubleValue()
+                                    : 0.0);
                     c5.setCellStyle(styles.currencyStyle);
 
                     Cell c6 = r.createCell(6);
@@ -676,11 +894,18 @@ public class ReportExportServiceImpl implements ReportExportService {
                     c7.setCellStyle(styles.integerStyle);
 
                     Cell c8 = r.createCell(8);
-                    c8.setCellValue((b.getTotalCancelRate() != null ? b.getTotalCancelRate() : 0.0) / 100.0);
+                    c8.setCellValue(
+                            (b.getTotalCancelRate() != null ? b.getTotalCancelRate() : 0.0)
+                                    / 100.0);
                     c8.setCellStyle(styles.percentStyle);
 
                     Cell c9 = r.createCell(9);
-                    c9.setCellValue(b.isHasAnomaly() ? (b.getAnomalyNote() != null ? b.getAnomalyNote() : "Bất thường") : "Bình thường");
+                    c9.setCellValue(
+                            b.isHasAnomaly()
+                                    ? (b.getAnomalyNote() != null
+                                            ? b.getAnomalyNote()
+                                            : "Bất thường")
+                                    : "Bình thường");
                     c9.setCellStyle(b.isHasAnomaly() ? styles.dangerStyle : styles.dataCenterStyle);
                 }
             }
@@ -704,15 +929,23 @@ public class ReportExportServiceImpl implements ReportExportService {
 
         try {
             writeUtf8Bom(outputStream);
-            BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
+            BufferedWriter writer =
+                    new BufferedWriter(
+                            new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
 
             writer.write("BÁO CÁO SO SÁNH DOANH THU CHI NHÁNH");
             writer.newLine();
-            writer.write("Kỳ báo cáo," + escapeCsv(from.format(DATE_TIME_FORMATTER) + " đến " + to.format(DATE_TIME_FORMATTER)));
+            writer.write(
+                    "Kỳ báo cáo,"
+                            + escapeCsv(
+                                    from.format(DATE_TIME_FORMATTER)
+                                            + " đến "
+                                            + to.format(DATE_TIME_FORMATTER)));
             writer.newLine();
             writer.write("Mã nhà hàng," + restaurantId);
             writer.newLine();
-            writer.write("Thời điểm xuất," + escapeCsv(LocalDateTime.now().format(DATE_TIME_FORMATTER)));
+            writer.write(
+                    "Thời điểm xuất," + escapeCsv(LocalDateTime.now().format(DATE_TIME_FORMATTER)));
             writer.newLine();
             writer.newLine();
 
@@ -722,29 +955,50 @@ public class ReportExportServiceImpl implements ReportExportService {
             writer.newLine();
             writer.write("Giá trị TB/hóa đơn (VNĐ)," + comparison.getAvgInvoiceValue());
             writer.newLine();
-            writer.write("Tỷ lệ hủy trung bình (%)," + String.format("%.2f%%", comparison.getAvgCancelRate() != null ? comparison.getAvgCancelRate() : 0.0));
+            writer.write(
+                    "Tỷ lệ hủy trung bình (%),"
+                            + String.format(
+                                    "%.2f%%",
+                                    comparison.getAvgCancelRate() != null
+                                            ? comparison.getAvgCancelRate()
+                                            : 0.0));
             writer.newLine();
             writer.newLine();
 
             writer.write("BẢNG XẾP HẠNG CHI NHÁNH");
             writer.newLine();
-            writer.write("Xếp hạng,Mã CN,Tên chi nhánh,Doanh thu (VNĐ),Số hóa đơn,TB/hóa đơn (VNĐ),Hủy lỗi nhà hàng,Hủy khách đổi ý,Tỷ lệ hủy (%),Cảnh báo bất thường");
+            writer.write(
+                    "Xếp hạng,Mã CN,Tên chi nhánh,Doanh thu (VNĐ),Số hóa đơn,TB/hóa đơn (VNĐ),Hủy lỗi nhà hàng,Hủy khách đổi ý,Tỷ lệ hủy (%),Cảnh báo bất thường");
             writer.newLine();
 
             if (comparison.getBranches() != null) {
                 for (BranchRevenueCompareResponse.BranchStat b : comparison.getBranches()) {
-                    String line = String.join(",",
-                            String.valueOf(b.getRank()),
-                            String.valueOf(b.getBranchId()),
-                            escapeCsv(b.getBranchName()),
-                            b.getTotalRevenue() != null ? b.getTotalRevenue().toString() : "0",
-                            String.valueOf(b.getTotalInvoices()),
-                            b.getAvgInvoiceValue() != null ? b.getAvgInvoiceValue().toString() : "0",
-                            String.valueOf(b.getCancelByRestaurantCount()),
-                            String.valueOf(b.getCancelByCustomerCount()),
-                            String.format("%.2f%%", b.getTotalCancelRate() != null ? b.getTotalCancelRate() : 0.0),
-                            escapeCsv(b.isHasAnomaly() ? (b.getAnomalyNote() != null ? b.getAnomalyNote() : "Bất thường") : "Bình thường")
-                    );
+                    String line =
+                            String.join(
+                                    ",",
+                                    String.valueOf(b.getRank()),
+                                    String.valueOf(b.getBranchId()),
+                                    escapeCsv(b.getBranchName()),
+                                    b.getTotalRevenue() != null
+                                            ? b.getTotalRevenue().toString()
+                                            : "0",
+                                    String.valueOf(b.getTotalInvoices()),
+                                    b.getAvgInvoiceValue() != null
+                                            ? b.getAvgInvoiceValue().toString()
+                                            : "0",
+                                    String.valueOf(b.getCancelByRestaurantCount()),
+                                    String.valueOf(b.getCancelByCustomerCount()),
+                                    String.format(
+                                            "%.2f%%",
+                                            b.getTotalCancelRate() != null
+                                                    ? b.getTotalCancelRate()
+                                                    : 0.0),
+                                    escapeCsv(
+                                            b.isHasAnomaly()
+                                                    ? (b.getAnomalyNote() != null
+                                                            ? b.getAnomalyNote()
+                                                            : "Bất thường")
+                                                    : "Bình thường"));
                     writer.write(line);
                     writer.newLine();
                 }
@@ -764,13 +1018,14 @@ public class ReportExportServiceImpl implements ReportExportService {
     private void recordAuditLog(String reportName, String format, Long branchId) {
         try {
             Long currentRestaurantId = securityUtils.getCurrentRestaurantId();
-            auditLogService.record(AuditEvent.builder()
-                    .actionType(AuditAction.EXPORT)
-                    .entityType("Report")
-                    .reason("Xuất " + reportName + " định dạng " + format.toUpperCase())
-                    .branchId(branchId)
-                    .restaurantId(currentRestaurantId)
-                    .build());
+            auditLogService.record(
+                    AuditEvent.builder()
+                            .actionType(AuditAction.EXPORT)
+                            .entityType("Report")
+                            .reason("Xuất " + reportName + " định dạng " + format.toUpperCase())
+                            .branchId(branchId)
+                            .restaurantId(currentRestaurantId)
+                            .build());
         } catch (Exception e) {
             log.warn("Không thể ghi audit log xuất báo cáo: {}", e.getMessage());
         }
@@ -839,7 +1094,8 @@ public class ReportExportServiceImpl implements ReportExportService {
         }
     }
 
-    private void createHeaderRow(SXSSFSheet sheet, int rowIdx, String[] headers, ExcelStyles styles) {
+    private void createHeaderRow(
+            SXSSFSheet sheet, int rowIdx, String[] headers, ExcelStyles styles) {
         Row row = sheet.createRow(rowIdx);
         for (int i = 0; i < headers.length; i++) {
             Cell c = row.createCell(i);
@@ -848,7 +1104,8 @@ public class ReportExportServiceImpl implements ReportExportService {
         }
     }
 
-    private void createMetaRow(SXSSFSheet sheet, int rowIdx, String label, String value, ExcelStyles styles) {
+    private void createMetaRow(
+            SXSSFSheet sheet, int rowIdx, String label, String value, ExcelStyles styles) {
         Row r = sheet.createRow(rowIdx);
         Cell c0 = r.createCell(0);
         c0.setCellValue(label);
@@ -908,7 +1165,13 @@ public class ReportExportServiceImpl implements ReportExportService {
         }
     }
 
-    private void createSimpleRow(SXSSFSheet sheet, int rowIdx, String label, double value, CellStyle valueStyle, ExcelStyles styles) {
+    private void createSimpleRow(
+            SXSSFSheet sheet,
+            int rowIdx,
+            String label,
+            double value,
+            CellStyle valueStyle,
+            ExcelStyles styles) {
         Row r = sheet.createRow(rowIdx);
         Cell c0 = r.createCell(0);
         c0.setCellValue(label);

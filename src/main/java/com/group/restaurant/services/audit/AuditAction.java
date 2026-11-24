@@ -9,8 +9,7 @@ package com.group.restaurant.services.audit;
  */
 public final class AuditAction {
 
-    private AuditAction() {
-    }
+    private AuditAction() {}
 
     public static final String CREATE = "CREATE";
     public static final String UPDATE = "UPDATE";
@@ -19,21 +18,28 @@ public final class AuditAction {
 
     /** Hủy hóa đơn / hủy dòng món / hủy phiên. */
     public static final String CANCEL = "CANCEL";
+
     /** Ghi nhận thanh toán. */
     public static final String PAYMENT = "PAYMENT";
+
     /** Chiết khấu thủ công (cần đối soát chặt nhất — BR ngưỡng duyệt). */
     public static final String DISCOUNT = "DISCOUNT";
+
     /** Phát hành hóa đơn điện tử. */
     public static final String ISSUE_EINVOICE = "ISSUE_EINVOICE";
+
     /** Thay đổi cấu hình nhà hàng / chi nhánh (VAT, phí DV, ngưỡng duyệt...). */
     public static final String CONFIG_CHANGE = "CONFIG_CHANGE";
+
     /** Cấp/thu hồi vai trò, đổi mật khẩu, khóa tài khoản. */
     public static final String PERMISSION_CHANGE = "PERMISSION_CHANGE";
 
     /** Đăng nhập — cả thành công lẫn thất bại (FR-ADM-04, FR-LOG-01). */
     public static final String LOGIN = "LOGIN";
+
     /** Đăng xuất (FR-ADM-04). */
     public static final String LOGOUT = "LOGOUT";
+
     /** Xuất báo cáo / dữ liệu (FR-RPT-05, FR-LOG-01, QD-19). */
     public static final String EXPORT = "EXPORT";
 }

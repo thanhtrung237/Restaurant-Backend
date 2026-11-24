@@ -21,7 +21,9 @@ import org.mapstruct.ReportingPolicy;
  *
  * Với IGNORE: field không gửi ⇒ giữ nguyên; gửi chuỗi rỗng ⇒ xoá trắng.
  */
-@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE,
+@Mapper(
+        componentModel = "spring",
+        unmappedTargetPolicy = ReportingPolicy.IGNORE,
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface AccountMapper {
 

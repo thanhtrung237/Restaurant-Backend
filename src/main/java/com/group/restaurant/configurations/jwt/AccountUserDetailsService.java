@@ -40,16 +40,26 @@ public class AccountUserDetailsService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        Account account = accountRepository.findByUsernameWithAssignments(username)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy tài khoản: " + username));
+        Account account =
+                accountRepository
+                        .findByUsernameWithAssignments(username)
+                        .orElseThrow(
+                                () ->
+                                        new UsernameNotFoundException(
+                                                "Không tìm thấy tài khoản: " + username));
         return new AccountUserDetails(account);
     }
 
     /** Nhận diện theo khóa chính — dùng cho mọi request đã có access token. */
     @Transactional(readOnly = true)
     public UserDetails loadByAccountId(Long accountId) {
-        Account account = accountRepository.findByIdForAuthentication(accountId)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy tài khoản ID: " + accountId));
+        Account account =
+                accountRepository
+                        .findByIdForAuthentication(accountId)
+                        .orElseThrow(
+                                () ->
+                                        new UsernameNotFoundException(
+                                                "Không tìm thấy tài khoản ID: " + accountId));
         return new AccountUserDetails(account);
     }
 }

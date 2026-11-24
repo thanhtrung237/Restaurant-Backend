@@ -2,13 +2,12 @@ package com.group.restaurant.dtos.response.promotion;
 
 import com.group.restaurant.enums.ApplyLevel;
 import com.group.restaurant.enums.PromotionStatus;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Setter;
 
 @Getter
 @Setter

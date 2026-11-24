@@ -1,8 +1,8 @@
 package com.group.restaurant.models;
 
 import jakarta.persistence.*;
-import lombok.*;
 import java.time.LocalDate;
+import lombok.*;
 
 @Entity
 @Table(name = "refresh_token")
@@ -31,7 +31,9 @@ public class RefreshToken {
     private String deviceInfo;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "account_id", nullable = false,
+    @JoinColumn(
+            name = "account_id",
+            nullable = false,
             foreignKey = @ForeignKey(name = "fk_refresh_token_account"))
     private Account account;
 }

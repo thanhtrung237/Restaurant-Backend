@@ -1,18 +1,17 @@
 package com.group.restaurant.services;
 
 import com.group.restaurant.dtos.response.branchDishStock.BranchDishStockResponse;
-
 import java.util.List;
 
 public interface BranchDishStockService {
 
-   // Báo hết mở lại 1 món tại chi nhánh (toggle)
+    // Báo hết mở lại 1 món tại chi nhánh (toggle)
     BranchDishStockResponse toggleStock(Long branchId, Long dishId);
 
-   // Xem tất cả món đang HẾT tại chi nhánh
+    // Xem tất cả món đang HẾT tại chi nhánh
     List<BranchDishStockResponse> getOutOfStockByBranch(Long branchId);
 
-  // Xem tất cả stock của chi nhánh (cả còn lẫn hết)
+    // Xem tất cả stock của chi nhánh (cả còn lẫn hết)
     List<BranchDishStockResponse> getAllStockByBranch(Long branchId);
 
     /// Mở bán lại hàng loạt cho 1 chi nhánh

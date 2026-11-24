@@ -5,8 +5,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- Quét QR → tạo phiên CHỜ MỞ BÀN (WAITING_FOR_OPEN)
- hoặc Đặt bàn trước → tạo phiên ĐẶT TRƯỚC (RESERVED)
+ * Quét QR → tạo phiên CHỜ MỞ BÀN (WAITING_FOR_OPEN)
+ * hoặc Đặt bàn trước → tạo phiên ĐẶT TRƯỚC (RESERVED)
  */
 @Getter
 @Setter

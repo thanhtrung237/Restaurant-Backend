@@ -14,13 +14,12 @@ import com.group.restaurant.repositories.DishOverrideRepository;
 import com.group.restaurant.repositories.DishRepository;
 import com.group.restaurant.services.DishOverrideService;
 import com.group.restaurant.utils.TenantGuard;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -35,9 +34,14 @@ public class DishOverrideServiceImpl implements DishOverrideService {
 
     @Override
     public DishOverrideResponse createDishOverride(DishOverrideAddRequest request) {
-        Branch branch = branchRepository.findById(request.getBranchId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy chi nhánh với ID: " + request.getBranchId()));
+        Branch branch =
+                branchRepository
+                        .findById(request.getBranchId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy chi nhánh với ID: "
+                                                        + request.getBranchId()));
 
         tenantGuard.assertBranchAssigned(branch.getId(), TenantGuard.ROLE_BRANCH_MANAGER);
         Dish dish = lockDish(request.getDishId());
@@ -45,7 +49,8 @@ public class DishOverrideServiceImpl implements DishOverrideService {
             throw new AccessDeniedException("Món ăn không thuộc nhà hàng của chi nhánh");
         }
 
-        var previousOverride = dishOverrideRepository.findIncludingDeleted(branch.getId(), dish.getId());
+        var previousOverride =
+                dishOverrideRepository.findIncludingDeleted(branch.getId(), dish.getId());
         if (previousOverride.isPresent()) {
             DishOverride override = previousOverride.get();
             if (!Boolean.TRUE.equals(override.getIsDeleted())) {
@@ -92,8 +97,7 @@ public class DishOverrideServiceImpl implements DishOverrideService {
     @Transactional(readOnly = true)
     public List<DishOverrideResponse> getDishOverridesByBranch(Long branchId) {
         tenantGuard.assertBranch(branchId);
-        return dishOverrideRepository.findByBranchId(branchId)
-                .stream()
+        return dishOverrideRepository.findByBranchId(branchId).stream()
                 .map(dishOverrideMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -101,8 +105,7 @@ public class DishOverrideServiceImpl implements DishOverrideService {
     @Override
     @Transactional(readOnly = true)
     public List<DishOverrideResponse> getDishOverridesByDish(Long dishId) {
-        return dishOverrideRepository.findByDishId(dishId)
-                .stream()
+        return dishOverrideRepository.findByDishId(dishId).stream()
                 .map(dishOverrideMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -116,19 +119,27 @@ public class DishOverrideServiceImpl implements DishOverrideService {
 
     private DishOverride findWritableOverride(Long id) {
         DishOverride override = findById(id);
-        tenantGuard.assertBranchAssigned(override.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
+        tenantGuard.assertBranchAssigned(
+                override.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
         lockDish(override.getDish().getId());
         return override;
     }
 
     private Dish lockDish(Long id) {
-        return dishRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món ăn với ID: " + id));
+        return dishRepository
+                .findByIdForUpdate(id)
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Không tìm thấy món ăn với ID: " + id));
     }
 
     private DishOverride findById(Long id) {
-        DishOverride override = dishOverrideRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tùy chỉnh món với ID: " + id));
+        DishOverride override =
+                dishOverrideRepository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy tùy chỉnh món với ID: " + id));
         tenantGuard.assertBranch(override.getBranch());
         return override;
     }

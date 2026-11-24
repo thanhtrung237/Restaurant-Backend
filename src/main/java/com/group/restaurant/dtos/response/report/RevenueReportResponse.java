@@ -1,11 +1,10 @@
 package com.group.restaurant.dtos.response.report;
 
-import lombok.Builder;
-import lombok.Getter;
-
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import lombok.Builder;
+import lombok.Getter;
 
 /**
  *  Doanh thu ngày/tháng/năm
@@ -15,11 +14,11 @@ import java.util.Map;
 public class RevenueReportResponse {
 
     // ── Tổng quan ───────────────────────────────────────────────────────
-    private BigDecimal totalRevenue;         // Tổng doanh thu thực nhận (Net Revenue)
-    private BigDecimal totalGrossRevenue;    // Tổng doanh thu gộp (Gross - trước giảm giá)
-    private BigDecimal totalDiscount;        // Tổng tiền khuyến mãi & chiết khấu
-    private Long totalInvoices;              // Số hóa đơn
-    private Long totalGuests;                // Số khách (từ guest_count)
+    private BigDecimal totalRevenue; // Tổng doanh thu thực nhận (Net Revenue)
+    private BigDecimal totalGrossRevenue; // Tổng doanh thu gộp (Gross - trước giảm giá)
+    private BigDecimal totalDiscount; // Tổng tiền khuyến mãi & chiết khấu
+    private Long totalInvoices; // Số hóa đơn
+    private Long totalGuests; // Số khách (từ guest_count)
     private BigDecimal avgRevenuePerInvoice; // Giá trị TB / hóa đơn
 
     // ── Chi tiết theo phương thức thanh toán ────────────────────────────
@@ -27,8 +26,8 @@ public class RevenueReportResponse {
     private Map<String, BigDecimal> revenueByPaymentMethod;
 
     // ── So sánh kỳ liền trước ───────────────────────────────────────────
-    private BigDecimal previousPeriodRevenue;  // Doanh thu kỳ trước
-    private Double revenueGrowthPercent;       // Tăng trưởng % (null nếu kỳ trước = 0)
+    private BigDecimal previousPeriodRevenue; // Doanh thu kỳ trước
+    private Double revenueGrowthPercent; // Tăng trưởng % (null nếu kỳ trước = 0)
 
     // ── Xu hướng theo kỳ (biểu đồ) ─────────────────────────────────────
     // key = label ngày/tháng (VD "2026-09-21"), value = doanh thu
@@ -37,7 +36,7 @@ public class RevenueReportResponse {
     @Getter
     @Builder
     public static class RevenueTrendPoint {
-        private String label;        // "2026-09-21" hoặc "2026-09"
+        private String label; // "2026-09-21" hoặc "2026-09"
         private BigDecimal revenue;
         private Long invoiceCount;
     }

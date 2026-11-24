@@ -2,13 +2,12 @@ package com.group.restaurant.dtos.response.invoice;
 
 import com.group.restaurant.enums.InvoiceStatus;
 import com.group.restaurant.enums.TableSessionStatus;
+import java.math.BigDecimal;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.math.BigDecimal;
 
 /**
  * Tạm tính của một phiên bàn — GET /table-sessions/{id}/bill-preview.
@@ -31,6 +30,7 @@ public class BillPreviewResponse {
 
     /** null nếu chưa có hóa đơn. */
     private Long invoiceId;
+
     private InvoiceStatus invoiceStatus;
 
     // ----- Breakdown theo thứ tự BR-13 -----
@@ -40,6 +40,7 @@ public class BillPreviewResponse {
     private Long orderPromotionId;
     private String orderPromotionName;
     private BigDecimal manualDiscount;
+
     /** Tiền sau giảm = gross − KM món − KM đơn − chiết khấu tay. */
     private BigDecimal amountAfterDiscount;
 

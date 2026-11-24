@@ -2,10 +2,9 @@ package com.group.restaurant.dtos.request.dish;
 
 import com.group.restaurant.enums.DishStatus;
 import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.math.BigDecimal;
 
 @Getter
 @Setter

@@ -14,15 +14,14 @@ import com.group.restaurant.repositories.DishOverrideRepository;
 import com.group.restaurant.repositories.DishRepository;
 import com.group.restaurant.services.BranchMenuService;
 import com.group.restaurant.utils.TenantGuard;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -55,36 +54,36 @@ public class BranchMenuServiceImpl implements BranchMenuService {
         return buildMenuItems(branchId, false);
     }
 
-   
     /**
      * @param onlyActive true ⇒ chỉ món ĐANG BÁN thuộc danh mục ĐANG HIỆN (thực đơn cho
      *                   khách và màn "Thêm món" của nhân viên).
      *                   false ⇒ lấy tất cả, cho màn quản trị.
      */
     private List<BranchMenuItemResponse> buildMenuItems(Long branchId, boolean onlyActive) {
-        Branch branch = branchRepository.findById(branchId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy chi nhánh với ID: " + branchId));
+        Branch branch =
+                branchRepository
+                        .findById(branchId)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy chi nhánh với ID: " + branchId));
 
-        Map<Long, DishOverride> overrideMap = dishOverrideRepository.findByBranchId(branchId)
-                .stream()
-                .collect(Collectors.toMap(o -> o.getDish().getId(), o -> o));
+        Map<Long, DishOverride> overrideMap =
+                dishOverrideRepository.findByBranchId(branchId).stream()
+                        .collect(Collectors.toMap(o -> o.getDish().getId(), o -> o));
 
-        Map<Long, StockStatus> stockMap = stockRepository.findByBranchId(branchId)
-                .stream()
-                .collect(Collectors.toMap(
-                        s -> s.getDish().getId(),
-                        s -> s.getStatus()
-                ));
+        Map<Long, StockStatus> stockMap =
+                stockRepository.findByBranchId(branchId).stream()
+                        .collect(Collectors.toMap(s -> s.getDish().getId(), s -> s.getStatus()));
 
         List<BranchMenuItemResponse> result = new ArrayList<>();
 
-    
         Long restaurantId = branch.getRestaurant().getId();
-        List<Dish> restaurantDishes = onlyActive
-                ? dishRepository.findActiveRestaurantDishes(
-                        restaurantId, DishStatus.ACTIVE, CategoryStatus.ACTIVE)
-                : dishRepository.findByRestaurantIdAndBranchIsNull(restaurantId);
+        List<Dish> restaurantDishes =
+                onlyActive
+                        ? dishRepository.findActiveRestaurantDishes(
+                                restaurantId, DishStatus.ACTIVE, CategoryStatus.ACTIVE)
+                        : dishRepository.findByRestaurantIdAndBranchIsNull(restaurantId);
 
         for (Dish dish : restaurantDishes) {
             DishOverride override = overrideMap.get(dish.getId());
@@ -96,63 +95,71 @@ public class BranchMenuServiceImpl implements BranchMenuService {
             // BR-17: Giá hiệu lực
             BigDecimal effectivePrice = hasOverride ? overridePrice : dish.getBasePrice();
 
-   
-            BigDecimal priceDiff = hasOverride
-                    ? overridePrice.subtract(dish.getBasePrice())
-                    : BigDecimal.ZERO;
+            BigDecimal priceDiff =
+                    hasOverride ? overridePrice.subtract(dish.getBasePrice()) : BigDecimal.ZERO;
 
             StockStatus stock = stockMap.getOrDefault(dish.getId(), StockStatus.AVAILABLE);
 
-            result.add(BranchMenuItemResponse.builder()
-                    .dishId(dish.getId())
-                    .dishName(dish.getName())
-                    .description(dish.getDescription())
-                    .imageUrl(dish.getImageUrl())
-                    .kitchenStationType(dish.getKitchenStationType())
-                    .soldByWeight(dish.getSoldByWeight())
-                    .categoryId(dish.getCategory() != null ? dish.getCategory().getId() : null)
-                    .categoryName(dish.getCategory() != null ? dish.getCategory().getName() : null)
-                    .basePrice(dish.getBasePrice())
-                    .overridePrice(overridePrice)
-                    .effectivePrice(effectivePrice)
-                    .priceDifference(priceDiff)
-                    .hasOverride(hasOverride)
-                    .isHidden(isHidden)
-                    .stockStatus(stock)
-                    .isBranchSpecific(false)
-                    .build());
+            result.add(
+                    BranchMenuItemResponse.builder()
+                            .dishId(dish.getId())
+                            .dishName(dish.getName())
+                            .description(dish.getDescription())
+                            .imageUrl(dish.getImageUrl())
+                            .kitchenStationType(dish.getKitchenStationType())
+                            .soldByWeight(dish.getSoldByWeight())
+                            .categoryId(
+                                    dish.getCategory() != null ? dish.getCategory().getId() : null)
+                            .categoryName(
+                                    dish.getCategory() != null
+                                            ? dish.getCategory().getName()
+                                            : null)
+                            .basePrice(dish.getBasePrice())
+                            .overridePrice(overridePrice)
+                            .effectivePrice(effectivePrice)
+                            .priceDifference(priceDiff)
+                            .hasOverride(hasOverride)
+                            .isHidden(isHidden)
+                            .stockStatus(stock)
+                            .isBranchSpecific(false)
+                            .build());
         }
 
-
-        List<Dish> branchSpecificDishes = onlyActive
-                ? dishRepository.findActiveBranchDishes(
-                        branchId, DishStatus.ACTIVE, CategoryStatus.ACTIVE)
-                : dishRepository.findByBranchId(branchId);
+        List<Dish> branchSpecificDishes =
+                onlyActive
+                        ? dishRepository.findActiveBranchDishes(
+                                branchId, DishStatus.ACTIVE, CategoryStatus.ACTIVE)
+                        : dishRepository.findByBranchId(branchId);
 
         for (Dish dish : branchSpecificDishes) {
             StockStatus stock = stockMap.getOrDefault(dish.getId(), StockStatus.AVAILABLE);
 
-            result.add(BranchMenuItemResponse.builder()
-                    .dishId(dish.getId())
-                    .dishName(dish.getName())
-                    .description(dish.getDescription())
-                    .imageUrl(dish.getImageUrl())
-                    .kitchenStationType(dish.getKitchenStationType())
-                    .soldByWeight(dish.getSoldByWeight())
-                    .categoryId(dish.getCategory() != null ? dish.getCategory().getId() : null)
-                    .categoryName(dish.getCategory() != null ? dish.getCategory().getName() : null)
-                    .basePrice(dish.getBasePrice())
-                    .overridePrice(null)
-                    .effectivePrice(dish.getBasePrice())
-                    .priceDifference(BigDecimal.ZERO)
-                    .hasOverride(false)
-                    // Món riêng chi nhánh không có DishOverride nên trước đây bị gán cứng
-                    // false ⇒ KHÔNG có đường nào ẩn được nó. Trạng thái thật nằm ở
-                    // chính Dish.status.
-                    .isHidden(dish.getStatus() != DishStatus.ACTIVE)
-                    .stockStatus(stock)
-                    .isBranchSpecific(true)
-                    .build());
+            result.add(
+                    BranchMenuItemResponse.builder()
+                            .dishId(dish.getId())
+                            .dishName(dish.getName())
+                            .description(dish.getDescription())
+                            .imageUrl(dish.getImageUrl())
+                            .kitchenStationType(dish.getKitchenStationType())
+                            .soldByWeight(dish.getSoldByWeight())
+                            .categoryId(
+                                    dish.getCategory() != null ? dish.getCategory().getId() : null)
+                            .categoryName(
+                                    dish.getCategory() != null
+                                            ? dish.getCategory().getName()
+                                            : null)
+                            .basePrice(dish.getBasePrice())
+                            .overridePrice(null)
+                            .effectivePrice(dish.getBasePrice())
+                            .priceDifference(BigDecimal.ZERO)
+                            .hasOverride(false)
+                            // Món riêng chi nhánh không có DishOverride nên trước đây bị gán cứng
+                            // false ⇒ KHÔNG có đường nào ẩn được nó. Trạng thái thật nằm ở
+                            // chính Dish.status.
+                            .isHidden(dish.getStatus() != DishStatus.ACTIVE)
+                            .stockStatus(stock)
+                            .isBranchSpecific(true)
+                            .build());
         }
 
         return result;

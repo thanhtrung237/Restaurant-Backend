@@ -2,13 +2,12 @@ package com.group.restaurant.dtos.response.orderDetail;
 
 import com.group.restaurant.enums.CancelReason;
 import com.group.restaurant.enums.OrderDetailStatus;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Setter;
 
 @Getter
 @Setter
@@ -32,7 +31,7 @@ public class OrderDetailResponse {
     private BigDecimal price;
     // Danh sách options đã chọn (size, topping, etc.)
     private List<OrderDetailOptionResponse> options;
-    // Thông tin hủy sau bếp 
+    // Thông tin hủy sau bếp
     private CancelReason cancelReason;
     private Boolean isBillable; // true = vẫn tính tiền dù đã hủy
     private LocalDateTime cancelledAt;

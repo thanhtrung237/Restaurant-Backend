@@ -13,12 +13,11 @@ import com.group.restaurant.repositories.PromotionBranchRepository;
 import com.group.restaurant.repositories.PromotionRepository;
 import com.group.restaurant.services.PromotionBranchService;
 import com.group.restaurant.utils.TenantGuard;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -33,33 +32,43 @@ public class PromotionBranchServiceImpl implements PromotionBranchService {
 
     @Override
     public PromotionBranchResponse assignPromotionToBranch(PromotionBranchAddRequest request) {
-        Branch branch = branchRepository.findById(request.getBranchId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy chi nhánh với ID: " + request.getBranchId()));
+        Branch branch =
+                branchRepository
+                        .findById(request.getBranchId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy chi nhánh với ID: "
+                                                        + request.getBranchId()));
 
-        Promotion promotion = promotionRepository.findById(request.getPromotionId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy khuyến mãi với ID: " + request.getPromotionId()));
+        Promotion promotion =
+                promotionRepository
+                        .findById(request.getPromotionId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy khuyến mãi với ID: "
+                                                        + request.getPromotionId()));
 
         // Kiểm tra cùng nhà hàng
         if (!branch.getRestaurant().getId().equals(promotion.getRestaurant().getId())) {
             throw new ConflictException("Chi nhánh và khuyến mãi không cùng nhà hàng");
         }
-        
+
         // Kiểm tra quyền
         tenantGuard.assertRestaurant(promotion.getRestaurant().getId());
 
-        if (promotionBranchRepository.existsByBranchIdAndPromotionId(request.getBranchId(), request.getPromotionId())) {
+        if (promotionBranchRepository.existsByBranchIdAndPromotionId(
+                request.getBranchId(), request.getPromotionId())) {
             throw new ConflictException("Khuyến mãi này đã được áp dụng cho chi nhánh");
         }
 
         // Xóa bản ghi cũ nếu còn tồn tại trong DB để tránh lỗi duplicate constraint
-        promotionBranchRepository.hardDeleteByBranchIdAndPromotionId(request.getBranchId(), request.getPromotionId());
+        promotionBranchRepository.hardDeleteByBranchIdAndPromotionId(
+                request.getBranchId(), request.getPromotionId());
 
-        PromotionBranch promotionBranch = PromotionBranch.builder()
-                .branch(branch)
-                .promotion(promotion)
-                .build();
+        PromotionBranch promotionBranch =
+                PromotionBranch.builder().branch(branch).promotion(promotion).build();
 
         PromotionBranch saved = promotionBranchRepository.save(promotionBranch);
         return promotionBranchMapper.toResponse(saved);

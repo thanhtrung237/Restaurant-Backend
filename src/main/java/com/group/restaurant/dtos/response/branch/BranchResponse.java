@@ -1,14 +1,12 @@
 package com.group.restaurant.dtos.response.branch;
 
 import com.group.restaurant.enums.BranchStatus;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Setter;
 
 @Getter
 @Setter
@@ -19,7 +17,6 @@ public class BranchResponse {
     private boolean geofenceEnabled;
     private int geofenceRadiusMeters;
     private int geofenceMaxAccuracyMeters;
-
 
     private Long id;
     private Long restaurantId;
@@ -43,7 +40,7 @@ public class BranchResponse {
     private Integer reservationHoldMinutes;
     private Integer tableCount;
     private Integer activeSessionCount;
-    //cảnh báo khi đổi VAT/phí dịch vụ mà còn phiên đang mở
+    // cảnh báo khi đổi VAT/phí dịch vụ mà còn phiên đang mở
     private Boolean hasOpenSessionWarning;
     private Integer openSessionCount;
     private LocalDateTime createdAt;

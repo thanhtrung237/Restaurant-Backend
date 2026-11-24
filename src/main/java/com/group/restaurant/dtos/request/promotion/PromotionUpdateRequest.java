@@ -3,11 +3,10 @@ package com.group.restaurant.dtos.request.promotion;
 import com.group.restaurant.enums.ApplyLevel;
 import com.group.restaurant.enums.PromotionStatus;
 import jakarta.validation.constraints.Size;
-import lombok.Getter;
-import lombok.Setter;
-
 import java.time.LocalDate;
 import java.util.List;
+import lombok.Getter;
+import lombok.Setter;
 
 @Getter
 @Setter

@@ -5,12 +5,10 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.Getter;
-import lombok.Setter;
-
 import java.math.BigDecimal;
 import java.time.LocalTime;
-
+import lombok.Getter;
+import lombok.Setter;
 
 @Getter
 @Setter
@@ -37,9 +35,7 @@ public class BranchAddRequest {
 
     private LocalTime closingTime;
 
-  
     private LocalTime businessDayStartTime;
-
 
     @Size(max = 50, message = "Mã số thuế không được vượt quá 50 ký tự")
     private String taxCode;
@@ -51,7 +47,6 @@ public class BranchAddRequest {
     @DecimalMax(value = "999.99", message = "Phí dịch vụ phải <= 999.99")
     private BigDecimal serviceFeeRate;
 
-   
     @DecimalMin(value = "0.00", message = "Thuế VAT phải >= 0")
     @DecimalMax(value = "999.99", message = "Thuế VAT phải <= 999.99")
     private BigDecimal vatRate;

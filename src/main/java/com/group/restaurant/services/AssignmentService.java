@@ -2,7 +2,6 @@ package com.group.restaurant.services;
 
 import com.group.restaurant.dtos.request.assignment.AssignmentAddRequest;
 import com.group.restaurant.dtos.response.assignment.AssignmentResponse;
-
 import java.util.List;
 
 public interface AssignmentService {

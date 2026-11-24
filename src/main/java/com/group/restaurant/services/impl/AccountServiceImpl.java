@@ -6,11 +6,11 @@ import com.group.restaurant.dtos.response.account.AccountResponse;
 import com.group.restaurant.dtos.response.assignment.AssignmentResponse;
 import com.group.restaurant.dtos.response.base.PageResponse;
 import com.group.restaurant.enums.AccountStatus;
+import com.group.restaurant.enums.RoleScope;
 import com.group.restaurant.exceptions.ConflictException;
 import com.group.restaurant.exceptions.InvalidParamException;
 import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.mappers.AccountMapper;
-import com.group.restaurant.enums.RoleScope;
 import com.group.restaurant.models.Account;
 import com.group.restaurant.models.Assignment;
 import com.group.restaurant.models.Restaurant;
@@ -19,21 +19,20 @@ import com.group.restaurant.repositories.AccountRepository;
 import com.group.restaurant.repositories.AssignmentRepository;
 import com.group.restaurant.repositories.RestaurantRepository;
 import com.group.restaurant.repositories.RoleRepository;
+import com.group.restaurant.services.AccountService;
 import com.group.restaurant.services.AuditLogService;
 import com.group.restaurant.services.audit.AuditAction;
 import com.group.restaurant.services.audit.AuditEvent;
-import com.group.restaurant.services.AccountService;
 import com.group.restaurant.utils.TenantGuard;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -52,17 +51,23 @@ public class AccountServiceImpl implements AccountService {
     @Override
     public AccountResponse createAccount(AccountAddRequest request) {
         tenantGuard.assertRestaurant(request.getRestaurantId());
-        Restaurant restaurant = restaurantRepository.findByIdForUpdate(request.getRestaurantId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy nhà hàng với ID: " + request.getRestaurantId()));
+        Restaurant restaurant =
+                restaurantRepository
+                        .findByIdForUpdate(request.getRestaurantId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy nhà hàng với ID: "
+                                                        + request.getRestaurantId()));
 
         // Trùng tên đăng nhập xét TRONG PHẠM VI nhà hàng, đúng với ràng buộc DB
         // `uk_account_restaurant_username = (restaurant_id, username)`.
         // `existsByUsername` cũ xét toàn hệ thống nên chặn oan: nhà hàng B không tạo được
         // tài khoản "admin" chỉ vì nhà hàng A đã có.
-        if (accountRepository.existsByRestaurantIdAndUsername(restaurant.getId(), request.getUsername())) {
-            throw new ConflictException("Tên đăng nhập '" + request.getUsername()
-                    + "' đã tồn tại trong nhà hàng này");
+        if (accountRepository.existsByRestaurantIdAndUsername(
+                restaurant.getId(), request.getUsername())) {
+            throw new ConflictException(
+                    "Tên đăng nhập '" + request.getUsername() + "' đã tồn tại trong nhà hàng này");
         }
 
         Account account = accountMapper.toEntity(request);
@@ -76,21 +81,26 @@ public class AccountServiceImpl implements AccountService {
 
         // POST /accounts also serves Platform Admin onboarding for restaurant owners.
         if (tenantGuard.isPlatformAdmin()) {
-            Role managerRole = roleRepository.findByRestaurantIdAndCode(restaurant.getId(), "MANAGER")
-                    .orElseGet(() -> {
-                        Role newRole = Role.builder()
-                                .code("MANAGER")
-                                .name("Quản trị nhà hàng")
-                                .scope(RoleScope.RESTAURANT)
-                                .restaurant(restaurant)
-                                .build();
-                        return roleRepository.save(newRole);
-                    });
-            Assignment assignment = Assignment.builder()
-                    .account(savedAccount)
-                    .role(managerRole)
-                    .branch(null)
-                    .build();
+            Role managerRole =
+                    roleRepository
+                            .findByRestaurantIdAndCode(restaurant.getId(), "MANAGER")
+                            .orElseGet(
+                                    () -> {
+                                        Role newRole =
+                                                Role.builder()
+                                                        .code("MANAGER")
+                                                        .name("Quản trị nhà hàng")
+                                                        .scope(RoleScope.RESTAURANT)
+                                                        .restaurant(restaurant)
+                                                        .build();
+                                        return roleRepository.save(newRole);
+                                    });
+            Assignment assignment =
+                    Assignment.builder()
+                            .account(savedAccount)
+                            .role(managerRole)
+                            .branch(null)
+                            .build();
             savedAccount.getAssignments().add(assignmentRepository.save(assignment));
         }
 
@@ -113,9 +123,15 @@ public class AccountServiceImpl implements AccountService {
         // Dùng repository trực tiếp (cần fetch assignments) nên KHÔNG đi qua
         // findAccountById() — phải tự gọi guard, nếu không thì đây là lỗ đọc tài khoản
         // của nhà hàng khác.
-        Account account = accountRepository.findByIdWithAssignments(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản với ID: " + id));
-        tenantGuard.assertRestaurant(account.getRestaurant() != null ? account.getRestaurant().getId() : null);
+        Account account =
+                accountRepository
+                        .findByIdWithAssignments(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy tài khoản với ID: " + id));
+        tenantGuard.assertRestaurant(
+                account.getRestaurant() != null ? account.getRestaurant().getId() : null);
         return buildAccountResponse(account);
     }
 
@@ -131,20 +147,24 @@ public class AccountServiceImpl implements AccountService {
     public AccountResponse getAccountByUsername(String username) {
         Long restaurantId = tenantGuard.currentRestaurantIdOrNull();
         if (restaurantId == null) {
-            throw new ResourceNotFoundException("Không tìm thấy tài khoản với tên đăng nhập: " + username);
+            throw new ResourceNotFoundException(
+                    "Không tìm thấy tài khoản với tên đăng nhập: " + username);
         }
-        Account account = accountRepository.findByRestaurantIdAndUsername(restaurantId, username)
-                .orElseThrow(
-                        () -> new ResourceNotFoundException("Không tìm thấy tài khoản với tên đăng nhập: " + username));
+        Account account =
+                accountRepository
+                        .findByRestaurantIdAndUsername(restaurantId, username)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy tài khoản với tên đăng nhập: "
+                                                        + username));
         return buildAccountResponse(account);
     }
 
     @Override
     @Transactional(readOnly = true)
     public PageResponse<AccountResponse> getAllAccounts(
-            Long restaurantId,
-            AccountStatus status,
-            Pageable pageable) {
+            Long restaurantId, AccountStatus status, Pageable pageable) {
         tenantGuard.assertRestaurant(restaurantId);
 
         // Không truyền restaurantId thì nhánh cuối gọi findAll() — trả tài khoản của
@@ -157,21 +177,27 @@ public class AccountServiceImpl implements AccountService {
         Page<Account> accountPage;
 
         if (restaurantId != null && status != null) {
-            List<Account> filteredAccounts = accountRepository.findByRestaurantIdAndStatus(restaurantId, status);
+            List<Account> filteredAccounts =
+                    accountRepository.findByRestaurantIdAndStatus(restaurantId, status);
             int start = (int) pageable.getOffset();
             int end = Math.min((start + pageable.getPageSize()), filteredAccounts.size());
             List<Account> pageContent = filteredAccounts.subList(start, end);
 
-            List<AccountResponse> responses = pageContent.stream()
-                    .map(this::buildAccountResponse)
-                    .collect(Collectors.toList());
+            List<AccountResponse> responses =
+                    pageContent.stream()
+                            .map(this::buildAccountResponse)
+                            .collect(Collectors.toList());
 
             return PageResponse.<AccountResponse>builder()
                     .content(responses)
                     .pageNumber(pageable.getPageNumber())
                     .pageSize(pageable.getPageSize())
                     .totalElements((long) filteredAccounts.size())
-                    .totalPages((int) Math.ceil((double) filteredAccounts.size() / pageable.getPageSize()))
+                    .totalPages(
+                            (int)
+                                    Math.ceil(
+                                            (double) filteredAccounts.size()
+                                                    / pageable.getPageSize()))
                     .first(pageable.getPageNumber() == 0)
                     .last(end >= filteredAccounts.size())
                     .build();
@@ -181,25 +207,31 @@ public class AccountServiceImpl implements AccountService {
             int end = Math.min((start + pageable.getPageSize()), filteredAccounts.size());
             List<Account> pageContent = filteredAccounts.subList(start, end);
 
-            List<AccountResponse> responses = pageContent.stream()
-                    .map(this::buildAccountResponse)
-                    .collect(Collectors.toList());
+            List<AccountResponse> responses =
+                    pageContent.stream()
+                            .map(this::buildAccountResponse)
+                            .collect(Collectors.toList());
 
             return PageResponse.<AccountResponse>builder()
                     .content(responses)
                     .pageNumber(pageable.getPageNumber())
                     .pageSize(pageable.getPageSize())
                     .totalElements((long) filteredAccounts.size())
-                    .totalPages((int) Math.ceil((double) filteredAccounts.size() / pageable.getPageSize()))
+                    .totalPages(
+                            (int)
+                                    Math.ceil(
+                                            (double) filteredAccounts.size()
+                                                    / pageable.getPageSize()))
                     .first(pageable.getPageNumber() == 0)
                     .last(end >= filteredAccounts.size())
                     .build();
         } else {
             accountPage = accountRepository.findAll(pageable);
 
-            List<AccountResponse> responses = accountPage.getContent().stream()
-                    .map(this::buildAccountResponse)
-                    .collect(Collectors.toList());
+            List<AccountResponse> responses =
+                    accountPage.getContent().stream()
+                            .map(this::buildAccountResponse)
+                            .collect(Collectors.toList());
 
             return PageResponse.<AccountResponse>builder()
                     .content(responses)
@@ -218,18 +250,14 @@ public class AccountServiceImpl implements AccountService {
     public List<AccountResponse> getAccountsByRestaurant(Long restaurantId) {
         tenantGuard.assertRestaurant(restaurantId);
         List<Account> accounts = accountRepository.findByRestaurantId(restaurantId);
-        return accounts.stream()
-                .map(this::buildAccountResponse)
-                .collect(Collectors.toList());
+        return accounts.stream().map(this::buildAccountResponse).collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<AccountResponse> getPlatformAdmins() {
         List<Account> accounts = accountRepository.findPlatformAdmins();
-        return accounts.stream()
-                .map(this::buildAccountResponse)
-                .collect(Collectors.toList());
+        return accounts.stream().map(this::buildAccountResponse).collect(Collectors.toList());
     }
 
     @Override
@@ -247,15 +275,19 @@ public class AccountServiceImpl implements AccountService {
         account.setStatus(status);
         accountRepository.save(account);
 
-        auditLogService.record(AuditEvent.builder()
-                .entityType("Account")
-                .entityId(id)
-                .actionType(AuditAction.PERMISSION_CHANGE)
-                .restaurantId(account.getRestaurant() != null ? account.getRestaurant().getId() : null)
-                .valueBefore("status=" + previous)
-                .valueAfter("status=" + status)
-                .reason("Đổi trạng thái tài khoản " + account.getUsername())
-                .build());
+        auditLogService.record(
+                AuditEvent.builder()
+                        .entityType("Account")
+                        .entityId(id)
+                        .actionType(AuditAction.PERMISSION_CHANGE)
+                        .restaurantId(
+                                account.getRestaurant() != null
+                                        ? account.getRestaurant().getId()
+                                        : null)
+                        .valueBefore("status=" + previous)
+                        .valueAfter("status=" + status)
+                        .reason("Đổi trạng thái tài khoản " + account.getUsername())
+                        .build());
     }
 
     @Override
@@ -287,14 +319,18 @@ public class AccountServiceImpl implements AccountService {
 
         // KHÔNG ghi mật khẩu (kể cả hash) vào valueAfter — nhật ký là dữ liệu đọc được
         // bởi mọi quản trị viên. Chỉ ghi sự kiện "đã reset".
-        auditLogService.record(AuditEvent.builder()
-                .entityType("Account")
-                .entityId(id)
-                .actionType(AuditAction.PERMISSION_CHANGE)
-                .restaurantId(account.getRestaurant() != null ? account.getRestaurant().getId() : null)
-                .valueAfter("passwordReset=true")
-                .reason("Quản trị viên đặt lại mật khẩu cho " + account.getUsername())
-                .build());
+        auditLogService.record(
+                AuditEvent.builder()
+                        .entityType("Account")
+                        .entityId(id)
+                        .actionType(AuditAction.PERMISSION_CHANGE)
+                        .restaurantId(
+                                account.getRestaurant() != null
+                                        ? account.getRestaurant().getId()
+                                        : null)
+                        .valueAfter("passwordReset=true")
+                        .reason("Quản trị viên đặt lại mật khẩu cho " + account.getUsername())
+                        .build());
     }
 
     @Override
@@ -303,7 +339,8 @@ public class AccountServiceImpl implements AccountService {
 
         long assignmentCount = assignmentRepository.findByAccountId(id).size();
         if (assignmentCount > 0) {
-            throw new ConflictException("Không thể xóa tài khoản đang có " + assignmentCount + " phân công");
+            throw new ConflictException(
+                    "Không thể xóa tài khoản đang có " + assignmentCount + " phân công");
         }
 
         account.softDelete(null);
@@ -319,16 +356,19 @@ public class AccountServiceImpl implements AccountService {
      * createAccount giữ khóa trên dòng nhà hàng tới khi giao dịch hoàn tất.
      */
     private String generateEmployeeCode(Long restaurantId) {
-        int maxNumber = accountRepository.findByRestaurantId(restaurantId).stream()
-                .map(Account::getEmployeeCode)
-                .filter(code -> code != null && code.matches("^NV\\d+$"))
-                .map(code -> Integer.parseInt(code.substring(2)))
-                .max(Integer::compareTo)
-                .orElse(0);
+        int maxNumber =
+                accountRepository.findByRestaurantId(restaurantId).stream()
+                        .map(Account::getEmployeeCode)
+                        .filter(code -> code != null && code.matches("^NV\\d+$"))
+                        .map(code -> Integer.parseInt(code.substring(2)))
+                        .max(Integer::compareTo)
+                        .orElse(0);
 
         for (int next = maxNumber + 1; next < maxNumber + 1000; next++) {
             String candidate = String.format("NV%03d", next);
-            if (accountRepository.findByRestaurantIdAndEmployeeCode(restaurantId, candidate).isEmpty()) {
+            if (accountRepository
+                    .findByRestaurantIdAndEmployeeCode(restaurantId, candidate)
+                    .isEmpty()) {
                 return candidate;
             }
         }
@@ -350,32 +390,47 @@ public class AccountServiceImpl implements AccountService {
      * khoản, phân công vai trò, mở lại tài khoản bị khoá đều là `hasRole('MANAGER')`.
      */
     private void assertNotLastActiveManager(Account account) {
-        boolean isManager = assignmentRepository.findByAccountId(account.getId()).stream()
-                .anyMatch(a -> a.getRole() != null
-                        && TenantGuard.ROLE_MANAGER.equals(a.getRole().getCode()));
+        boolean isManager =
+                assignmentRepository.findByAccountId(account.getId()).stream()
+                        .anyMatch(
+                                a ->
+                                        a.getRole() != null
+                                                && TenantGuard.ROLE_MANAGER.equals(
+                                                        a.getRole().getCode()));
         if (!isManager) {
             return;
         }
-        Long restaurantId = account.getRestaurant() != null ? account.getRestaurant().getId() : null;
-        long others = assignmentRepository.countActiveAccountsWithRoleExcludingAccount(
-                TenantGuard.ROLE_MANAGER, restaurantId, AccountStatus.ACTIVE, account.getId());
+        Long restaurantId =
+                account.getRestaurant() != null ? account.getRestaurant().getId() : null;
+        long others =
+                assignmentRepository.countActiveAccountsWithRoleExcludingAccount(
+                        TenantGuard.ROLE_MANAGER,
+                        restaurantId,
+                        AccountStatus.ACTIVE,
+                        account.getId());
         if (others == 0) {
             throw new ConflictException(
                     "Không thể vô hiệu hoá Quản trị nhà hàng cuối cùng còn hoạt động. "
-                    + "Hãy cấp vai trò này cho một tài khoản khác trước.");
+                            + "Hãy cấp vai trò này cho một tài khoản khác trước.");
         }
     }
 
     /**
-      * Chốt tenant đặt tại finder dùng chung: phủ getAccountById / updateAccount /
-      * changeStatus / changePassword / resetPassword / deleteAccount.
-      * Nếu không có chốt này, một Quản trị nhà hàng A gọi
-      * `PUT /accounts/{id}/reset-password` với id của nhà hàng B là chiếm được tài khoản đó.
-      */
+     * Chốt tenant đặt tại finder dùng chung: phủ getAccountById / updateAccount /
+     * changeStatus / changePassword / resetPassword / deleteAccount.
+     * Nếu không có chốt này, một Quản trị nhà hàng A gọi
+     * `PUT /accounts/{id}/reset-password` với id của nhà hàng B là chiếm được tài khoản đó.
+     */
     private Account findAccountById(Long id) {
-        Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản với ID: " + id));
-        tenantGuard.assertRestaurant(account.getRestaurant() != null ? account.getRestaurant().getId() : null);
+        Account account =
+                accountRepository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy tài khoản với ID: " + id));
+        tenantGuard.assertRestaurant(
+                account.getRestaurant() != null ? account.getRestaurant().getId() : null);
         return account;
     }
 
@@ -392,9 +447,10 @@ public class AccountServiceImpl implements AccountService {
 
         List<AssignmentResponse> assignmentResponses = new ArrayList<>();
         if (account.getAssignments() != null && !account.getAssignments().isEmpty()) {
-            assignmentResponses = account.getAssignments().stream()
-                    .map(this::buildAssignmentResponse)
-                    .collect(Collectors.toList());
+            assignmentResponses =
+                    account.getAssignments().stream()
+                            .map(this::buildAssignmentResponse)
+                            .collect(Collectors.toList());
         }
         response.setAssignments(assignmentResponses);
 
@@ -412,8 +468,10 @@ public class AccountServiceImpl implements AccountService {
                 .roleCode(assignment.getRole().getCode())
                 .roleScope(assignment.getRole().getScope())
                 .branchId(assignment.getBranch() != null ? assignment.getBranch().getId() : null)
-                .branchName(assignment.getBranch() != null ? assignment.getBranch().getName() : null)
-                .branchCode(assignment.getBranch() != null ? assignment.getBranch().getCode() : null)
+                .branchName(
+                        assignment.getBranch() != null ? assignment.getBranch().getName() : null)
+                .branchCode(
+                        assignment.getBranch() != null ? assignment.getBranch().getCode() : null)
                 .createdAt(assignment.getCreatedAt())
                 .updatedAt(assignment.getModifiedAt())
                 .build();

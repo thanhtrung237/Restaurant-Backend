@@ -1,8 +1,12 @@
 package com.group.restaurant.exceptions;
 
+import static org.springframework.http.HttpStatus.*;
+
 import com.group.restaurant.dtos.response.base.ResponseError;
+import java.util.Date;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -10,38 +14,43 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 
-import org.springframework.security.access.AccessDeniedException;
-import java.util.Date;
-import java.util.List;
-
-import static org.springframework.http.HttpStatus.*;
-
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
     @ResponseStatus(NOT_FOUND)
     public ResponseError handleMissingResource(
-            org.springframework.web.servlet.resource.NoResourceFoundException ex, WebRequest request) {
-        return ResponseError.builder().timestamp(new Date()).status(NOT_FOUND.value())
-                .error(NOT_FOUND.getReasonPhrase()).message("Không tìm thấy API hoặc tài nguyên được yêu cầu.")
-                .path(request.getDescription(false).replace("uri=", "")).build();
+            org.springframework.web.servlet.resource.NoResourceFoundException ex,
+            WebRequest request) {
+        return ResponseError.builder()
+                .timestamp(new Date())
+                .status(NOT_FOUND.value())
+                .error(NOT_FOUND.getReasonPhrase())
+                .message("Không tìm thấy API hoặc tài nguyên được yêu cầu.")
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
     }
 
     @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
     public org.springframework.http.ResponseEntity<ResponseError> handleStatus(
             org.springframework.web.server.ResponseStatusException ex, WebRequest request) {
-        var body = ResponseError.builder().timestamp(new Date()).status(ex.getStatusCode().value())
-                .error(ex.getStatusCode().toString()).message(ex.getReason())
-                .path(request.getDescription(false).replace("uri=", "")).build();
+        var body =
+                ResponseError.builder()
+                        .timestamp(new Date())
+                        .status(ex.getStatusCode().value())
+                        .error(ex.getStatusCode().toString())
+                        .message(ex.getReason())
+                        .path(request.getDescription(false).replace("uri=", ""))
+                        .build();
         return org.springframework.http.ResponseEntity.status(ex.getStatusCode())
-                .header("Cache-Control", "no-store").body(body);
+                .header("Cache-Control", "no-store")
+                .body(body);
     }
-
 
     @ExceptionHandler(ResourceNotFoundException.class)
     @ResponseStatus(NOT_FOUND)
-    public ResponseError handleResourceNotFoundException(ResourceNotFoundException e, WebRequest request) {
+    public ResponseError handleResourceNotFoundException(
+            ResourceNotFoundException e, WebRequest request) {
         log.warn("Resource not found at {}: {}", request.getDescription(false), e.getMessage());
         return ResponseError.builder()
                 .timestamp(new Date())
@@ -80,11 +89,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(BAD_REQUEST)
-    public ResponseError handleValidationException(MethodArgumentNotValidException ex, WebRequest request) {
-        List<String> errorMessages = ex.getBindingResult().getFieldErrors()
-                .stream()
-                .map(FieldError::getDefaultMessage)
-                .toList();
+    public ResponseError handleValidationException(
+            MethodArgumentNotValidException ex, WebRequest request) {
+        List<String> errorMessages =
+                ex.getBindingResult().getFieldErrors().stream()
+                        .map(FieldError::getDefaultMessage)
+                        .toList();
         String errorMessage = String.join(", ", errorMessages);
         log.warn("Validation error at {}: {}", request.getDescription(false), errorMessage);
 
@@ -99,7 +109,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(BAD_REQUEST)
-    public ResponseError handleIllegalArgumentException(IllegalArgumentException e, WebRequest request) {
+    public ResponseError handleIllegalArgumentException(
+            IllegalArgumentException e, WebRequest request) {
         log.warn("Illegal argument at {}: {}", request.getDescription(false), e.getMessage());
         return ResponseError.builder()
                 .timestamp(new Date())
@@ -110,8 +121,10 @@ public class GlobalExceptionHandler {
                 .build();
     }
 
-    @ExceptionHandler({org.springframework.security.authentication.BadCredentialsException.class, 
-                       org.springframework.security.authentication.DisabledException.class})
+    @ExceptionHandler({
+        org.springframework.security.authentication.BadCredentialsException.class,
+        org.springframework.security.authentication.DisabledException.class
+    })
     @ResponseStatus(UNAUTHORIZED)
     public ResponseError handleAuthenticationException(Exception e, WebRequest request) {
         log.warn("Authentication failed at {}: {}", request.getDescription(false), e.getMessage());
@@ -139,20 +152,26 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
     @ResponseStatus(METHOD_NOT_ALLOWED)
-    public ResponseError handleMethodNotSupportedException(org.springframework.web.HttpRequestMethodNotSupportedException e, WebRequest request) {
+    public ResponseError handleMethodNotSupportedException(
+            org.springframework.web.HttpRequestMethodNotSupportedException e, WebRequest request) {
         log.warn("Method not supported at {}: {}", request.getDescription(false), e.getMessage());
         return ResponseError.builder()
                 .timestamp(new Date())
                 .status(METHOD_NOT_ALLOWED.value())
                 .error(METHOD_NOT_ALLOWED.getReasonPhrase())
-                .message("Phương thức HTTP '" + e.getMethod() + "' không được hỗ trợ cho endpoint này.")
+                .message(
+                        "Phương thức HTTP '"
+                                + e.getMethod()
+                                + "' không được hỗ trợ cho endpoint này.")
                 .path(request.getDescription(false).replace("uri=", ""))
                 .build();
     }
 
     @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
     @ResponseStatus(BAD_REQUEST)
-    public ResponseError handleMissingParams(org.springframework.web.bind.MissingServletRequestParameterException e, WebRequest request) {
+    public ResponseError handleMissingParams(
+            org.springframework.web.bind.MissingServletRequestParameterException e,
+            WebRequest request) {
         log.warn("Missing parameter at {}: {}", request.getDescription(false), e.getMessage());
         return ResponseError.builder()
                 .timestamp(new Date())
@@ -163,9 +182,12 @@ public class GlobalExceptionHandler {
                 .build();
     }
 
-    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    @ExceptionHandler(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
     @ResponseStatus(BAD_REQUEST)
-    public ResponseError handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException e, WebRequest request) {
+    public ResponseError handleTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException e,
+            WebRequest request) {
         log.warn("Type mismatch at {}: {}", request.getDescription(false), e.getMessage());
         return ResponseError.builder()
                 .timestamp(new Date())
@@ -178,8 +200,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     @ResponseStatus(BAD_REQUEST)
-    public ResponseError handleDataIntegrity(org.springframework.dao.DataIntegrityViolationException e, WebRequest request) {
-        log.warn("Data integrity violation at {}: {}", request.getDescription(false), e.getMessage());
+    public ResponseError handleDataIntegrity(
+            org.springframework.dao.DataIntegrityViolationException e, WebRequest request) {
+        log.warn(
+                "Data integrity violation at {}: {}",
+                request.getDescription(false),
+                e.getMessage());
         return ResponseError.builder()
                 .timestamp(new Date())
                 .status(BAD_REQUEST.value())
@@ -192,7 +218,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     @ResponseStatus(INTERNAL_SERVER_ERROR)
     public ResponseError handleException(Exception ex, WebRequest request) {
-        log.error("Unhandled exception at {}: {}", request.getDescription(false), ex.getMessage(), ex);
+        log.error(
+                "Unhandled exception at {}: {}",
+                request.getDescription(false),
+                ex.getMessage(),
+                ex);
         return ResponseError.builder()
                 .timestamp(new Date())
                 .status(INTERNAL_SERVER_ERROR.value())

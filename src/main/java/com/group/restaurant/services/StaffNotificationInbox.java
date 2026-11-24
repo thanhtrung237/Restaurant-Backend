@@ -6,13 +6,12 @@ import com.group.restaurant.models.StaffNotification;
 import com.group.restaurant.repositories.AccountRepository;
 import com.group.restaurant.repositories.StaffNotificationRepository;
 import com.group.restaurant.utils.TenantGuard;
+import java.time.Instant;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.Instant;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -21,19 +20,40 @@ public class StaffNotificationInbox {
     private final AccountRepository accounts;
     private final TenantGuard tenantGuard;
 
-    public record Entry(Long id, Long branchId, Long tableSessionId, String tableName,
-                        StaffNotification.Type type, Long orderId, Long orderDetailId, String dishName,
-                        Instant createdAt, Instant resolvedAt, boolean read) {}
+    public record Entry(
+            Long id,
+            Long branchId,
+            Long tableSessionId,
+            String tableName,
+            StaffNotification.Type type,
+            Long orderId,
+            Long orderDetailId,
+            String dishName,
+            Instant createdAt,
+            Instant resolvedAt,
+            boolean read) {}
 
     @Transactional(readOnly = true)
     public List<Entry> list(Long branchId, Long accountId) {
         tenantGuard.assertBranchAssigned(branchId);
-        return notifications.findInbox(branchId, accountId, PageRequest.of(0, 50)).stream().map(row -> {
-            StaffNotification n = row.getNotification();
-            return new Entry(n.getId(), n.getBranchId(), n.getTableSessionId(), n.getTableName(),
-                    n.getType(), n.getOrderId(), n.getOrderDetailId(), n.getDishName(),
-                    n.getCreatedAt(), n.getResolvedAt(), row.getIsRead());
-        }).toList();
+        return notifications.findInbox(branchId, accountId, PageRequest.of(0, 50)).stream()
+                .map(
+                        row -> {
+                            StaffNotification n = row.getNotification();
+                            return new Entry(
+                                    n.getId(),
+                                    n.getBranchId(),
+                                    n.getTableSessionId(),
+                                    n.getTableName(),
+                                    n.getType(),
+                                    n.getOrderId(),
+                                    n.getOrderDetailId(),
+                                    n.getDishName(),
+                                    n.getCreatedAt(),
+                                    n.getResolvedAt(),
+                                    row.getIsRead());
+                        })
+                .toList();
     }
 
     @Transactional
@@ -55,8 +75,11 @@ public class StaffNotificationInbox {
     public void resolve(Long branchId, Long accountId, Long id) {
         lockAccount(accountId);
         tenantGuard.assertBranchAssigned(branchId);
-        StaffNotification notification = notifications.findForResolution(branchId, id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông báo."));
+        StaffNotification notification =
+                notifications
+                        .findForResolution(branchId, id)
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException("Không tìm thấy thông báo."));
         if (notification.getType() != StaffNotification.Type.STAFF_CALL) {
             throw new ConflictException("Chỉ yêu cầu gọi nhân viên mới có thể đánh dấu đã xử lý.");
         }
@@ -70,7 +93,8 @@ public class StaffNotificationInbox {
     }
 
     private StaffNotification find(Long branchId, Long id) {
-        return notifications.findByIdAndBranchId(id, branchId)
+        return notifications
+                .findByIdAndBranchId(id, branchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông báo."));
     }
 

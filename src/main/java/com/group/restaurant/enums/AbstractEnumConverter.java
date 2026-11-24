@@ -3,7 +3,8 @@ package com.group.restaurant.enums;
 import jakarta.persistence.AttributeConverter;
 import java.util.stream.Stream;
 
-public abstract class AbstractEnumConverter<E extends Enum<E> & BaseEnum<E>> implements AttributeConverter<E, Integer> {
+public abstract class AbstractEnumConverter<E extends Enum<E> & BaseEnum<E>>
+        implements AttributeConverter<E, Integer> {
     private final Class<E> clazz;
 
     protected AbstractEnumConverter(Class<E> clazz) {
@@ -17,8 +18,7 @@ public abstract class AbstractEnumConverter<E extends Enum<E> & BaseEnum<E>> imp
 
     @Override
     public E convertToEntityAttribute(Integer dbData) {
-        if (dbData == null)
-            return null;
+        if (dbData == null) return null;
         return Stream.of(clazz.getEnumConstants())
                 .filter(e -> e.getValue() == dbData)
                 .findFirst()

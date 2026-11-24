@@ -1,10 +1,9 @@
 package com.group.restaurant.dtos.response.report;
 
-import lombok.Builder;
-import lombok.Getter;
-
 import java.math.BigDecimal;
 import java.util.List;
+import lombok.Builder;
+import lombok.Getter;
 
 /**
  * Doanh thu theo khung giờ
@@ -22,17 +21,17 @@ public class HourlyRevenueResponse {
     @Getter
     @Builder
     public static class HourSlot {
-        private int hour;                // 0-23
-        private String label;            // "08:00-09:00"
+        private int hour; // 0-23
+        private String label; // "08:00-09:00"
         private BigDecimal revenue;
-        private Long tableCount;         // số bàn phục vụ trong giờ đó
+        private Long tableCount; // số bàn phục vụ trong giờ đó
     }
 
     @Getter
     @Builder
     public static class DayOfWeekSlot {
-        private int dayOfWeek;           // 1=Thứ 2 ... 7=Chủ nhật
-        private String label;            // "Thứ 2", "Thứ 3"...
+        private int dayOfWeek; // 1=Thứ 2 ... 7=Chủ nhật
+        private String label; // "Thứ 2", "Thứ 3"...
         private BigDecimal revenue;
         private Long invoiceCount;
     }

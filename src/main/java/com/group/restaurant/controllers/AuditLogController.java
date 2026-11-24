@@ -1,22 +1,20 @@
 package com.group.restaurant.controllers;
 
+import static org.springframework.http.HttpStatus.OK;
+
 import com.group.restaurant.dtos.response.auditLog.AuditLogResponse;
 import com.group.restaurant.dtos.response.base.PageResponse;
 import com.group.restaurant.dtos.response.base.ResponseSuccess;
 import com.group.restaurant.services.AuditLogService;
+import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
-import java.time.LocalDateTime;
-import java.util.List;
-
-import static org.springframework.http.HttpStatus.OK;
 
 @RestController
 @RequestMapping("${api.prefix}/audit-logs")
@@ -30,12 +28,11 @@ public class AuditLogController {
     // Giới hạn theo chi nhánh được phân công nằm ở service.
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER', 'PLATFORM_ADMIN')")
-    public ResponseEntity<ResponseSuccess<AuditLogResponse>> getAuditLogById(@PathVariable Long id) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy nhật ký thành công",
-                auditLogService.getAuditLogById(id)
-        ));
+    public ResponseEntity<ResponseSuccess<AuditLogResponse>> getAuditLogById(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK, "Lấy nhật ký thành công", auditLogService.getAuditLogById(id)));
     }
 
     @GetMapping("")
@@ -58,12 +55,18 @@ public class AuditLogController {
         LocalDateTime start = parseDateTime(startDate);
         LocalDateTime end = parseDateTime(endDate);
 
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy danh sách nhật ký thành công",
-                auditLogService.getAllAuditLogs(
-                        restaurantId, branchId, entityType, actionType, start, end, pageable)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy danh sách nhật ký thành công",
+                        auditLogService.getAllAuditLogs(
+                                restaurantId,
+                                branchId,
+                                entityType,
+                                actionType,
+                                start,
+                                end,
+                                pageable)));
     }
 
     private LocalDateTime parseDateTime(String str) {
@@ -87,43 +90,43 @@ public class AuditLogController {
     @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
     public ResponseEntity<ResponseSuccess<List<AuditLogResponse>>> getAuditLogsByRestaurant(
             @PathVariable Long restaurantId) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy danh sách nhật ký theo nhà hàng thành công",
-                auditLogService.getAuditLogsByRestaurant(restaurantId)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy danh sách nhật ký theo nhà hàng thành công",
+                        auditLogService.getAuditLogsByRestaurant(restaurantId)));
     }
 
     @GetMapping("/branch/{branchId}")
     @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
     public ResponseEntity<ResponseSuccess<List<AuditLogResponse>>> getAuditLogsByBranch(
             @PathVariable Long branchId) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy danh sách nhật ký theo chi nhánh thành công",
-                auditLogService.getAuditLogsByBranch(branchId)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy danh sách nhật ký theo chi nhánh thành công",
+                        auditLogService.getAuditLogsByBranch(branchId)));
     }
 
     @GetMapping("/entity-type/{entityType}")
     @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
     public ResponseEntity<ResponseSuccess<List<AuditLogResponse>>> getAuditLogsByEntityType(
             @PathVariable String entityType) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy danh sách nhật ký theo loại đối tượng thành công",
-                auditLogService.getAuditLogsByEntityType(entityType)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy danh sách nhật ký theo loại đối tượng thành công",
+                        auditLogService.getAuditLogsByEntityType(entityType)));
     }
 
     @GetMapping("/performed-by/{accountId}")
     @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
     public ResponseEntity<ResponseSuccess<List<AuditLogResponse>>> getAuditLogsByPerformedBy(
             @PathVariable Long accountId) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy danh sách nhật ký theo người thực hiện thành công",
-                auditLogService.getAuditLogsByPerformedBy(accountId)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy danh sách nhật ký theo người thực hiện thành công",
+                        auditLogService.getAuditLogsByPerformedBy(accountId)));
     }
 }

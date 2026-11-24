@@ -4,7 +4,6 @@ import com.group.restaurant.dtos.response.report.BranchRevenueCompareResponse;
 import com.group.restaurant.dtos.response.report.HourlyRevenueResponse;
 import com.group.restaurant.dtos.response.report.RevenueReportResponse;
 import com.group.restaurant.dtos.response.report.TopDishResponse;
-
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -22,10 +21,7 @@ public interface ReportService {
      * @param groupBy    "DAY" hoặc "MONTH" — nhóm xu hướng theo ngày hay tháng
      */
     RevenueReportResponse getRevenueReport(
-            List<Long> branchIds,
-            LocalDateTime from,
-            LocalDateTime to,
-            String groupBy);
+            List<Long> branchIds, LocalDateTime from, LocalDateTime to, String groupBy);
 
     /**
      * FR-RPT-02: Doanh thu theo khung giờ trong ngày.
@@ -35,9 +31,7 @@ public interface ReportService {
      * @param to        đến ngày giờ
      */
     HourlyRevenueResponse getHourlyRevenue(
-            List<Long> branchIds,
-            LocalDateTime from,
-            LocalDateTime to);
+            List<Long> branchIds, LocalDateTime from, LocalDateTime to);
 
     /**
      * FR-RPT-03: Món bán chạy / bán chậm.
@@ -48,10 +42,7 @@ public interface ReportService {
      * @param topN      số lượng món trong bảng xếp hạng (mặc định 10)
      */
     TopDishResponse getTopDishes(
-            List<Long> branchIds,
-            LocalDateTime from,
-            LocalDateTime to,
-            int topN);
+            List<Long> branchIds, LocalDateTime from, LocalDateTime to, int topN);
 
     /**
      * FR-RPT-04: So sánh doanh thu chi nhánh.
@@ -62,7 +53,5 @@ public interface ReportService {
      * @param to           đến ngày giờ
      */
     BranchRevenueCompareResponse getBranchComparison(
-            Long restaurantId,
-            LocalDateTime from,
-            LocalDateTime to);
+            Long restaurantId, LocalDateTime from, LocalDateTime to);
 }

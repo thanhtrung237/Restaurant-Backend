@@ -10,7 +10,10 @@ import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 import org.mapstruct.ReportingPolicy;
 
-@Mapper(componentModel = "spring", uses = {OrderDetailMapper.class}, unmappedTargetPolicy = ReportingPolicy.IGNORE,
+@Mapper(
+        componentModel = "spring",
+        uses = {OrderDetailMapper.class},
+        unmappedTargetPolicy = ReportingPolicy.IGNORE,
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface OrderMapper {
 

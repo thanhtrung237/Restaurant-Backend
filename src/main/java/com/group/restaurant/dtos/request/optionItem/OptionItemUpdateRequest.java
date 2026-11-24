@@ -2,10 +2,9 @@ package com.group.restaurant.dtos.request.optionItem;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.math.BigDecimal;
 
 @Getter
 @Setter

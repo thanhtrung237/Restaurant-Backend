@@ -2,15 +2,14 @@ package com.group.restaurant.dtos.response.invoice;
 
 import com.group.restaurant.dtos.response.payment.PaymentResponse;
 import com.group.restaurant.enums.InvoiceStatus;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
 
 @Getter
 @Setter
@@ -39,7 +38,8 @@ public class InvoiceResponse {
     private boolean discountApprovalPending;
 
     // ----- Breakdown đầy đủ theo thứ tự BR-13 (cùng bộ field với BillPreviewResponse) -----
-    // Suy ra từ phiên và dòng món, không cần đổi schema. Các field cũ ở trên giữ nguyên để tương thích;
+    // Suy ra từ phiên và dòng món, không cần đổi schema. Các field cũ ở trên giữ nguyên để tương
+    // thích;
     // subTotalBeforeDiscount nay chính là grossSubTotal (tiền hàng gốc, chưa trừ KM món).
     private BigDecimal grossSubTotal;
     private BigDecimal itemPromotionDiscount;
@@ -47,8 +47,10 @@ public class InvoiceResponse {
     private Long orderPromotionId;
     private String orderPromotionName;
     private BigDecimal manualDiscount;
+
     /** Tiền sau giảm = gross − KM món − KM đơn − chiết khấu tay. */
     private BigDecimal amountAfterDiscount;
+
     private BigDecimal serviceFeeRate;
     private BigDecimal vatRate;
     private boolean vatOnServiceFee;

@@ -5,12 +5,9 @@ import com.group.restaurant.dtos.request.auth.LoginRequest;
 import com.group.restaurant.dtos.response.auth.LoginResponse;
 import com.group.restaurant.dtos.response.auth.RefreshTokenResponse;
 import com.group.restaurant.enums.AccountStatus;
-import com.group.restaurant.enums.TokenType;
 import com.group.restaurant.enums.RoleScope;
+import com.group.restaurant.enums.TokenType;
 import com.group.restaurant.exceptions.InvalidParamException;
-import com.group.restaurant.services.AuditLogService;
-import com.group.restaurant.services.audit.AuditAction;
-import com.group.restaurant.services.audit.AuditEvent;
 import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.models.Account;
 import com.group.restaurant.models.Assignment;
@@ -20,20 +17,22 @@ import com.group.restaurant.repositories.AccountRepository;
 import com.group.restaurant.repositories.AssignmentRepository;
 import com.group.restaurant.repositories.RefreshTokenRepository;
 import com.group.restaurant.repositories.RoleRepository;
+import com.group.restaurant.services.AuditLogService;
 import com.group.restaurant.services.AuthService;
+import com.group.restaurant.services.audit.AuditAction;
+import com.group.restaurant.services.audit.AuditEvent;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDate;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -51,16 +50,19 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public LoginResponse login(LoginRequest request) {
         Account account;
-        
+
         // Platform Admin không cần restaurantCode (để null hoặc empty)
         if (request.getRestaurantCode() == null || request.getRestaurantCode().isBlank()) {
-            account = accountRepository
-                    .findPlatformAdminByUsername(request.getUsername())
-                    .orElse(null);
+            account =
+                    accountRepository
+                            .findPlatformAdminByUsername(request.getUsername())
+                            .orElse(null);
         } else {
-            account = accountRepository
-                    .findByRestaurantCodeAndUsername(request.getRestaurantCode(), request.getUsername())
-                    .orElse(null);
+            account =
+                    accountRepository
+                            .findByRestaurantCodeAndUsername(
+                                    request.getRestaurantCode(), request.getUsername())
+                            .orElse(null);
         }
 
         // FR-ADM-04: "Ghi nhật ký: thời điểm, thành công hay thất bại."
@@ -70,9 +72,12 @@ public class AuthServiceImpl implements AuthService {
             throw new BadCredentialsException("Sai tên đăng nhập hoặc mật khẩu");
         }
 
-        boolean passwordMatches = passwordEncoder.matches(request.getPassword(), account.getPasswordHash());
+        boolean passwordMatches =
+                passwordEncoder.matches(request.getPassword(), account.getPasswordHash());
         // Hỗ trợ đăng nhập với mật khẩu 123456 hoặc admin123 (mặc định) và tự cập nhật hash mới
-        if (!passwordMatches && ("123456".equals(request.getPassword()) || "admin123".equals(request.getPassword()))) {
+        if (!passwordMatches
+                && ("123456".equals(request.getPassword())
+                        || "admin123".equals(request.getPassword()))) {
             passwordMatches = true;
             account.setPasswordHash(passwordEncoder.encode(request.getPassword()));
             accountRepository.save(account);
@@ -91,27 +96,30 @@ public class AuthServiceImpl implements AuthService {
         // Đảm bảo Platform Admin luôn có phân công vai trò PLATFORM_ADMIN
         List<Assignment> currentAssignments = assignmentRepository.findByAccountId(account.getId());
         if (account.getRestaurant() == null && currentAssignments.isEmpty()) {
-            Role platformRole = roleRepository.findByCode("PLATFORM_ADMIN").orElseGet(() -> {
-                Role newRole = Role.builder()
-                        .code("PLATFORM_ADMIN")
-                        .name("Platform Admin")
-                        .scope(RoleScope.PLATFORM)
-                        .restaurant(null)
-                        .build();
-                return roleRepository.save(newRole);
-            });
+            Role platformRole =
+                    roleRepository
+                            .findByCode("PLATFORM_ADMIN")
+                            .orElseGet(
+                                    () -> {
+                                        Role newRole =
+                                                Role.builder()
+                                                        .code("PLATFORM_ADMIN")
+                                                        .name("Platform Admin")
+                                                        .scope(RoleScope.PLATFORM)
+                                                        .restaurant(null)
+                                                        .build();
+                                        return roleRepository.save(newRole);
+                                    });
 
-            Assignment assignment = Assignment.builder()
-                    .account(account)
-                    .role(platformRole)
-                    .branch(null)
-                    .build();
+            Assignment assignment =
+                    Assignment.builder().account(account).role(platformRole).branch(null).build();
             assignment = assignmentRepository.save(assignment);
             currentAssignments = List.of(assignment);
             if (account.getAssignments() != null) {
                 try {
                     account.getAssignments().add(assignment);
-                } catch (UnsupportedOperationException ignored) {}
+                } catch (UnsupportedOperationException ignored) {
+                }
             }
         }
 
@@ -119,19 +127,21 @@ public class AuthServiceImpl implements AuthService {
         String refreshTokenStr = jwtUtil.generateRefreshToken(account);
         LocalDate expiryDate = jwtUtil.getExpirationDate(refreshTokenStr, TokenType.REFRESH_TOKEN);
 
-        RefreshToken refreshToken = RefreshToken.builder()
-                .token(refreshTokenStr)
-                .expiryDate(expiryDate)
-                .deviceInfo(request.getDeviceInfo())
-                .revoked(false)
-                .account(account)
-                .build();
+        RefreshToken refreshToken =
+                RefreshToken.builder()
+                        .token(refreshTokenStr)
+                        .expiryDate(expiryDate)
+                        .deviceInfo(request.getDeviceInfo())
+                        .revoked(false)
+                        .account(account)
+                        .build();
         refreshTokenRepository.save(refreshToken);
 
-        List<String> roles = currentAssignments.stream()
-                .filter(a -> a.getRole() != null && a.getRole().getCode() != null)
-                .map(a -> a.getRole().getCode())
-                .collect(Collectors.toList());
+        List<String> roles =
+                currentAssignments.stream()
+                        .filter(a -> a.getRole() != null && a.getRole().getCode() != null)
+                        .map(a -> a.getRole().getCode())
+                        .collect(Collectors.toList());
 
         if (account.getRestaurant() == null && roles.isEmpty()) {
             roles = List.of("PLATFORM_ADMIN");
@@ -143,7 +153,8 @@ public class AuthServiceImpl implements AuthService {
                 .accessToken(accessToken)
                 .refreshToken(refreshTokenStr)
                 .accountId(account.getId())
-                .restaurantId(account.getRestaurant() != null ? account.getRestaurant().getId() : null)
+                .restaurantId(
+                        account.getRestaurant() != null ? account.getRestaurant().getId() : null)
                 .username(account.getUsername())
                 .fullName(account.getFullName())
                 .roles(roles)
@@ -161,8 +172,11 @@ public class AuthServiceImpl implements AuthService {
 
         String username = jwtUtil.getUsernameFromToken(refreshTokenStr, TokenType.REFRESH_TOKEN);
 
-        RefreshToken dbToken = refreshTokenRepository.findByToken(refreshTokenStr)
-                .orElseThrow(() -> new ResourceNotFoundException("Refresh token không tồn tại"));
+        RefreshToken dbToken =
+                refreshTokenRepository
+                        .findByToken(refreshTokenStr)
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException("Refresh token không tồn tại"));
 
         if (Boolean.TRUE.equals(dbToken.getRevoked())) {
             throw new JwtException("Refresh token đã bị thu hồi");
@@ -190,17 +204,21 @@ public class AuthServiceImpl implements AuthService {
         String refreshTokenStr = getRefreshTokenFromRequest(request);
         if (refreshTokenStr == null) return;
 
-        refreshTokenRepository.findByToken(refreshTokenStr).ifPresent(token -> {
-            token.setRevoked(true);
-            refreshTokenRepository.save(token);
-        });
+        refreshTokenRepository
+                .findByToken(refreshTokenStr)
+                .ifPresent(
+                        token -> {
+                            token.setRevoked(true);
+                            refreshTokenRepository.save(token);
+                        });
 
         // Người thực hiện lấy từ SecurityContext (đây là request đã xác thực).
-        auditLogService.record(AuditEvent.builder()
-                .entityType("Account")
-                .actionType(AuditAction.LOGOUT)
-                .reason("Đăng xuất")
-                .build());
+        auditLogService.record(
+                AuditEvent.builder()
+                        .entityType("Account")
+                        .actionType(AuditAction.LOGOUT)
+                        .reason("Đăng xuất")
+                        .build());
     }
 
     /**
@@ -209,21 +227,32 @@ public class AuthServiceImpl implements AuthService {
      * TUYỆT ĐỐI không ghi mật khẩu — nhật ký là dữ liệu mọi quản trị viên đọc được.
      * Chỉ ghi tên đăng nhập đã nhập và mã nhà hàng.
      */
-    private void recordLoginAttempt(LoginRequest request, Account account,
-                                    boolean success, String failureReason) {
-        String attempted = "restaurantCode=" + request.getRestaurantCode()
-                + "; username=" + request.getUsername();
-        auditLogService.record(AuditEvent.builder()
-                .entityType("Account")
-                .entityId(account != null ? account.getId() : null)
-                .actionType(AuditAction.LOGIN)
-                .restaurantId(account != null && account.getRestaurant() != null
-                        ? account.getRestaurant().getId() : null)
-                .performedByAccountId(account != null ? account.getId() : null)
-                .valueAfter(success ? "result=SUCCESS; " + attempted
-                                    : "result=FAILURE; " + attempted)
-                .reason(success ? "Đăng nhập thành công" : "Đăng nhập thất bại: " + failureReason)
-                .build());
+    private void recordLoginAttempt(
+            LoginRequest request, Account account, boolean success, String failureReason) {
+        String attempted =
+                "restaurantCode="
+                        + request.getRestaurantCode()
+                        + "; username="
+                        + request.getUsername();
+        auditLogService.record(
+                AuditEvent.builder()
+                        .entityType("Account")
+                        .entityId(account != null ? account.getId() : null)
+                        .actionType(AuditAction.LOGIN)
+                        .restaurantId(
+                                account != null && account.getRestaurant() != null
+                                        ? account.getRestaurant().getId()
+                                        : null)
+                        .performedByAccountId(account != null ? account.getId() : null)
+                        .valueAfter(
+                                success
+                                        ? "result=SUCCESS; " + attempted
+                                        : "result=FAILURE; " + attempted)
+                        .reason(
+                                success
+                                        ? "Đăng nhập thành công"
+                                        : "Đăng nhập thất bại: " + failureReason)
+                        .build());
     }
 
     private String getRefreshTokenFromRequest(HttpServletRequest request) {

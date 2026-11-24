@@ -1,5 +1,7 @@
 package com.group.restaurant.configurations;
 
+import static org.springframework.http.HttpStatus.FORBIDDEN;
+
 import com.group.restaurant.configurations.jwt.*;
 import com.group.restaurant.enums.TokenType;
 import com.group.restaurant.repositories.TableSessionRepository;
@@ -14,7 +16,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import static org.springframework.http.HttpStatus.FORBIDDEN;
 
 @Component
 @RequiredArgsConstructor
@@ -26,9 +27,10 @@ public class GuestWebSocketInterceptor implements ChannelInterceptor {
     private final TenantGuard tenantGuard;
 
     @Override
-    @Transactional(readOnly=true)
+    @Transactional(readOnly = true)
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
-        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        StompHeaderAccessor accessor =
+                MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
         if (accessor == null || accessor.getCommand() == null) return message;
         if (accessor.getCommand() == StompCommand.CONNECT) {
             String staff = accessor.getFirstNativeHeader("Authorization");
@@ -47,24 +49,37 @@ public class GuestWebSocketInterceptor implements ChannelInterceptor {
             var previous = SecurityContextHolder.getContext();
             try {
                 SecurityContextHolder.setContext(SecurityContextHolder.createEmptyContext());
-                if (staff != null) SecurityContextHolder.getContext().setAuthentication(authenticateStaff(staff));
-                if (destination != null && destination.matches("/topic/session/[0-9]+/item-status")) {
+                if (staff != null)
+                    SecurityContextHolder.getContext().setAuthentication(authenticateStaff(staff));
+                if (destination != null
+                        && destination.matches("/topic/session/[0-9]+/item-status")) {
                     Long id = Long.valueOf(destination.split("/")[3]);
                     if (staff != null) guests.require(id, false);
                     else {
-                        String token = attributes == null ? null : (String) attributes.get("guestToken");
-                        guests.requireGuest(token, sessions.findById(id).orElseThrow(() -> new ResponseStatusException(FORBIDDEN)), true);
+                        String token =
+                                attributes == null ? null : (String) attributes.get("guestToken");
+                        guests.requireGuest(
+                                token,
+                                sessions.findById(id)
+                                        .orElseThrow(() -> new ResponseStatusException(FORBIDDEN)),
+                                true);
                     }
-                } else if (staff != null && destination != null && destination.matches("/topic/branch/[0-9]+/(new-order|payment-request|staff-call|takeaway-updated)")) {
+                } else if (staff != null
+                        && destination != null
+                        && destination.matches(
+                                "/topic/branch/[0-9]+/(new-order|payment-request|staff-call|takeaway-updated)")) {
                     tenantGuard.assertBranchAssigned(Long.valueOf(destination.split("/")[3]));
                 } else deny();
-            } finally { SecurityContextHolder.setContext(previous); }
+            } finally {
+                SecurityContextHolder.setContext(previous);
+            }
         } else if (accessor.getCommand() == StompCommand.SEND) {
             // This application only pushes server events; clients cannot publish broker messages.
             deny();
         }
         return message;
     }
+
     private UsernamePasswordAuthenticationToken authenticateStaff(String token) {
         jwt.validateToken(token, TokenType.ACCESS_TOKEN);
         Long accountId = jwt.getAccountIdFromToken(token, TokenType.ACCESS_TOKEN);
@@ -73,5 +88,9 @@ public class GuestWebSocketInterceptor implements ChannelInterceptor {
         if (!user.isEnabled()) deny();
         return new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
     }
-    private void deny() { throw new ResponseStatusException(FORBIDDEN, "Không có quyền nhận thông báo của bàn/chi nhánh này."); }
+
+    private void deny() {
+        throw new ResponseStatusException(
+                FORBIDDEN, "Không có quyền nhận thông báo của bàn/chi nhánh này.");
+    }
 }

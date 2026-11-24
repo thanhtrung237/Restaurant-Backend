@@ -1,12 +1,10 @@
 package com.group.restaurant.dtos.response.restaurant;
 
 import com.group.restaurant.enums.RestaurantStatus;
+import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.time.LocalDateTime;
-
 
 @Getter
 @Setter

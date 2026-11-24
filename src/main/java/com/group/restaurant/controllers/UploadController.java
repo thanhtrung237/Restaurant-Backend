@@ -1,5 +1,7 @@
 package com.group.restaurant.controllers;
 
+import static org.springframework.http.HttpStatus.OK;
+
 import com.group.restaurant.dtos.response.base.ResponseSuccess;
 import com.group.restaurant.services.CloudinaryService;
 import lombok.RequiredArgsConstructor;
@@ -7,8 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
-import static org.springframework.http.HttpStatus.OK;
 
 @RestController
 @RequestMapping("${api.prefix}/upload")

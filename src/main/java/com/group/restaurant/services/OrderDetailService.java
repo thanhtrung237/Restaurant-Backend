@@ -7,7 +7,6 @@ import com.group.restaurant.dtos.request.orderDetail.OrderDetailServeRequest;
 import com.group.restaurant.dtos.request.orderDetail.OrderDetailUpdateRequest;
 import com.group.restaurant.dtos.response.orderDetail.OrderDetailResponse;
 import com.group.restaurant.enums.OrderDetailStatus;
-
 import java.util.List;
 
 public interface OrderDetailService {
@@ -20,15 +19,16 @@ public interface OrderDetailService {
 
     List<OrderDetailResponse> getOrderDetailsByOrder(Long orderId);
 
-    List<OrderDetailResponse> getOrderDetailsByTableSession(Long tableSessionId, OrderDetailStatus status);
+    List<OrderDetailResponse> getOrderDetailsByTableSession(
+            Long tableSessionId, OrderDetailStatus status);
 
     // Phục vụ xác nhận đã mang món ra bàn: PREPARING → SERVED
     OrderDetailResponse markAsServed(Long id, OrderDetailServeRequest request);
 
-    // Phục vụ nhập số cân: PENDING_WEIGHT → PREPARING 
+    // Phục vụ nhập số cân: PENDING_WEIGHT → PREPARING
     OrderDetailResponse confirmWeight(Long id, OrderDetailConfirmWeightRequest request);
 
-    // Hủy dòng món sau khi vào bếp với lý do 
+    // Hủy dòng món sau khi vào bếp với lý do
     OrderDetailResponse cancelAfterKitchen(Long id, OrderDetailCancelRequest request);
 
     // Hủy dòng món trước bếp (PENDING / PENDING_WEIGHT → CANCELLED)
@@ -39,7 +39,8 @@ public interface OrderDetailService {
     void changeOrderDetailStatus(Long id, OrderDetailStatus status);
 
     // Xác nhận hàng loạt món chờ chế biến (PENDING → PREPARING)
-    List<OrderDetailResponse> batchConfirm(com.group.restaurant.dtos.request.orderDetail.OrderDetailBatchConfirmRequest request);
+    List<OrderDetailResponse> batchConfirm(
+            com.group.restaurant.dtos.request.orderDetail.OrderDetailBatchConfirmRequest request);
 
     void deleteOrderDetail(Long id);
 }

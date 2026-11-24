@@ -1,5 +1,7 @@
 package com.group.restaurant.controllers;
 
+import static org.springframework.http.HttpStatus.OK;
+
 import com.group.restaurant.dtos.request.auth.LoginRequest;
 import com.group.restaurant.dtos.response.auth.LoginResponse;
 import com.group.restaurant.dtos.response.auth.RefreshTokenResponse;
@@ -11,8 +13,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import static org.springframework.http.HttpStatus.OK;
-
 @RestController
 @RequestMapping("${api.prefix}/auth")
 @RequiredArgsConstructor
@@ -23,9 +23,8 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ResponseSuccess<LoginResponse>> login(
             @Valid @RequestBody LoginRequest request) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK, "Đăng nhập thành công", authService.login(request)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(OK, "Đăng nhập thành công", authService.login(request)));
     }
 
     @PostMapping("/refresh-token")
@@ -34,9 +33,9 @@ public class AuthController {
             HttpServletRequest request) {
         // Lấy từ header hoặc để service tự lấy từ cookie
         String token = refreshToken != null ? refreshToken : extractFromCookie(request);
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK, "Làm mới token thành công", authService.refreshToken(token)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK, "Làm mới token thành công", authService.refreshToken(token)));
     }
 
     @PostMapping("/logout")

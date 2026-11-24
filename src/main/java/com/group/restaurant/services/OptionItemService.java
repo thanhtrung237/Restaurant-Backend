@@ -4,9 +4,8 @@ import com.group.restaurant.dtos.request.optionItem.OptionItemAddRequest;
 import com.group.restaurant.dtos.request.optionItem.OptionItemUpdateRequest;
 import com.group.restaurant.dtos.response.base.PageResponse;
 import com.group.restaurant.dtos.response.optionItem.OptionItemResponse;
-import org.springframework.data.domain.Pageable;
-
 import java.util.List;
+import org.springframework.data.domain.Pageable;
 
 public interface OptionItemService {
 
@@ -19,10 +18,7 @@ public interface OptionItemService {
     List<OptionItemResponse> getOptionItemsByGroup(Long optionGroupId);
 
     PageResponse<OptionItemResponse> getAllOptionItems(
-            Long optionGroupId,
-            String keyword,
-            Pageable pageable
-    );
+            Long optionGroupId, String keyword, Pageable pageable);
 
     void deleteOptionItem(Long id);
 }

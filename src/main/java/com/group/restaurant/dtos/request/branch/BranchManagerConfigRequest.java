@@ -3,10 +3,9 @@ package com.group.restaurant.dtos.request.branch;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
+import java.time.LocalTime;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.time.LocalTime;
 
 /** Cấu hình giờ giấc và timeout. Các trường tài khoản ngân hàng yêu cầu quyền Quản trị nhà hàng. */
 @Getter
@@ -37,12 +36,9 @@ public class BranchManagerConfigRequest {
     // JsonNullable). Lombok @Setter bỏ qua field đã có setter viết tay.
     // ------------------------------------------------------------------------------
 
-    @JsonIgnore
-    private boolean businessDayStartTimeProvided;
-    @JsonIgnore
-    private boolean bankAccountNoProvided;
-    @JsonIgnore
-    private boolean bankNameProvided;
+    @JsonIgnore private boolean businessDayStartTimeProvided;
+    @JsonIgnore private boolean bankAccountNoProvided;
+    @JsonIgnore private boolean bankNameProvided;
 
     public void setBusinessDayStartTime(LocalTime businessDayStartTime) {
         this.businessDayStartTime = businessDayStartTime;

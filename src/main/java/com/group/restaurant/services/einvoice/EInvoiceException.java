@@ -1,6 +1,5 @@
 package com.group.restaurant.services.einvoice;
 
-
 public class EInvoiceException extends Exception {
 
     private final String providerName;

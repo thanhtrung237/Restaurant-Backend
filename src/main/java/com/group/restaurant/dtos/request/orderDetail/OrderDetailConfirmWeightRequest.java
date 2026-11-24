@@ -2,13 +2,12 @@ package com.group.restaurant.dtos.request.orderDetail;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
+import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.math.BigDecimal;
-
 /**
-  Phục vụ nhập số cân thật cho món bán theo cân: CHỜ CÂN → ĐANG CHẾ BIẾN
+ * Phục vụ nhập số cân thật cho món bán theo cân: CHỜ CÂN → ĐANG CHẾ BIẾN
  */
 @Getter
 @Setter

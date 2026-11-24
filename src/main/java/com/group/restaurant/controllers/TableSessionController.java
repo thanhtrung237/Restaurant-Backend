@@ -1,5 +1,8 @@
 package com.group.restaurant.controllers;
 
+import static org.springframework.http.HttpStatus.CREATED;
+import static org.springframework.http.HttpStatus.OK;
+
 import com.group.restaurant.dtos.request.tableSession.*;
 import com.group.restaurant.dtos.response.base.ResponseSuccess;
 import com.group.restaurant.dtos.response.invoice.BillPreviewResponse;
@@ -7,15 +10,11 @@ import com.group.restaurant.dtos.response.tableSession.TableSessionResponse;
 import com.group.restaurant.services.BillService;
 import com.group.restaurant.services.TableSessionService;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-
-import static org.springframework.http.HttpStatus.CREATED;
-import static org.springframework.http.HttpStatus.OK;
 
 @RestController
 @RequestMapping("${api.prefix}/table-sessions")
@@ -26,17 +25,18 @@ public class TableSessionController {
     private final BillService billService;
 
     /**
-     Quét QR → tạo phiên WAITING_FOR_OPEN (public, không cần đăng nhập — FR-CUS-01)
+     * Quét QR → tạo phiên WAITING_FOR_OPEN (public, không cần đăng nhập — FR-CUS-01)
      */
     @PreAuthorize("hasAnyRole('WAITER','CASHIER','BRANCH_MANAGER','MANAGER')")
     @PostMapping("")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> createSession(
             @Valid @RequestBody TableSessionCreateRequest request) {
-        return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
-                CREATED,
-                "Tạo phiên bàn thành công",
-                tableSessionService.createSession(request)
-        ));
+        return ResponseEntity.status(CREATED)
+                .body(
+                        new ResponseSuccess<>(
+                                CREATED,
+                                "Tạo phiên bàn thành công",
+                                tableSessionService.createSession(request)));
     }
 
     /**
@@ -46,26 +46,24 @@ public class TableSessionController {
     @PostMapping("/reserve")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> reserveSession(
             @Valid @RequestBody TableSessionReservationRequest request) {
-        return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
-                CREATED,
-                "Đặt bàn trước thành công",
-                tableSessionService.reserveSession(request)
-        ));
+        return ResponseEntity.status(CREATED)
+                .body(
+                        new ResponseSuccess<>(
+                                CREATED,
+                                "Đặt bàn trước thành công",
+                                tableSessionService.reserveSession(request)));
     }
 
     /**
-     Phục vụ xác nhận mở bàn → SERVING
-     Dùng cho cả WAITING_FOR_OPEN và RESERVED
+     * Phục vụ xác nhận mở bàn → SERVING
+     * Dùng cho cả WAITING_FOR_OPEN và RESERVED
      */
     @PostMapping("/{id}/confirm-open")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> confirmOpen(
-            @PathVariable Long id,
-            @Valid @RequestBody TableSessionConfirmOpenRequest request) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Mở bàn thành công",
-                tableSessionService.confirmOpen(id, request)
-        ));
+            @PathVariable Long id, @Valid @RequestBody TableSessionConfirmOpenRequest request) {
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK, "Mở bàn thành công", tableSessionService.confirmOpen(id, request)));
     }
 
     /**
@@ -75,23 +73,24 @@ public class TableSessionController {
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> cancelReservation(
             @PathVariable Long id,
             @RequestBody(required = false) TableSessionCancelReservationRequest request) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Hủy đặt bàn trước thành công",
-                tableSessionService.cancelReservation(id, request)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Hủy đặt bàn trước thành công",
+                        tableSessionService.cancelReservation(id, request)));
     }
 
     /**
      * Yêu cầu thanh toán: SERVING → WAITING_FOR_PAY
      */
     @PostMapping("/{id}/request-payment")
-    public ResponseEntity<ResponseSuccess<TableSessionResponse>> requestPayment(@PathVariable Long id) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Chuyển bàn sang trạng thái chờ thanh toán thành công",
-                tableSessionService.requestPayment(id)
-        ));
+    public ResponseEntity<ResponseSuccess<TableSessionResponse>> requestPayment(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Chuyển bàn sang trạng thái chờ thanh toán thành công",
+                        tableSessionService.requestPayment(id)));
     }
 
     /**
@@ -100,10 +99,10 @@ public class TableSessionController {
      */
     @PostMapping("/{id}/call-staff")
     public ResponseEntity<ResponseSuccess<Void>> callStaff(
-            @PathVariable Long id,
-            @RequestParam(required = false) Long orderDetailId) {
+            @PathVariable Long id, @RequestParam(required = false) Long orderDetailId) {
         tableSessionService.callStaff(id, orderDetailId);
-        return ResponseEntity.ok(new ResponseSuccess<>(OK, "Đã gửi yêu cầu gọi nhân viên thành công", null));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(OK, "Đã gửi yêu cầu gọi nhân viên thành công", null));
     }
 
     /**
@@ -111,33 +110,32 @@ public class TableSessionController {
      */
     @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
     @PostMapping("/{id}/reopen")
-    public ResponseEntity<ResponseSuccess<TableSessionResponse>> reopenSession(@PathVariable Long id) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Mở lại bàn thành công",
-                tableSessionService.reopenSession(id)
-        ));
+    public ResponseEntity<ResponseSuccess<TableSessionResponse>> reopenSession(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK, "Mở lại bàn thành công", tableSessionService.reopenSession(id)));
     }
 
     @PostMapping("/legacy")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> openSession(
             @Valid @RequestBody TableSessionOpenRequest request) {
-        return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
-                CREATED,
-                "Mở phiên làm việc cho bàn thành công",
-                tableSessionService.openSession(request)
-        ));
+        return ResponseEntity.status(CREATED)
+                .body(
+                        new ResponseSuccess<>(
+                                CREATED,
+                                "Mở phiên làm việc cho bàn thành công",
+                                tableSessionService.openSession(request)));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> updateSession(
-            @PathVariable Long id,
-            @Valid @RequestBody TableSessionUpdateRequest request) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Cập nhật thông tin phiên làm việc thành công",
-                tableSessionService.updateSession(id, request)
-        ));
+            @PathVariable Long id, @Valid @RequestBody TableSessionUpdateRequest request) {
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Cập nhật thông tin phiên làm việc thành công",
+                        tableSessionService.updateSession(id, request)));
     }
 
     /**
@@ -145,62 +143,65 @@ public class TableSessionController {
      * của hóa đơn. Chỉ đọc. Công khai như GET order-details theo phiên (khách chưa đăng nhập).
      */
     @GetMapping("/{id}/bill-preview")
-    public ResponseEntity<ResponseSuccess<BillPreviewResponse>> getBillPreview(@PathVariable Long id) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy tạm tính theo phiên thành công",
-                billService.previewByTableSession(id)
-        ));
+    public ResponseEntity<ResponseSuccess<BillPreviewResponse>> getBillPreview(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy tạm tính theo phiên thành công",
+                        billService.previewByTableSession(id)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ResponseSuccess<TableSessionResponse>> getSessionById(@PathVariable Long id) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy thông tin phiên bàn thành công",
-                tableSessionService.getSessionById(id)
-        ));
+    public ResponseEntity<ResponseSuccess<TableSessionResponse>> getSessionById(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy thông tin phiên bàn thành công",
+                        tableSessionService.getSessionById(id)));
     }
 
     @GetMapping("/table/{tableId}/open")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> getOpenSessionByTable(
             @PathVariable Long tableId) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy phiên làm việc đang mở của bàn thành công",
-                tableSessionService.getOpenSessionByTable(tableId)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy phiên làm việc đang mở của bàn thành công",
+                        tableSessionService.getOpenSessionByTable(tableId)));
     }
 
     @GetMapping("/branch/{branchId}/open")
     public ResponseEntity<ResponseSuccess<List<TableSessionResponse>>> getOpenSessionsByBranch(
             @PathVariable Long branchId) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy danh sách các phiên làm việc đang mở theo chi nhánh thành công",
-                tableSessionService.getOpenSessionsByBranch(branchId)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy danh sách các phiên làm việc đang mở theo chi nhánh thành công",
+                        tableSessionService.getOpenSessionsByBranch(branchId)));
     }
 
     @GetMapping("/table/{tableId}")
     public ResponseEntity<ResponseSuccess<List<TableSessionResponse>>> getSessionsByTable(
             @PathVariable Long tableId) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Lấy lịch sử các phiên làm việc của bàn thành công",
-                tableSessionService.getSessionsByTable(tableId)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy lịch sử các phiên làm việc của bàn thành công",
+                        tableSessionService.getSessionsByTable(tableId)));
     }
 
     // FR-SRV-02: đóng bàn là việc của Thu ngân / QL chi nhánh (và Quản trị nhà hàng).
     @PostMapping("/{id}/close")
     @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER', 'CASHIER')")
-    public ResponseEntity<ResponseSuccess<TableSessionResponse>> closeSession(@PathVariable Long id) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Đóng phiên làm việc bàn thành công",
-                tableSessionService.closeSession(id)
-        ));
+    public ResponseEntity<ResponseSuccess<TableSessionResponse>> closeSession(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Đóng phiên làm việc bàn thành công",
+                        tableSessionService.closeSession(id)));
     }
 
     // Bảng 2.2: huỷ phiên là việc của Quản lý chi nhánh (và Quản trị nhà hàng),
@@ -208,23 +209,18 @@ public class TableSessionController {
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER')")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> cancelSession(
-            @PathVariable Long id,
-            @Valid @RequestBody TableSessionCancelRequest request) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Hủy phiên làm việc bàn thành công",
-                tableSessionService.cancelSession(id, request.getReason())
-        ));
+            @PathVariable Long id, @Valid @RequestBody TableSessionCancelRequest request) {
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Hủy phiên làm việc bàn thành công",
+                        tableSessionService.cancelSession(id, request.getReason())));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ResponseSuccess<Void>> deleteSession(@PathVariable Long id) {
         tableSessionService.deleteSession(id);
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Xóa phiên bàn thành công",
-                null
-        ));
+        return ResponseEntity.ok(new ResponseSuccess<>(OK, "Xóa phiên bàn thành công", null));
     }
 
     /**
@@ -233,13 +229,12 @@ public class TableSessionController {
     @PreAuthorize("hasAnyRole('WAITER', 'CASHIER', 'BRANCH_MANAGER', 'MANAGER')")
     @PostMapping("/{id}/transfer")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> transferTable(
-            @PathVariable Long id,
-            @Valid @RequestBody TableSessionTransferRequest request) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Chuyển bàn thành công",
-                tableSessionService.transferTable(id, request)
-        ));
+            @PathVariable Long id, @Valid @RequestBody TableSessionTransferRequest request) {
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Chuyển bàn thành công",
+                        tableSessionService.transferTable(id, request)));
     }
 
     /**
@@ -249,10 +244,8 @@ public class TableSessionController {
     @PostMapping("/merge")
     public ResponseEntity<ResponseSuccess<TableSessionResponse>> mergeTable(
             @Valid @RequestBody TableSessionMergeRequest request) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK,
-                "Gộp bàn thành công",
-                tableSessionService.mergeTable(request)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK, "Gộp bàn thành công", tableSessionService.mergeTable(request)));
     }
 }

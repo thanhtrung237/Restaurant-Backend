@@ -1,12 +1,11 @@
 package com.group.restaurant.dtos.response.tableSession;
 
 import com.group.restaurant.enums.TableSessionStatus;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 @Getter
 @Setter

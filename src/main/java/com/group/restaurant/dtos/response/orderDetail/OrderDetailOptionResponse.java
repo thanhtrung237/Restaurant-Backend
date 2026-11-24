@@ -1,10 +1,9 @@
 package com.group.restaurant.dtos.response.orderDetail;
 
+import java.math.BigDecimal;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.math.BigDecimal;
 
 /**
  * Response DTO cho OrderDetailOption - tùy chọn món ăn đã chọn (size, topping, etc.)

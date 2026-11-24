@@ -1,10 +1,9 @@
 package com.group.restaurant.dtos.response.report;
 
-import lombok.Builder;
-import lombok.Getter;
-
 import java.math.BigDecimal;
 import java.util.List;
+import lombok.Builder;
+import lombok.Getter;
 
 /**
  * So sánh doanh thu chi nhánh
@@ -25,19 +24,19 @@ public class BranchRevenueCompareResponse {
     public static class BranchStat {
         private Long branchId;
         private String branchName;
-        private int rank;                       // Thứ hạng theo doanh thu
+        private int rank; // Thứ hạng theo doanh thu
 
         private BigDecimal totalRevenue;
         private Long totalInvoices;
-        private BigDecimal avgInvoiceValue;     // Giá trị TB / hóa đơn
+        private BigDecimal avgInvoiceValue; // Giá trị TB / hóa đơn
 
         // Tỷ lệ hủy món — tách 2 loại theo BR-24
-        private Long cancelByRestaurantCount;   // Hủy "lỗi nhà hàng"
-        private Long cancelByCustomerCount;     // Hủy "khách đổi ý"
-        private Double totalCancelRate;         // % tổng dòng món bị hủy
+        private Long cancelByRestaurantCount; // Hủy "lỗi nhà hàng"
+        private Long cancelByCustomerCount; // Hủy "khách đổi ý"
+        private Double totalCancelRate; // % tổng dòng món bị hủy
 
         // true = chi nhánh này có chỉ số lệch bất thường so với trung bình
         private boolean hasAnomaly;
-        private String anomalyNote;             // Mô tả điểm bất thường (nếu có)
+        private String anomalyNote; // Mô tả điểm bất thường (nếu có)
     }
 }

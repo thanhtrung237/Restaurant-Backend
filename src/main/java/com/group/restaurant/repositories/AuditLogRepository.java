@@ -1,6 +1,8 @@
 package com.group.restaurant.repositories;
 
 import com.group.restaurant.models.AuditLog;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -8,15 +10,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
 @Repository
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
-    @Query("SELECT a FROM AuditLog a WHERE a.restaurant.id = :restaurantId " +
-           "ORDER BY a.occurredAt DESC")
-    List<AuditLog> findRecentByRestaurantId(@Param("restaurantId") Long restaurantId, Pageable pageable);
+    @Query(
+            "SELECT a FROM AuditLog a WHERE a.restaurant.id = :restaurantId "
+                    + "ORDER BY a.occurredAt DESC")
+    List<AuditLog> findRecentByRestaurantId(
+            @Param("restaurantId") Long restaurantId, Pageable pageable);
 
     // ------------------------------------------------------------------------------
     // Biến thể trả LIST, mới nhất trước — dùng cho 4 endpoint không phân trang
@@ -70,13 +71,13 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
     String BRANCH_SCOPE =
             "(a.branch.id IN :branchIds "
-            + " OR (a.actionType IN ('LOGIN', 'LOGOUT') AND EXISTS ("
-            + "      SELECT 1 FROM Assignment asg"
-            + "      WHERE asg.account = a.performedBy AND asg.branch.id IN :branchIds"
-            // QĐ-11: chỉ phân công CẤP CHI NHÁNH. Vai trò cấp nhà hàng không gắn chi nhánh
-            // (Bảng thuật ngữ), nên đăng nhập của Quản trị nhà hàng KHÔNG thuộc nhật ký chi
-            // nhánh — dù seed có gán branch_id cho phân công MANAGER.
-            + "        AND asg.role.scope = com.group.restaurant.enums.RoleScope.BRANCH)))";
+                    + " OR (a.actionType IN ('LOGIN', 'LOGOUT') AND EXISTS ("
+                    + "      SELECT 1 FROM Assignment asg"
+                    + "      WHERE asg.account = a.performedBy AND asg.branch.id IN :branchIds"
+                    // QĐ-11: chỉ phân công CẤP CHI NHÁNH. Vai trò cấp nhà hàng không gắn chi nhánh
+                    // (Bảng thuật ngữ), nên đăng nhập của Quản trị nhà hàng KHÔNG thuộc nhật ký chi
+                    // nhánh — dù seed có gán branch_id cho phân công MANAGER.
+                    + "        AND asg.role.scope = com.group.restaurant.enums.RoleScope.BRANCH)))";
 
     /**
      * Lọc theo loại thao tác (be-issues mục 22, FR-LOG-01 "loại hành động").
@@ -94,12 +95,15 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
      * số nhánh, và rất dễ quên áp chốt BR-18 ở một nhánh nào đó. Mỗi bộ lọc ở đây đi kèm một
      * cờ bật/tắt nên nhánh nào cũng đi qua đúng cùng một điều kiện phạm vi.
      */
-    @Query("SELECT a FROM AuditLog a WHERE "
-           + "(:restaurantId IS NULL OR a.restaurant.id = :restaurantId) "
-           + "AND (:entityType IS NULL OR a.entityType = :entityType) "
-           + "AND (:filterByDate = FALSE OR a.occurredAt BETWEEN :startDate AND :endDate) "
-           + "AND (:filterByBranch = FALSE OR " + BRANCH_SCOPE + ")"
-           + ACTION_FILTER)
+    @Query(
+            "SELECT a FROM AuditLog a WHERE "
+                    + "(:restaurantId IS NULL OR a.restaurant.id = :restaurantId) "
+                    + "AND (:entityType IS NULL OR a.entityType = :entityType) "
+                    + "AND (:filterByDate = FALSE OR a.occurredAt BETWEEN :startDate AND :endDate) "
+                    + "AND (:filterByBranch = FALSE OR "
+                    + BRANCH_SCOPE
+                    + ")"
+                    + ACTION_FILTER)
     Page<AuditLog> search(
             @Param("restaurantId") Long restaurantId,
             @Param("entityType") String entityType,
@@ -115,21 +119,24 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT a FROM AuditLog a WHERE " + BRANCH_SCOPE + " ORDER BY a.occurredAt DESC")
     List<AuditLog> findBranchScopedList(@Param("branchIds") List<Long> branchIds);
 
-    @Query("SELECT a FROM AuditLog a WHERE a.restaurant.id = :restaurantId AND " + BRANCH_SCOPE
-           + " ORDER BY a.occurredAt DESC")
+    @Query(
+            "SELECT a FROM AuditLog a WHERE a.restaurant.id = :restaurantId AND "
+                    + BRANCH_SCOPE
+                    + " ORDER BY a.occurredAt DESC")
     List<AuditLog> findBranchScopedByRestaurantList(
-            @Param("restaurantId") Long restaurantId,
-            @Param("branchIds") List<Long> branchIds);
+            @Param("restaurantId") Long restaurantId, @Param("branchIds") List<Long> branchIds);
 
-    @Query("SELECT a FROM AuditLog a WHERE a.entityType = :entityType AND " + BRANCH_SCOPE
-           + " ORDER BY a.occurredAt DESC")
+    @Query(
+            "SELECT a FROM AuditLog a WHERE a.entityType = :entityType AND "
+                    + BRANCH_SCOPE
+                    + " ORDER BY a.occurredAt DESC")
     List<AuditLog> findBranchScopedByEntityTypeList(
-            @Param("entityType") String entityType,
-            @Param("branchIds") List<Long> branchIds);
+            @Param("entityType") String entityType, @Param("branchIds") List<Long> branchIds);
 
-    @Query("SELECT a FROM AuditLog a WHERE a.performedBy.id = :performedById AND " + BRANCH_SCOPE
-           + " ORDER BY a.occurredAt DESC")
+    @Query(
+            "SELECT a FROM AuditLog a WHERE a.performedBy.id = :performedById AND "
+                    + BRANCH_SCOPE
+                    + " ORDER BY a.occurredAt DESC")
     List<AuditLog> findBranchScopedByPerformedByList(
-            @Param("performedById") Long performedById,
-            @Param("branchIds") List<Long> branchIds);
+            @Param("performedById") Long performedById, @Param("branchIds") List<Long> branchIds);
 }

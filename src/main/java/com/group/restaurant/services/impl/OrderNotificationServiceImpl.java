@@ -5,16 +5,15 @@ import com.group.restaurant.models.StaffNotification;
 import com.group.restaurant.models.TableSession;
 import com.group.restaurant.repositories.StaffNotificationRepository;
 import com.group.restaurant.services.OrderNotificationService;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-
-import java.util.HashMap;
-import java.util.Map;
-import java.time.Instant;
 
 /**
  * A3 — Triển khai push STOMP (T-01: ≤ 5 giây).
@@ -36,12 +35,13 @@ public class OrderNotificationServiceImpl implements OrderNotificationService {
      */
     private void send(String destination, Map<String, Object> payload) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    doSend(destination, payload);
-                }
-            });
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            doSend(destination, payload);
+                        }
+                    });
         } else {
             doSend(destination, payload);
         }
@@ -58,36 +58,51 @@ public class OrderNotificationServiceImpl implements OrderNotificationService {
     }
 
     @Override
-    public void notifyNewOrder(Long branchId, Long orderId, Long tableSessionId, String tableNo, Long orderedById) {
+    public void notifyNewOrder(
+            Long branchId, Long orderId, Long tableSessionId, String tableNo, Long orderedById) {
         String destination = "/topic/branch/" + branchId + "/new-order";
-        Map<String, Object> payload = new HashMap<>(Map.of(
-                "type", "NEW_ORDER",
-                "orderId", orderId,
-                "tableSessionId", tableSessionId,
-                "tableNo", tableNo != null ? tableNo : ""
-        ));
+        Map<String, Object> payload =
+                new HashMap<>(
+                        Map.of(
+                                "type",
+                                "NEW_ORDER",
+                                "orderId",
+                                orderId,
+                                "tableSessionId",
+                                tableSessionId,
+                                "tableNo",
+                                tableNo != null ? tableNo : ""));
         if (orderedById != null) {
             payload.put("orderedById", orderedById);
         }
-        persistAndSend(destination, payload, entry(StaffNotification.Type.NEW_ORDER, branchId, tableSessionId, tableNo)
-                .orderId(orderId).build());
+        persistAndSend(
+                destination,
+                payload,
+                entry(StaffNotification.Type.NEW_ORDER, branchId, tableSessionId, tableNo)
+                        .orderId(orderId)
+                        .build());
     }
 
     @Override
-    public void notifyItemStatusChanged(Long sessionId, Long orderDetailId, OrderDetailStatus newStatus) {
+    public void notifyItemStatusChanged(
+            Long sessionId, Long orderDetailId, OrderDetailStatus newStatus) {
         String destination = "/topic/session/" + sessionId + "/item-status";
-        Map<String, Object> payload = Map.of(
-                "type", "ITEM_STATUS_CHANGED",
-                "orderDetailId", orderDetailId,
-                "status", newStatus.name()
-        );
+        Map<String, Object> payload =
+                Map.of(
+                        "type",
+                        "ITEM_STATUS_CHANGED",
+                        "orderDetailId",
+                        orderDetailId,
+                        "status",
+                        newStatus.name());
         send(destination, payload);
     }
 
     @Override
     public void notifyTakeawayUpdated(TableSession session) {
         if (session == null || !session.isTakeaway()) return;
-        send("/topic/branch/" + session.getBranch().getId() + "/takeaway-updated",
+        send(
+                "/topic/branch/" + session.getBranch().getId() + "/takeaway-updated",
                 Map.of("tableSessionId", session.getId()));
     }
 
@@ -98,13 +113,17 @@ public class OrderNotificationServiceImpl implements OrderNotificationService {
         payload.put("type", "PAYMENT_REQUESTED");
         payload.put("tableSessionId", sessionId);
         payload.put("tableNo", tableNo != null ? tableNo : "");
-        persistAndSend(destination, payload,
-                entry(StaffNotification.Type.PAYMENT_REQUESTED, branchId, sessionId, tableNo).build());
+        persistAndSend(
+                destination,
+                payload,
+                entry(StaffNotification.Type.PAYMENT_REQUESTED, branchId, sessionId, tableNo)
+                        .build());
     }
 
     @Override
     public void notifyPaymentQrOpened(TableSession session) {
-        if (notifications.existsByTableSessionIdAndType(session.getId(), StaffNotification.Type.PAYMENT_QR_OPENED)) return;
+        if (notifications.existsByTableSessionIdAndType(
+                session.getId(), StaffNotification.Type.PAYMENT_QR_OPENED)) return;
         sendPaymentNotice(session, StaffNotification.Type.PAYMENT_QR_OPENED);
     }
 
@@ -121,14 +140,24 @@ public class OrderNotificationServiceImpl implements OrderNotificationService {
     private void sendPaymentNotice(TableSession session, StaffNotification.Type type) {
         Long branchId = session.getBranch().getId();
         String tableName = session.getDisplayName();
-        Map<String, Object> payload = new HashMap<>(Map.of(
-                "type", type.name(), "tableSessionId", session.getId(), "tableNo", tableName));
-        persistAndSend("/topic/branch/" + branchId + "/payment-request", payload,
+        Map<String, Object> payload =
+                new HashMap<>(
+                        Map.of(
+                                "type",
+                                type.name(),
+                                "tableSessionId",
+                                session.getId(),
+                                "tableNo",
+                                tableName));
+        persistAndSend(
+                "/topic/branch/" + branchId + "/payment-request",
+                payload,
                 entry(type, branchId, session.getId(), tableName).build());
     }
 
     @Override
-    public void notifyStaffCall(Long branchId, Long sessionId, Long orderDetailId, String tableNo, String dishName) {
+    public void notifyStaffCall(
+            Long branchId, Long sessionId, Long orderDetailId, String tableNo, String dishName) {
         String destination = "/topic/branch/" + branchId + "/staff-call";
         Map<String, Object> payload = new HashMap<>();
         payload.put("type", "STAFF_CALL");
@@ -136,17 +165,27 @@ public class OrderNotificationServiceImpl implements OrderNotificationService {
         payload.put("orderDetailId", orderDetailId);
         payload.put("tableNo", tableNo != null ? tableNo : "");
         payload.put("dishName", dishName != null ? dishName : "");
-        persistAndSend(destination, payload, entry(StaffNotification.Type.STAFF_CALL, branchId, sessionId, tableNo)
-                .orderDetailId(orderDetailId).dishName(dishName).build());
+        persistAndSend(
+                destination,
+                payload,
+                entry(StaffNotification.Type.STAFF_CALL, branchId, sessionId, tableNo)
+                        .orderDetailId(orderDetailId)
+                        .dishName(dishName)
+                        .build());
     }
 
-    private StaffNotification.StaffNotificationBuilder entry(StaffNotification.Type type, Long branchId,
-                                                               Long sessionId, String tableNo) {
-        return StaffNotification.builder().type(type).branchId(branchId).tableSessionId(sessionId)
-                .tableName(tableNo == null ? "" : tableNo).createdAt(Instant.now());
+    private StaffNotification.StaffNotificationBuilder entry(
+            StaffNotification.Type type, Long branchId, Long sessionId, String tableNo) {
+        return StaffNotification.builder()
+                .type(type)
+                .branchId(branchId)
+                .tableSessionId(sessionId)
+                .tableName(tableNo == null ? "" : tableNo)
+                .createdAt(Instant.now());
     }
 
-    private void persistAndSend(String destination, Map<String, Object> payload, StaffNotification notification) {
+    private void persistAndSend(
+            String destination, Map<String, Object> payload, StaffNotification notification) {
         payload.put("notificationId", notifications.save(notification).getId());
         send(destination, payload);
     }

@@ -1,5 +1,13 @@
 package com.group.restaurant;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.group.restaurant.configurations.jwt.AccountUserDetails;
 import com.group.restaurant.enums.RoleScope;
@@ -12,6 +20,8 @@ import com.group.restaurant.models.Restaurant;
 import com.group.restaurant.models.Role;
 import com.group.restaurant.models.TableSession;
 import jakarta.persistence.EntityManager;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -21,17 +31,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Map;
-
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -53,24 +52,63 @@ class BranchAreaIntegrationTest {
         var restaurantAdmin = staff(first, "MANAGER", RoleScope.RESTAURANT);
         var cashier = staff(first, "CASHIER", RoleScope.BRANCH);
 
-        call(post("/api/v1/areas"), cashier, Map.of("branchId", first.getId(), "name", "Sân thượng"))
+        call(
+                        post("/api/v1/areas"),
+                        cashier,
+                        Map.of("branchId", first.getId(), "name", "Sân thượng"))
                 .andExpect(status().isForbidden());
-        call(post("/api/v1/areas"), branchManager, Map.of("branchId", second.getId(), "name", "Tầng 2"))
+        call(
+                        post("/api/v1/areas"),
+                        branchManager,
+                        Map.of("branchId", second.getId(), "name", "Tầng 2"))
                 .andExpect(status().isForbidden());
-        long areaId = createdId(call(post("/api/v1/areas"), branchManager,
-                Map.of("branchId", first.getId(), "name", "  Tầng 2  "))
-                .andExpect(jsonPath("$.data.name").value("Tầng 2")));
-        long otherAreaId = createdId(call(post("/api/v1/areas"), restaurantAdmin,
-                Map.of("branchId", second.getId(), "name", "Tầng 2")));
+        long areaId =
+                createdId(
+                        call(
+                                        post("/api/v1/areas"),
+                                        branchManager,
+                                        Map.of("branchId", first.getId(), "name", "  Tầng 2  "))
+                                .andExpect(jsonPath("$.data.name").value("Tầng 2")));
+        long otherAreaId =
+                createdId(
+                        call(
+                                post("/api/v1/areas"),
+                                restaurantAdmin,
+                                Map.of("branchId", second.getId(), "name", "Tầng 2")));
 
-        call(post("/api/v1/tables"), branchManager,
-                Map.of("branchId", first.getId(), "name", "Bàn 01", "capacity", 4, "areaId", otherAreaId))
+        call(
+                        post("/api/v1/tables"),
+                        branchManager,
+                        Map.of(
+                                "branchId",
+                                first.getId(),
+                                "name",
+                                "Bàn 01",
+                                "capacity",
+                                4,
+                                "areaId",
+                                otherAreaId))
                 .andExpect(status().isNotFound());
-        long tableId = createdId(call(post("/api/v1/tables"), branchManager,
-                Map.of("branchId", first.getId(), "name", "Bàn 01", "capacity", 4, "areaId", areaId)));
+        long tableId =
+                createdId(
+                        call(
+                                post("/api/v1/tables"),
+                                branchManager,
+                                Map.of(
+                                        "branchId",
+                                        first.getId(),
+                                        "name",
+                                        "Bàn 01",
+                                        "capacity",
+                                        4,
+                                        "areaId",
+                                        areaId)));
         call(put("/api/v1/tables/{id}", tableId), branchManager, Map.of("areaId", otherAreaId))
                 .andExpect(status().isNotFound());
-        call(post("/api/v1/areas"), branchManager, Map.of("branchId", first.getId(), "name", "tầng 2"))
+        call(
+                        post("/api/v1/areas"),
+                        branchManager,
+                        Map.of("branchId", first.getId(), "name", "tầng 2"))
                 .andExpect(status().isConflict());
     }
 
@@ -95,56 +133,117 @@ class BranchAreaIntegrationTest {
         var otherManager = staff(second, "BRANCH_MANAGER", RoleScope.BRANCH);
         var areaBody = Map.of("branchId", first.getId(), "name", "Tầng 2");
         long areaId = createdId(call(post("/api/v1/areas"), manager, areaBody));
-        var historyTable = Map.of("branchId", first.getId(), "name", "Bàn A", "areaId", areaId, "qrCode", "AREA-HISTORY");
+        var historyTable =
+                Map.of(
+                        "branchId",
+                        first.getId(),
+                        "name",
+                        "Bàn A",
+                        "areaId",
+                        areaId,
+                        "qrCode",
+                        "AREA-HISTORY");
         long usedId = createdId(call(post("/api/v1/tables"), manager, historyTable));
-        var unusedTable = Map.of("branchId", first.getId(), "name", "Bàn B", "areaId", areaId, "qrCode", "AREA-UNUSED");
+        var unusedTable =
+                Map.of(
+                        "branchId",
+                        first.getId(),
+                        "name",
+                        "Bàn B",
+                        "areaId",
+                        areaId,
+                        "qrCode",
+                        "AREA-UNUSED");
         long unusedId = createdId(call(post("/api/v1/tables"), manager, unusedTable));
-        var session = TableSession.builder().table(entities.find(DiningTable.class, usedId))
-                .branch(first).status(TableSessionStatus.RESERVED).build();
+        var session =
+                TableSession.builder()
+                        .table(entities.find(DiningTable.class, usedId))
+                        .branch(first)
+                        .status(TableSessionStatus.RESERVED)
+                        .build();
         entities.persist(session);
 
-        mvc.perform(delete("/api/v1/tables/{id}", unusedId).with(authentication(otherManager))).andExpect(status().isForbidden());
-        mvc.perform(delete("/api/v1/areas/{id}", areaId).with(authentication(otherManager))).andExpect(status().isForbidden());
-        mvc.perform(delete("/api/v1/areas/{id}", areaId).with(authentication(manager))).andExpect(status().isConflict());
-        mvc.perform(delete("/api/v1/tables/{id}", usedId).with(authentication(manager))).andExpect(status().isConflict());
-        mvc.perform(put("/api/v1/tables/{id}/status", usedId).param("status", "INACTIVE").with(authentication(manager)))
+        mvc.perform(delete("/api/v1/tables/{id}", unusedId).with(authentication(otherManager)))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/areas/{id}", areaId).with(authentication(otherManager)))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/areas/{id}", areaId).with(authentication(manager)))
+                .andExpect(status().isConflict());
+        mvc.perform(delete("/api/v1/tables/{id}", usedId).with(authentication(manager)))
+                .andExpect(status().isConflict());
+        mvc.perform(
+                        put("/api/v1/tables/{id}/status", usedId)
+                                .param("status", "INACTIVE")
+                                .with(authentication(manager)))
                 .andExpect(status().isConflict());
 
         session.setStatus(TableSessionStatus.CLOSED);
         entities.flush();
-        mvc.perform(delete("/api/v1/tables/{id}", usedId).with(authentication(manager))).andExpect(status().isConflict());
-        mvc.perform(put("/api/v1/tables/{id}/status", usedId).param("status", "INACTIVE").with(authentication(manager)))
+        mvc.perform(delete("/api/v1/tables/{id}", usedId).with(authentication(manager)))
+                .andExpect(status().isConflict());
+        mvc.perform(
+                        put("/api/v1/tables/{id}/status", usedId)
+                                .param("status", "INACTIVE")
+                                .with(authentication(manager)))
                 .andExpect(status().isOk());
-        mvc.perform(get("/api/v1/guest/table").param("branchId", first.getId().toString()).param("qrCode", "AREA-HISTORY"))
+        mvc.perform(
+                        get("/api/v1/guest/table")
+                                .param("branchId", first.getId().toString())
+                                .param("qrCode", "AREA-HISTORY"))
                 .andExpect(status().isForbidden());
-        mvc.perform(put("/api/v1/tables/{id}/status", usedId).param("status", "AVAILABLE").with(authentication(manager)))
+        mvc.perform(
+                        put("/api/v1/tables/{id}/status", usedId)
+                                .param("status", "AVAILABLE")
+                                .with(authentication(manager)))
                 .andExpect(status().isOk());
         call(put("/api/v1/tables/{id}", usedId), manager, Map.of("clearArea", true))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.areaId").doesNotExist());
-        mvc.perform(delete("/api/v1/tables/{id}", unusedId).with(authentication(manager))).andExpect(status().isOk());
-        mvc.perform(delete("/api/v1/areas/{id}", areaId).with(authentication(manager))).andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.areaId").doesNotExist());
+        mvc.perform(delete("/api/v1/tables/{id}", unusedId).with(authentication(manager)))
+                .andExpect(status().isOk());
+        mvc.perform(delete("/api/v1/areas/{id}", areaId).with(authentication(manager)))
+                .andExpect(status().isOk());
         entities.flush();
         entities.clear();
-        mvc.perform(get("/api/v1/guest/table").param("branchId", first.getId().toString()).param("qrCode", "AREA-UNUSED"))
+        mvc.perform(
+                        get("/api/v1/guest/table")
+                                .param("branchId", first.getId().toString())
+                                .param("qrCode", "AREA-UNUSED"))
                 .andExpect(status().isNotFound());
         call(post("/api/v1/tables"), manager, unusedTable).andExpect(status().isConflict());
-        call(post("/api/v1/areas"), manager, areaBody).andExpect(status().isCreated()).andExpect(jsonPath("$.data.id").value(areaId));
-        mvc.perform(get("/api/v1/table-sessions/{id}", session.getId()).with(authentication(manager)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.tableName").value("Bàn A"));
+        call(post("/api/v1/areas"), manager, areaBody)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.id").value(areaId));
+        mvc.perform(
+                        get("/api/v1/table-sessions/{id}", session.getId())
+                                .with(authentication(manager)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tableName").value("Bàn A"));
     }
 
     private UsernamePasswordAuthenticationToken staff(Branch branch, String code, RoleScope scope) {
         Role role = Role.builder().code(code).scope(scope).build();
-        Account account = Account.builder().id(901L).username("area-test").restaurant(branch.getRestaurant()).build();
-        account.setAssignments(List.of(Assignment.builder().account(account).branch(branch).role(role).build()));
+        Account account =
+                Account.builder()
+                        .id(901L)
+                        .username("area-test")
+                        .restaurant(branch.getRestaurant())
+                        .build();
+        account.setAssignments(
+                List.of(Assignment.builder().account(account).branch(branch).role(role).build()));
         AccountUserDetails principal = new AccountUserDetails(account);
         return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
     }
 
-    private ResultActions call(MockHttpServletRequestBuilder request, UsernamePasswordAuthenticationToken auth,
-                               Object body) throws Exception {
-        return mvc.perform(request.with(authentication(auth))
-                .contentType("application/json").content(json.writeValueAsString(body)));
+    private ResultActions call(
+            MockHttpServletRequestBuilder request,
+            UsernamePasswordAuthenticationToken auth,
+            Object body)
+            throws Exception {
+        return mvc.perform(
+                request.with(authentication(auth))
+                        .contentType("application/json")
+                        .content(json.writeValueAsString(body)));
     }
 
     private long createdId(ResultActions result) throws Exception {

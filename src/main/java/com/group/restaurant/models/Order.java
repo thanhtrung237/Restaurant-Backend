@@ -2,11 +2,10 @@ package com.group.restaurant.models;
 
 import com.group.restaurant.enums.OrderStatus;
 import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.SQLRestriction;
-
 import java.util.ArrayList;
 import java.util.List;
+import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 @Entity
 @Table(name = "orders")
@@ -18,29 +17,34 @@ import java.util.List;
 @AllArgsConstructor
 public class Order extends BaseEntity {
 
-        @Id
-        @GeneratedValue(strategy = GenerationType.IDENTITY)
-        private Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-        @ManyToOne(fetch = FetchType.LAZY, optional = false)
-        @JoinColumn(name = "table_session_id", nullable = false, foreignKey = @ForeignKey(name = "fk_order_table_session"))
-        private TableSession tableSession;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+            name = "table_session_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_order_table_session"))
+    private TableSession tableSession;
 
-        @ManyToOne(fetch = FetchType.LAZY)
-        @JoinColumn(name = "ordered_by", foreignKey = @ForeignKey(name = "fk_order_account"))
-        private Account orderedBy;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ordered_by", foreignKey = @ForeignKey(name = "fk_order_account"))
+    private Account orderedBy;
 
-        @Column(name = "note", columnDefinition = "TEXT")
-        private String note;
+    @Column(name = "note", columnDefinition = "TEXT")
+    private String note;
 
-        @Column(name = "status", nullable = false)
-        @Builder.Default
-        private OrderStatus status = OrderStatus.PENDING;
+    @Column(name = "status", nullable = false)
+    @Builder.Default
+    private OrderStatus status = OrderStatus.PENDING;
 
-        @OneToOne(mappedBy = "order", cascade = CascadeType.ALL)
-        private Invoice invoice;
+    @OneToOne(mappedBy = "order", cascade = CascadeType.ALL)
+    private Invoice invoice;
 
-        @OneToMany(mappedBy = "order", cascade = { CascadeType.PERSIST, CascadeType.MERGE })
-        @Builder.Default
-        private List<OrderDetail> orderDetails = new ArrayList<>();
+    @OneToMany(
+            mappedBy = "order",
+            cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @Builder.Default
+    private List<OrderDetail> orderDetails = new ArrayList<>();
 }

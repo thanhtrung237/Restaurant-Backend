@@ -2,7 +2,6 @@ package com.group.restaurant.services;
 
 import com.group.restaurant.dtos.request.promotionBranch.PromotionBranchAddRequest;
 import com.group.restaurant.dtos.response.promotionBranch.PromotionBranchResponse;
-
 import java.util.List;
 
 public interface PromotionBranchService {

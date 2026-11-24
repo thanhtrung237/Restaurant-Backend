@@ -4,6 +4,7 @@ import com.group.restaurant.dtos.request.tableSession.*;
 import com.group.restaurant.dtos.response.tableSession.TableSessionResponse;
 import com.group.restaurant.enums.DiningTableStatus;
 import com.group.restaurant.enums.InvoiceStatus;
+import com.group.restaurant.enums.OperationalPermission;
 import com.group.restaurant.enums.OrderDetailStatus;
 import com.group.restaurant.enums.TableSessionStatus;
 import com.group.restaurant.exceptions.ConflictException;
@@ -21,21 +22,19 @@ import com.group.restaurant.repositories.OrderDetailRepository;
 import com.group.restaurant.repositories.OrderRepository;
 import com.group.restaurant.repositories.TableSessionRepository;
 import com.group.restaurant.services.AuditLogService;
+import com.group.restaurant.services.OperationalPermissionService;
 import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.services.TableSessionService;
 import com.group.restaurant.services.audit.AuditAction;
 import com.group.restaurant.services.audit.AuditEvent;
 import com.group.restaurant.utils.TenantGuard;
-import com.group.restaurant.enums.OperationalPermission;
-import com.group.restaurant.services.OperationalPermissionService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -60,16 +59,23 @@ public class TableSessionServiceImpl implements TableSessionService {
 
         tenantGuard.assertBranchAssigned(table.getBranch().getId());
         // chặn nếu bàn đã có phiên đang hoạt động
-        tableSessionRepository.findActiveForGuestAdmission(table.getId()).ifPresent(existing -> {
-            throw new ConflictException("Bàn " + table.getName() + " đang có phiên hoạt động chưa kết thúc");
-        });
+        tableSessionRepository
+                .findActiveForGuestAdmission(table.getId())
+                .ifPresent(
+                        existing -> {
+                            throw new ConflictException(
+                                    "Bàn "
+                                            + table.getName()
+                                            + " đang có phiên hoạt động chưa kết thúc");
+                        });
 
-        TableSession session = TableSession.builder()
-                .table(table)
-                .branch(table.getBranch())
-                .status(TableSessionStatus.WAITING_FOR_OPEN)
-                .guestCount(request.getGuestCount())
-                .build();
+        TableSession session =
+                TableSession.builder()
+                        .table(table)
+                        .branch(table.getBranch())
+                        .status(TableSessionStatus.WAITING_FOR_OPEN)
+                        .guestCount(request.getGuestCount())
+                        .build();
 
         table.setStatus(DiningTableStatus.OCCUPIED);
         diningTableRepository.save(table);
@@ -80,47 +86,60 @@ public class TableSessionServiceImpl implements TableSessionService {
     // Đặt bàn trước theo quyền tại chi nhánh (FR-TBL-03, BR-29).
     @Override
     public TableSessionResponse reserveSession(TableSessionReservationRequest request) {
-        DiningTable table = diningTableRepository.findForGuestAdmission(request.getTableId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn."));
+        DiningTable table =
+                diningTableRepository
+                        .findForGuestAdmission(request.getTableId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn."));
         permissions.require(table.getBranch().getId(), OperationalPermission.RESERVE_TABLE);
         if (table.getStatus() != DiningTableStatus.AVAILABLE) {
             throw new ConflictException("Chỉ có thể đặt trước bàn đang trống.");
         }
 
         // chặn nếu bàn đã có phiên đang hoạt động (BR-01, BR-29)
-        tableSessionRepository.findActiveForGuestAdmission(table.getId()).ifPresent(existing -> {
-            throw new ConflictException("Bàn " + table.getName() + " đang có phiên hoạt động chưa kết thúc");
-        });
+        tableSessionRepository
+                .findActiveForGuestAdmission(table.getId())
+                .ifPresent(
+                        existing -> {
+                            throw new ConflictException(
+                                    "Bàn "
+                                            + table.getName()
+                                            + " đang có phiên hoạt động chưa kết thúc");
+                        });
 
-        TableSession session = TableSession.builder()
-                .table(table)
-                .branch(table.getBranch())
-                .status(TableSessionStatus.RESERVED)
-                .reservationName(request.getReservationName())
-                .reservationPhone(request.getReservationPhone())
-                .reservationTime(request.getReservationTime())
-                .guestCount(request.getGuestCount())
-                .reservationNote(request.getReservationNote())
-                .build();
+        TableSession session =
+                TableSession.builder()
+                        .table(table)
+                        .branch(table.getBranch())
+                        .status(TableSessionStatus.RESERVED)
+                        .reservationName(request.getReservationName())
+                        .reservationPhone(request.getReservationPhone())
+                        .reservationTime(request.getReservationTime())
+                        .guestCount(request.getGuestCount())
+                        .reservationNote(request.getReservationNote())
+                        .build();
 
         table.setStatus(DiningTableStatus.RESERVED);
         diningTableRepository.save(table);
         TableSession saved = tableSessionRepository.save(session);
 
-        auditLogService.record(AuditEvent.builder()
-                .entityType("TableSession")
-                .entityId(saved.getId())
-                .actionType(AuditAction.STATUS_CHANGE)
-                .branchId(table.getBranch().getId())
-                .valueAfter("status=" + TableSessionStatus.RESERVED
-                        + "; reservationTime=" + request.getReservationTime()
-                        + "; guest=" + request.getReservationName())
-                .reason("Đặt bàn trước cho khách " + request.getReservationName())
-                .build());
+        auditLogService.record(
+                AuditEvent.builder()
+                        .entityType("TableSession")
+                        .entityId(saved.getId())
+                        .actionType(AuditAction.STATUS_CHANGE)
+                        .branchId(table.getBranch().getId())
+                        .valueAfter(
+                                "status="
+                                        + TableSessionStatus.RESERVED
+                                        + "; reservationTime="
+                                        + request.getReservationTime()
+                                        + "; guest="
+                                        + request.getReservationName())
+                        .reason("Đặt bàn trước cho khách " + request.getReservationName())
+                        .build());
 
         return buildResponse(saved);
     }
-
 
     // Phục vụ xác nhận mở bàn → SERVING
     // Áp dụng cho cả WAITING_FOR_OPEN và RESERVED
@@ -131,13 +150,15 @@ public class TableSessionServiceImpl implements TableSessionService {
 
         if (session.getStatus() != TableSessionStatus.WAITING_FOR_OPEN
                 && session.getStatus() != TableSessionStatus.RESERVED) {
-            throw new ConflictException("Chỉ có thể xác nhận mở bàn với phiên ở trạng thái CHỜ MỞ BÀN hoặc ĐẶT TRƯỚC");
+            throw new ConflictException(
+                    "Chỉ có thể xác nhận mở bàn với phiên ở trạng thái CHỜ MỞ BÀN hoặc ĐẶT TRƯỚC");
         }
 
         // BR-29: khi xác nhận khách đến từ phiên ĐẶT TRƯỚC, bắt buộc nhập số khách thực tế
         if (session.getStatus() == TableSessionStatus.RESERVED
                 && (request.getGuestCount() == null || request.getGuestCount() <= 0)) {
-            throw new InvalidParamException("Bắt buộc nhập số khách thực tế khi xác nhận khách đặt trước đến (BR-29)");
+            throw new InvalidParamException(
+                    "Bắt buộc nhập số khách thực tế khi xác nhận khách đặt trước đến (BR-29)");
         }
 
         // snapshot VAT và phí dịch vụ từ cấu hình chi nhánh tại thời điểm mở phiên
@@ -160,26 +181,33 @@ public class TableSessionServiceImpl implements TableSessionService {
         TableSession saved = tableSessionRepository.save(session);
 
         // BR-12: ghi nhật ký đổi trạng thái phiên khi mở bàn
-        auditLogService.record(AuditEvent.builder()
-                .entityType("TableSession")
-                .entityId(saved.getId())
-                .actionType(AuditAction.STATUS_CHANGE)
-                .branchId(branch.getId())
-                .valueBefore("status=" + previousStatus)
-                .valueAfter("status=" + TableSessionStatus.SERVING
-                        + "; guestCount=" + request.getGuestCount()
-                        + "; openedAt=" + saved.getOpenedAt())
-                .reason(previousStatus == TableSessionStatus.RESERVED
-                        ? "Khách đặt trước đã đến, xác nhận mở bàn"
-                        : "Xác nhận mở bàn")
-                .build());
+        auditLogService.record(
+                AuditEvent.builder()
+                        .entityType("TableSession")
+                        .entityId(saved.getId())
+                        .actionType(AuditAction.STATUS_CHANGE)
+                        .branchId(branch.getId())
+                        .valueBefore("status=" + previousStatus)
+                        .valueAfter(
+                                "status="
+                                        + TableSessionStatus.SERVING
+                                        + "; guestCount="
+                                        + request.getGuestCount()
+                                        + "; openedAt="
+                                        + saved.getOpenedAt())
+                        .reason(
+                                previousStatus == TableSessionStatus.RESERVED
+                                        ? "Khách đặt trước đã đến, xác nhận mở bàn"
+                                        : "Xác nhận mở bàn")
+                        .build());
 
         return buildResponse(saved);
     }
 
     // Hủy đặt bàn trước: RESERVED → CANCELLED
     @Override
-    public TableSessionResponse cancelReservation(Long id, TableSessionCancelReservationRequest request) {
+    public TableSessionResponse cancelReservation(
+            Long id, TableSessionCancelReservationRequest request) {
         TableSession session = findSession(id);
         permissions.require(session.getBranch().getId(), OperationalPermission.RESERVE_TABLE);
 
@@ -189,7 +217,10 @@ public class TableSessionServiceImpl implements TableSessionService {
 
         session.setStatus(TableSessionStatus.CANCELLED);
         session.setClosedAt(LocalDateTime.now());
-        String reason = (request != null && request.getReason() != null) ? request.getReason() : "Hủy đặt trước";
+        String reason =
+                (request != null && request.getReason() != null)
+                        ? request.getReason()
+                        : "Hủy đặt trước";
         session.setNote(reason);
 
         DiningTable table = session.getTable();
@@ -199,15 +230,16 @@ public class TableSessionServiceImpl implements TableSessionService {
         TableSessionResponse response = buildResponse(tableSessionRepository.save(session));
 
         // BR-12: ghi nhật ký đổi trạng thái phiên
-        auditLogService.record(AuditEvent.builder()
-                .entityType("TableSession")
-                .entityId(session.getId())
-                .actionType(AuditAction.CANCEL)
-                .branchId(session.getBranch() != null ? session.getBranch().getId() : null)
-                .valueBefore("status=" + TableSessionStatus.RESERVED)
-                .valueAfter("status=" + TableSessionStatus.CANCELLED)
-                .reason(reason)
-                .build());
+        auditLogService.record(
+                AuditEvent.builder()
+                        .entityType("TableSession")
+                        .entityId(session.getId())
+                        .actionType(AuditAction.CANCEL)
+                        .branchId(session.getBranch() != null ? session.getBranch().getId() : null)
+                        .valueBefore("status=" + TableSessionStatus.RESERVED)
+                        .valueAfter("status=" + TableSessionStatus.CANCELLED)
+                        .reason(reason)
+                        .build());
 
         return response;
     }
@@ -215,16 +247,25 @@ public class TableSessionServiceImpl implements TableSessionService {
     // Yêu cầu thanh toán: SERVING → WAITING_FOR_PAY
     @Override
     public TableSessionResponse requestPayment(Long id) {
-        TableSession session = tableSessionRepository.findForUpdate(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phiên bàn với ID: " + id));
+        TableSession session =
+                tableSessionRepository
+                        .findForUpdate(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy phiên bàn với ID: " + id));
         tenantGuard.assertBranchAssigned(session.getBranch().getId());
         if (session.isTakeaway()) {
-            tenantGuard.assertBranchAssigned(session.getBranch().getId(),
-                    TenantGuard.ROLE_CASHIER, TenantGuard.ROLE_BRANCH_MANAGER, TenantGuard.ROLE_MANAGER);
+            tenantGuard.assertBranchAssigned(
+                    session.getBranch().getId(),
+                    TenantGuard.ROLE_CASHIER,
+                    TenantGuard.ROLE_BRANCH_MANAGER,
+                    TenantGuard.ROLE_MANAGER);
         }
 
         if (session.getStatus() != TableSessionStatus.SERVING) {
-            throw new ConflictException("Chỉ có thể yêu cầu thanh toán với phiên đang ở trạng thái ĐANG PHỤC VỤ");
+            throw new ConflictException(
+                    "Chỉ có thể yêu cầu thanh toán với phiên đang ở trạng thái ĐANG PHỤC VỤ");
         }
 
         if (!hasBillableDetail(session.getId())) {
@@ -247,48 +288,62 @@ public class TableSessionServiceImpl implements TableSessionService {
     // QL chi nhánh mở lại bàn: WAITING_FOR_PAY → SERVING
     @Override
     public TableSessionResponse reopenSession(Long id) {
-        TableSession session = tableSessionRepository.findForUpdate(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phiên bàn."));
+        TableSession session =
+                tableSessionRepository
+                        .findForUpdate(id)
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException("Không tìm thấy phiên bàn."));
         tenantGuard.assertBranch(session.getBranch());
-        if (session.isTakeaway()) throw new ConflictException("Không thể mở lại đơn mang về từ thao tác mở bàn.");
+        if (session.isTakeaway())
+            throw new ConflictException("Không thể mở lại đơn mang về từ thao tác mở bàn.");
 
         if (session.getStatus() != TableSessionStatus.WAITING_FOR_PAY) {
-            throw new ConflictException("Chỉ có thể mở lại bàn với phiên đang ở trạng thái CHỜ THANH TOÁN");
+            throw new ConflictException(
+                    "Chỉ có thể mở lại bàn với phiên đang ở trạng thái CHỜ THANH TOÁN");
         }
-        if (invoiceRepository.findBySessionForPayment(id)
-                .filter(invoice -> invoice.getQuoteSharedAt() != null).isPresent()) {
-            throw new ConflictException("Tạm tính đã gửi khách. Hãy điều chỉnh món trên màn chốt bàn.");
+        if (invoiceRepository
+                .findBySessionForPayment(id)
+                .filter(invoice -> invoice.getQuoteSharedAt() != null)
+                .isPresent()) {
+            throw new ConflictException(
+                    "Tạm tính đã gửi khách. Hãy điều chỉnh món trên màn chốt bàn.");
         }
 
         session.setStatus(TableSessionStatus.SERVING);
         return buildResponse(tableSessionRepository.save(session));
     }
 
-
     @Override
     public TableSessionResponse openSession(TableSessionOpenRequest request) {
         DiningTable table = findTable(request.getTableId());
 
         tenantGuard.assertBranchAssigned(table.getBranch().getId());
-        tableSessionRepository.findActiveForGuestAdmission(table.getId()).ifPresent(existing -> {
-            throw new ConflictException("Bàn " + table.getName() + " đang có phiên hoạt động chưa kết thúc");
-        });
+        tableSessionRepository
+                .findActiveForGuestAdmission(table.getId())
+                .ifPresent(
+                        existing -> {
+                            throw new ConflictException(
+                                    "Bàn "
+                                            + table.getName()
+                                            + " đang có phiên hoạt động chưa kết thúc");
+                        });
 
         Branch branch = table.getBranch();
 
-        TableSession session = TableSession.builder()
-                .table(table)
-                .branch(branch)
-                .guestCount(request.getGuestCount())
-                .note(request.getNote())
-                .coverFeePerGuestAtOpen(request.getCoverFeePerGuestAtOpen())
-                .customerIdRef(request.getCustomerIdRef())
-                .openedAt(LocalDateTime.now())
-                .status(TableSessionStatus.SERVING)
-                // snapshot tại thời điểm mở phiên
-                .vatRateAtOpen(branch.getVatRate())
-                .serviceFeeRateAtOpen(branch.getServiceFeeRate())
-                .build();
+        TableSession session =
+                TableSession.builder()
+                        .table(table)
+                        .branch(branch)
+                        .guestCount(request.getGuestCount())
+                        .note(request.getNote())
+                        .coverFeePerGuestAtOpen(request.getCoverFeePerGuestAtOpen())
+                        .customerIdRef(request.getCustomerIdRef())
+                        .openedAt(LocalDateTime.now())
+                        .status(TableSessionStatus.SERVING)
+                        // snapshot tại thời điểm mở phiên
+                        .vatRateAtOpen(branch.getVatRate())
+                        .serviceFeeRateAtOpen(branch.getServiceFeeRate())
+                        .build();
 
         table.setStatus(DiningTableStatus.OCCUPIED);
         diningTableRepository.save(table);
@@ -319,9 +374,14 @@ public class TableSessionServiceImpl implements TableSessionService {
         if (!diningTableRepository.existsById(tableId)) {
             throw new ResourceNotFoundException("Không tìm thấy bàn với ID: " + tableId);
         }
-        TableSession session = tableSessionRepository.findActiveSessionByTableId(tableId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy phiên làm việc đang mở cho bàn ID: " + tableId));
+        TableSession session =
+                tableSessionRepository
+                        .findActiveSessionByTableId(tableId)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy phiên làm việc đang mở cho bàn ID: "
+                                                        + tableId));
         return buildResponse(session);
     }
 
@@ -329,8 +389,9 @@ public class TableSessionServiceImpl implements TableSessionService {
     @Transactional(readOnly = true)
     public List<TableSessionResponse> getOpenSessionsByBranch(Long branchId) {
         tenantGuard.assertBranchAssigned(branchId);
-        return tableSessionRepository.findActiveSessionsByBranchId(branchId)
-                .stream().map(this::buildResponse).collect(Collectors.toList());
+        return tableSessionRepository.findActiveSessionsByBranchId(branchId).stream()
+                .map(this::buildResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -339,15 +400,17 @@ public class TableSessionServiceImpl implements TableSessionService {
         if (!diningTableRepository.existsById(tableId)) {
             throw new ResourceNotFoundException("Không tìm thấy bàn với ID: " + tableId);
         }
-        return tableSessionRepository.findByTableId(tableId)
-                .stream().map(this::buildResponse).collect(Collectors.toList());
+        return tableSessionRepository.findByTableId(tableId).stream()
+                .map(this::buildResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
     public TableSessionResponse closeSession(Long id) {
         TableSession session = findSession(id);
         tenantGuard.assertBranch(session.getBranch());
-        if (session.isTakeaway()) throw new ConflictException("Đơn mang về được hoàn tất tại danh sách Mang về.");
+        if (session.isTakeaway())
+            throw new ConflictException("Đơn mang về được hoàn tất tại danh sách Mang về.");
         if (session.getStatus() == TableSessionStatus.RESERVED) {
             throw new ConflictException("Dùng thao tác hủy đặt bàn cho phiên đặt trước.");
         }
@@ -398,15 +461,16 @@ public class TableSessionServiceImpl implements TableSessionService {
         }
         TableSessionResponse response = buildResponse(tableSessionRepository.save(session));
 
-        auditLogService.record(AuditEvent.builder()
-                .entityType("TableSession")
-                .entityId(session.getId())
-                .actionType(AuditAction.CANCEL)
-                .branchId(session.getBranch() != null ? session.getBranch().getId() : null)
-                .valueBefore("status=" + previous)
-                .valueAfter("status=" + TableSessionStatus.CANCELLED)
-                .reason(reason.trim())
-                .build());
+        auditLogService.record(
+                AuditEvent.builder()
+                        .entityType("TableSession")
+                        .entityId(session.getId())
+                        .actionType(AuditAction.CANCEL)
+                        .branchId(session.getBranch() != null ? session.getBranch().getId() : null)
+                        .valueBefore("status=" + previous)
+                        .valueAfter("status=" + TableSessionStatus.CANCELLED)
+                        .reason(reason.trim())
+                        .build());
 
         return response;
     }
@@ -427,30 +491,43 @@ public class TableSessionServiceImpl implements TableSessionService {
         if (total.compareTo(BigDecimal.ZERO) > 0) {
             throw new ConflictException(
                     "Phiên đang chờ thanh toán và đã có món tính tiền — hãy thu tiền rồi đóng bàn, "
-                    + "hoặc mở lại bàn trước khi hủy");
+                            + "hoặc mở lại bàn trước khi hủy");
         }
-        invoiceRepository.findByTableSessionId(session.getId())
-                .filter(invoice -> invoice.getStatus() == InvoiceStatus.ISSUED
-                        || invoice.getStatus() == InvoiceStatus.PAID)
-                .ifPresent(invoice -> {
-                    throw new ConflictException("Phiên đã có hoá đơn " + invoice.getInvoiceNumber()
-                            + " (" + invoice.getStatus() + ") — không thể hủy phiên");
-                });
+        invoiceRepository
+                .findByTableSessionId(session.getId())
+                .filter(
+                        invoice ->
+                                invoice.getStatus() == InvoiceStatus.ISSUED
+                                        || invoice.getStatus() == InvoiceStatus.PAID)
+                .ifPresent(
+                        invoice -> {
+                            throw new ConflictException(
+                                    "Phiên đã có hoá đơn "
+                                            + invoice.getInvoiceNumber()
+                                            + " ("
+                                            + invoice.getStatus()
+                                            + ") — không thể hủy phiên");
+                        });
     }
 
     /** Tổng tiền các dòng món TÍNH TIỀN — cùng công thức với subTotal của hoá đơn. */
     private BigDecimal billableTotal(Long sessionId) {
         return orderDetailRepository.findByTableSessionId(sessionId).stream()
-                .filter(d -> d.getStatus() != OrderDetailStatus.CANCELLED
-                        || Boolean.TRUE.equals(d.getIsBillable()))
-                .map(d -> {
-                    if (d.getPrice() != null) return d.getPrice();
-                    if (d.getPriceAtOrderTime() == null) return BigDecimal.ZERO;
-                    BigDecimal qty = d.getWeightKg() != null
-                            ? d.getWeightKg()
-                            : BigDecimal.valueOf(d.getQuantity() != null ? d.getQuantity() : 1);
-                    return d.getPriceAtOrderTime().multiply(qty);
-                })
+                .filter(
+                        d ->
+                                d.getStatus() != OrderDetailStatus.CANCELLED
+                                        || Boolean.TRUE.equals(d.getIsBillable()))
+                .map(
+                        d -> {
+                            if (d.getPrice() != null) return d.getPrice();
+                            if (d.getPriceAtOrderTime() == null) return BigDecimal.ZERO;
+                            BigDecimal qty =
+                                    d.getWeightKg() != null
+                                            ? d.getWeightKg()
+                                            : BigDecimal.valueOf(
+                                                    d.getQuantity() != null ? d.getQuantity() : 1);
+                            return d.getPriceAtOrderTime().multiply(qty);
+                        })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
@@ -461,8 +538,10 @@ public class TableSessionServiceImpl implements TableSessionService {
      */
     private boolean hasBillableDetail(Long sessionId) {
         return orderDetailRepository.findByTableSessionId(sessionId).stream()
-                .anyMatch(d -> d.getStatus() != OrderDetailStatus.CANCELLED
-                        || Boolean.TRUE.equals(d.getIsBillable()));
+                .anyMatch(
+                        d ->
+                                d.getStatus() != OrderDetailStatus.CANCELLED
+                                        || Boolean.TRUE.equals(d.getIsBillable()));
     }
 
     @Override
@@ -489,7 +568,8 @@ public class TableSessionServiceImpl implements TableSessionService {
         }
 
         if (branchId != null) {
-            orderNotificationService.notifyStaffCall(branchId, session.getId(), orderDetailId, tableNo, dishName);
+            orderNotificationService.notifyStaffCall(
+                    branchId, session.getId(), orderDetailId, tableNo, dishName);
         }
     }
 
@@ -502,14 +582,16 @@ public class TableSessionServiceImpl implements TableSessionService {
         if (session.getStatus() == TableSessionStatus.CLOSED
                 || session.getStatus() == TableSessionStatus.CANCELLED
                 || session.getStatus() == TableSessionStatus.MERGED) {
-            throw new ConflictException("Không thể chuyển bàn với phiên ở trạng thái " + session.getStatus());
+            throw new ConflictException(
+                    "Không thể chuyển bàn với phiên ở trạng thái " + session.getStatus());
         }
 
         DiningTable sourceTable = session.getTable();
         DiningTable targetTable = findTable(request.getTargetTableId());
         tenantGuard.assertBranch(targetTable.getBranch());
 
-        if (!java.util.Objects.equals(sourceTable.getBranch().getId(), targetTable.getBranch().getId())) {
+        if (!java.util.Objects.equals(
+                sourceTable.getBranch().getId(), targetTable.getBranch().getId())) {
             throw new InvalidParamException("Không thể chuyển bàn sang chi nhánh khác");
         }
 
@@ -518,11 +600,18 @@ public class TableSessionServiceImpl implements TableSessionService {
         }
 
         // Chặn nếu bàn đích đang có phiên hoạt động hoặc không ở trạng thái AVAILABLE
-        tableSessionRepository.findActiveSessionByTableId(targetTable.getId()).ifPresent(active -> {
-            throw new ConflictException("Bàn " + targetTable.getName() + " đang có phiên hoạt động khác");
-        });
+        tableSessionRepository
+                .findActiveSessionByTableId(targetTable.getId())
+                .ifPresent(
+                        active -> {
+                            throw new ConflictException(
+                                    "Bàn "
+                                            + targetTable.getName()
+                                            + " đang có phiên hoạt động khác");
+                        });
         if (targetTable.getStatus() != DiningTableStatus.AVAILABLE) {
-            throw new ConflictException("Bàn " + targetTable.getName() + " không ở trạng thái trống");
+            throw new ConflictException(
+                    "Bàn " + targetTable.getName() + " không ở trạng thái trống");
         }
 
         // Cập nhật bàn
@@ -535,15 +624,30 @@ public class TableSessionServiceImpl implements TableSessionService {
         session.setTable(targetTable);
         TableSession saved = tableSessionRepository.save(session);
 
-        auditLogService.record(AuditEvent.builder()
-                .entityType("TableSession")
-                .entityId(saved.getId())
-                .actionType(AuditAction.STATUS_CHANGE)
-                .branchId(saved.getBranch() != null ? saved.getBranch().getId() : null)
-                .valueBefore("table=" + sourceTable.getName() + " (id=" + sourceTable.getId() + ")")
-                .valueAfter("table=" + targetTable.getName() + " (id=" + targetTable.getId() + ")")
-                .reason("Chuyển bàn từ " + sourceTable.getName() + " sang " + targetTable.getName())
-                .build());
+        auditLogService.record(
+                AuditEvent.builder()
+                        .entityType("TableSession")
+                        .entityId(saved.getId())
+                        .actionType(AuditAction.STATUS_CHANGE)
+                        .branchId(saved.getBranch() != null ? saved.getBranch().getId() : null)
+                        .valueBefore(
+                                "table="
+                                        + sourceTable.getName()
+                                        + " (id="
+                                        + sourceTable.getId()
+                                        + ")")
+                        .valueAfter(
+                                "table="
+                                        + targetTable.getName()
+                                        + " (id="
+                                        + targetTable.getId()
+                                        + ")")
+                        .reason(
+                                "Chuyển bàn từ "
+                                        + sourceTable.getName()
+                                        + " sang "
+                                        + targetTable.getName())
+                        .build());
 
         return buildResponse(saved);
     }
@@ -563,30 +667,51 @@ public class TableSessionServiceImpl implements TableSessionService {
             throw new ConflictException("Đơn mang về không thể gộp bàn.");
         }
 
-        if (!java.util.Objects.equals(sourceSession.getBranch().getId(), targetSession.getBranch().getId())) {
+        if (!java.util.Objects.equals(
+                sourceSession.getBranch().getId(), targetSession.getBranch().getId())) {
             throw new InvalidParamException("Không thể gộp hai bàn thuộc hai chi nhánh khác nhau");
         }
 
         if (sourceSession.getStatus() == TableSessionStatus.CLOSED
                 || sourceSession.getStatus() == TableSessionStatus.CANCELLED
                 || sourceSession.getStatus() == TableSessionStatus.MERGED) {
-            throw new ConflictException("Phiên nguồn không còn hoạt động để gộp (trạng thái: " + sourceSession.getStatus() + ")");
+            throw new ConflictException(
+                    "Phiên nguồn không còn hoạt động để gộp (trạng thái: "
+                            + sourceSession.getStatus()
+                            + ")");
         }
 
         if (targetSession.getStatus() == TableSessionStatus.CLOSED
                 || targetSession.getStatus() == TableSessionStatus.CANCELLED
                 || targetSession.getStatus() == TableSessionStatus.MERGED) {
-            throw new ConflictException("Phiên đích không còn hoạt động (trạng thái: " + targetSession.getStatus() + ")");
+            throw new ConflictException(
+                    "Phiên đích không còn hoạt động (trạng thái: "
+                            + targetSession.getStatus()
+                            + ")");
         }
 
         // BR-26: Kiểm tra snapshot VAT và phí dịch vụ
-        BigDecimal sourceVat = sourceSession.getVatRateAtOpen() != null ? sourceSession.getVatRateAtOpen() : BigDecimal.ZERO;
-        BigDecimal targetVat = targetSession.getVatRateAtOpen() != null ? targetSession.getVatRateAtOpen() : BigDecimal.ZERO;
-        BigDecimal sourceServiceFee = sourceSession.getServiceFeeRateAtOpen() != null ? sourceSession.getServiceFeeRateAtOpen() : BigDecimal.ZERO;
-        BigDecimal targetServiceFee = targetSession.getServiceFeeRateAtOpen() != null ? targetSession.getServiceFeeRateAtOpen() : BigDecimal.ZERO;
+        BigDecimal sourceVat =
+                sourceSession.getVatRateAtOpen() != null
+                        ? sourceSession.getVatRateAtOpen()
+                        : BigDecimal.ZERO;
+        BigDecimal targetVat =
+                targetSession.getVatRateAtOpen() != null
+                        ? targetSession.getVatRateAtOpen()
+                        : BigDecimal.ZERO;
+        BigDecimal sourceServiceFee =
+                sourceSession.getServiceFeeRateAtOpen() != null
+                        ? sourceSession.getServiceFeeRateAtOpen()
+                        : BigDecimal.ZERO;
+        BigDecimal targetServiceFee =
+                targetSession.getServiceFeeRateAtOpen() != null
+                        ? targetSession.getServiceFeeRateAtOpen()
+                        : BigDecimal.ZERO;
 
-        if (sourceVat.compareTo(targetVat) != 0 || sourceServiceFee.compareTo(targetServiceFee) != 0) {
-            throw new ConflictException("Không thể gộp bàn vì hai bàn có bộ tỷ lệ VAT hoặc phí dịch vụ khác nhau (BR-26)");
+        if (sourceVat.compareTo(targetVat) != 0
+                || sourceServiceFee.compareTo(targetServiceFee) != 0) {
+            throw new ConflictException(
+                    "Không thể gộp bàn vì hai bàn có bộ tỷ lệ VAT hoặc phí dịch vụ khác nhau (BR-26)");
         }
 
         // Chuyển toàn bộ Order từ sourceSession sang targetSession
@@ -597,15 +722,18 @@ public class TableSessionServiceImpl implements TableSessionService {
         }
 
         // Cập nhật OrderDetail nếu có liên kết trực tiếp table_session_id
-        List<OrderDetail> sourceDetails = orderDetailRepository.findByTableSessionId(sourceSession.getId());
+        List<OrderDetail> sourceDetails =
+                orderDetailRepository.findByTableSessionId(sourceSession.getId());
         for (OrderDetail detail : sourceDetails) {
             detail.setTableSession(targetSession);
             orderDetailRepository.save(detail);
         }
 
         // Cộng dồn số lượng khách (guestCount)
-        int sourceGuestCount = sourceSession.getGuestCount() != null ? sourceSession.getGuestCount() : 0;
-        int targetGuestCount = targetSession.getGuestCount() != null ? targetSession.getGuestCount() : 0;
+        int sourceGuestCount =
+                sourceSession.getGuestCount() != null ? sourceSession.getGuestCount() : 0;
+        int targetGuestCount =
+                targetSession.getGuestCount() != null ? targetSession.getGuestCount() : 0;
         targetSession.setGuestCount(targetGuestCount + sourceGuestCount);
 
         // Đổi trạng thái sourceSession sang MERGED (BR-28), gắn mergedIntoSession
@@ -630,27 +758,52 @@ public class TableSessionServiceImpl implements TableSessionService {
 
         TableSession savedTarget = tableSessionRepository.save(targetSession);
 
-        auditLogService.record(AuditEvent.builder()
-                .entityType("TableSession")
-                .entityId(sourceSession.getId())
-                .actionType(AuditAction.STATUS_CHANGE)
-                .branchId(sourceSession.getBranch() != null ? sourceSession.getBranch().getId() : null)
-                .valueBefore("status=" + TableSessionStatus.SERVING + ", table=" + (sourceTable != null ? sourceTable.getName() : ""))
-                .valueAfter("status=" + TableSessionStatus.MERGED + ", mergedInto=" + targetSession.getId())
-                .reason("Gộp bàn " + (sourceTable != null ? sourceTable.getName() : "") + " vào bàn " + (targetTable != null ? targetTable.getName() : ""))
-                .build());
+        auditLogService.record(
+                AuditEvent.builder()
+                        .entityType("TableSession")
+                        .entityId(sourceSession.getId())
+                        .actionType(AuditAction.STATUS_CHANGE)
+                        .branchId(
+                                sourceSession.getBranch() != null
+                                        ? sourceSession.getBranch().getId()
+                                        : null)
+                        .valueBefore(
+                                "status="
+                                        + TableSessionStatus.SERVING
+                                        + ", table="
+                                        + (sourceTable != null ? sourceTable.getName() : ""))
+                        .valueAfter(
+                                "status="
+                                        + TableSessionStatus.MERGED
+                                        + ", mergedInto="
+                                        + targetSession.getId())
+                        .reason(
+                                "Gộp bàn "
+                                        + (sourceTable != null ? sourceTable.getName() : "")
+                                        + " vào bàn "
+                                        + (targetTable != null ? targetTable.getName() : ""))
+                        .build());
 
         return buildResponse(savedTarget);
     }
 
     private TableSession findSession(Long id) {
-        return tableSessionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phiên bàn với ID: " + id));
+        return tableSessionRepository
+                .findById(id)
+                .orElseThrow(
+                        () ->
+                                new ResourceNotFoundException(
+                                        "Không tìm thấy phiên bàn với ID: " + id));
     }
 
     private DiningTable findTable(Long tableId) {
-        DiningTable table = diningTableRepository.findForGuestAdmission(tableId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn với ID: " + tableId));
+        DiningTable table =
+                diningTableRepository
+                        .findForGuestAdmission(tableId)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy bàn với ID: " + tableId));
         if (table.getStatus() == DiningTableStatus.INACTIVE) {
             throw new ConflictException("Bàn đã ngừng sử dụng.");
         }
@@ -659,9 +812,11 @@ public class TableSessionServiceImpl implements TableSessionService {
 
     private TableSessionResponse buildResponse(TableSession session) {
         TableSessionResponse response = tableSessionMapper.toResponse(session);
-        response.setCanAddTakeawayItems(session.canAddTakeawayItems(session.isTakeaway()
-                && session.getStatus() == TableSessionStatus.WAITING_FOR_PAY
-                && invoiceRepository.existsByTableSessionId(session.getId())));
+        response.setCanAddTakeawayItems(
+                session.canAddTakeawayItems(
+                        session.isTakeaway()
+                                && session.getStatus() == TableSessionStatus.WAITING_FOR_PAY
+                                && invoiceRepository.existsByTableSessionId(session.getId())));
         int orderCount = (int) orderRepository.countByTableSessionId(session.getId());
         response.setOrderCount(orderCount);
         return response;

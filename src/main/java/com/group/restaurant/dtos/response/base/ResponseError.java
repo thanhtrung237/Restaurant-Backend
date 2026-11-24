@@ -1,10 +1,9 @@
 package com.group.restaurant.dtos.response.base;
 
+import java.util.Date;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.util.Date;
 
 @Getter
 @Setter

@@ -9,9 +9,8 @@ import com.group.restaurant.dtos.response.base.PageResponse;
 import com.group.restaurant.dtos.response.branch.BranchListResponse;
 import com.group.restaurant.dtos.response.branch.BranchResponse;
 import com.group.restaurant.enums.BranchStatus;
-import org.springframework.data.domain.Pageable;
-
 import java.util.List;
+import org.springframework.data.domain.Pageable;
 
 public interface BranchService {
 
@@ -24,10 +23,7 @@ public interface BranchService {
     BranchResponse getBranchByCode(Long restaurantId, String code);
 
     PageResponse<BranchListResponse> getAllBranches(
-            Long restaurantId,
-            BranchStatus status,
-            Pageable pageable
-    );
+            Long restaurantId, BranchStatus status, Pageable pageable);
 
     List<BranchListResponse> getBranchesByRestaurant(Long restaurantId);
 

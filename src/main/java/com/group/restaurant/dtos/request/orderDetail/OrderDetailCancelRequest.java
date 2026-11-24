@@ -6,9 +6,9 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
-  Hủy dòng món sau khi đã vào bếp 
-  - RESTAURANT_ERROR  → không tính tiền, cần QL duyệt
-  - CUSTOMER_CHANGED_MIND → vẫn tính tiền, không cần duyệt
+ * Hủy dòng món sau khi đã vào bếp
+ * - RESTAURANT_ERROR  → không tính tiền, cần QL duyệt
+ * - CUSTOMER_CHANGED_MIND → vẫn tính tiền, không cần duyệt
  */
 @Getter
 @Setter

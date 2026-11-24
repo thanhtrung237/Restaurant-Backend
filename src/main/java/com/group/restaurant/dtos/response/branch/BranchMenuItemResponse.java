@@ -2,12 +2,10 @@ package com.group.restaurant.dtos.response.branch;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.group.restaurant.enums.StockStatus;
+import java.math.BigDecimal;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.math.BigDecimal;
-
 
 @Getter
 @Setter

@@ -9,7 +9,8 @@ import com.group.restaurant.models.TableSession;
 public interface OrderNotificationService {
 
     /** Push order mới đến tất cả subscriber theo chi nhánh */
-    void notifyNewOrder(Long branchId, Long orderId, Long tableSessionId, String tableNo, Long orderedById);
+    void notifyNewOrder(
+            Long branchId, Long orderId, Long tableSessionId, String tableNo, Long orderedById);
 
     /** Push khi dòng món đổi trạng thái */
     void notifyItemStatusChanged(Long sessionId, Long orderDetailId, OrderDetailStatus newStatus);
@@ -26,5 +27,6 @@ public interface OrderNotificationService {
     void notifyBankPaymentVerified(TableSession session);
 
     /** Push khi khách bấm "Báo nhân viên" cho món đã vào bếp (FR-CUS-07) */
-    void notifyStaffCall(Long branchId, Long sessionId, Long orderDetailId, String tableNo, String dishName);
+    void notifyStaffCall(
+            Long branchId, Long sessionId, Long orderDetailId, String tableNo, String dishName);
 }

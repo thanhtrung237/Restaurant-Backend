@@ -13,12 +13,11 @@ import com.group.restaurant.repositories.DishRepository;
 import com.group.restaurant.repositories.OptionGroupRepository;
 import com.group.restaurant.services.DishOptionGroupService;
 import com.group.restaurant.utils.TenantGuard;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -37,9 +36,14 @@ public class DishOptionGroupServiceImpl implements DishOptionGroupService {
         Dish dish = lockDish(request.getDishId());
 
         // Validate option group exists
-        OptionGroup optionGroup = optionGroupRepository.findById(request.getOptionGroupId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy nhóm tùy chọn với ID: " + request.getOptionGroupId()));
+        OptionGroup optionGroup =
+                optionGroupRepository
+                        .findById(request.getOptionGroupId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy nhóm tùy chọn với ID: "
+                                                        + request.getOptionGroupId()));
 
         // Món và nhóm tùy chọn phải cùng thuộc nhà hàng của người đăng nhập —
         // chặn liên kết chéo giữa 2 nhà hàng.
@@ -47,7 +51,8 @@ public class DishOptionGroupServiceImpl implements DishOptionGroupService {
         tenantGuard.assertRestaurant(
                 optionGroup.getRestaurant() != null ? optionGroup.getRestaurant().getId() : null);
 
-        var existing = dishOptionGroupRepository.findIncludingDeleted(dish.getId(), optionGroup.getId());
+        var existing =
+                dishOptionGroupRepository.findIncludingDeleted(dish.getId(), optionGroup.getId());
         if (existing.isPresent()) {
             DishOptionGroup link = existing.get();
             if (!Boolean.TRUE.equals(link.getIsDeleted())) {
@@ -86,7 +91,8 @@ public class DishOptionGroupServiceImpl implements DishOptionGroupService {
     @Override
     @Transactional(readOnly = true)
     public List<DishOptionGroupResponse> getDishOptionGroupsByOptionGroup(Long optionGroupId) {
-        List<DishOptionGroup> dishOptionGroups = dishOptionGroupRepository.findByOptionGroupId(optionGroupId);
+        List<DishOptionGroup> dishOptionGroups =
+                dishOptionGroupRepository.findByOptionGroupId(optionGroupId);
         return dishOptionGroups.stream()
                 .map(dishOptionGroupMapper::toResponse)
                 .collect(Collectors.toList());
@@ -104,15 +110,22 @@ public class DishOptionGroupServiceImpl implements DishOptionGroupService {
     }
 
     private Dish lockDish(Long id) {
-        return dishRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món ăn với ID: " + id));
+        return dishRepository
+                .findByIdForUpdate(id)
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Không tìm thấy món ăn với ID: " + id));
     }
 
     /** Chốt tenant tại finder: phủ getDishOptionGroupById / unlinkDishFromOptionGroup. */
     private DishOptionGroup findById(Long id) {
-        DishOptionGroup link = dishOptionGroupRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy liên kết món-nhóm tùy chọn với ID: " + id));
+        DishOptionGroup link =
+                dishOptionGroupRepository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy liên kết món-nhóm tùy chọn với ID: "
+                                                        + id));
         Dish dish = link.getDish();
         tenantGuard.assertRestaurant(
                 dish != null && dish.getRestaurant() != null ? dish.getRestaurant().getId() : null);

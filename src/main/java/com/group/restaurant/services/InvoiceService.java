@@ -3,11 +3,10 @@ package com.group.restaurant.services;
 import com.group.restaurant.dtos.request.invoice.InvoiceCreateRequest;
 import com.group.restaurant.dtos.response.invoice.InvoiceListResponse;
 import com.group.restaurant.dtos.response.invoice.InvoiceResponse;
-import com.group.restaurant.enums.InvoiceStatus;
 import com.group.restaurant.dtos.response.invoice.QrCodeResponse;
-
-import java.util.List;
+import com.group.restaurant.enums.InvoiceStatus;
 import java.math.BigDecimal;
+import java.util.List;
 
 public interface InvoiceService {
 
@@ -39,7 +38,7 @@ public interface InvoiceService {
     void recalculateAfterItemRemoval(Long invoiceId);
 
     /**
-
+     *
      * Điều kiện gọi: hóa đơn phải ở trạng thái PAID (đã thu đủ tiền).
      * Thành công → trạng thái chuyển sang ISSUED, session được CLOSE.
      * Thất bại → ném ConflictException, session KHÔNG bị đóng (Thu ngân thử lại).

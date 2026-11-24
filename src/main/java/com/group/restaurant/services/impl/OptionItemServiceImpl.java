@@ -12,14 +12,13 @@ import com.group.restaurant.repositories.OptionGroupRepository;
 import com.group.restaurant.repositories.OptionItemRepository;
 import com.group.restaurant.services.OptionItemService;
 import com.group.restaurant.utils.TenantGuard;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -33,9 +32,14 @@ public class OptionItemServiceImpl implements OptionItemService {
 
     @Override
     public OptionItemResponse createOptionItem(OptionItemAddRequest request) {
-        OptionGroup optionGroup = optionGroupRepository.findById(request.getOptionGroupId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy nhóm tùy chọn với ID: " + request.getOptionGroupId()));
+        OptionGroup optionGroup =
+                optionGroupRepository
+                        .findById(request.getOptionGroupId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy nhóm tùy chọn với ID: "
+                                                        + request.getOptionGroupId()));
         tenantGuard.assertRestaurant(optionGroup.getRestaurant().getId());
 
         OptionItem optionItem = optionItemMapper.toEntity(request);
@@ -65,25 +69,30 @@ public class OptionItemServiceImpl implements OptionItemService {
     @Transactional(readOnly = true)
     public List<OptionItemResponse> getOptionItemsByGroup(Long optionGroupId) {
         List<OptionItem> optionItems = optionItemRepository.findByOptionGroupId(optionGroupId);
-        return optionItems.stream()
-                .map(optionItemMapper::toResponse)
-                .collect(Collectors.toList());
+        return optionItems.stream().map(optionItemMapper::toResponse).collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<OptionItemResponse> getAllOptionItems(Long optionGroupId, String keyword, Pageable pageable) {
+    public PageResponse<OptionItemResponse> getAllOptionItems(
+            Long optionGroupId, String keyword, Pageable pageable) {
         // optionGroupId đến từ client — nhóm tùy chọn phải thuộc nhà hàng của người đăng nhập.
         if (optionGroupId != null) {
-            optionGroupRepository.findById(optionGroupId).ifPresent(g ->
-                    tenantGuard.assertRestaurant(
-                            g.getRestaurant() != null ? g.getRestaurant().getId() : null));
+            optionGroupRepository
+                    .findById(optionGroupId)
+                    .ifPresent(
+                            g ->
+                                    tenantGuard.assertRestaurant(
+                                            g.getRestaurant() != null
+                                                    ? g.getRestaurant().getId()
+                                                    : null));
         }
         Page<OptionItem> page;
-        
+
         if (optionGroupId != null && keyword != null && !keyword.trim().isEmpty()) {
-            page = optionItemRepository.findByOptionGroupIdAndNameContainingIgnoreCase(
-                    optionGroupId, keyword.trim(), pageable);
+            page =
+                    optionItemRepository.findByOptionGroupIdAndNameContainingIgnoreCase(
+                            optionGroupId, keyword.trim(), pageable);
         } else if (optionGroupId != null) {
             page = optionItemRepository.findByOptionGroupId(optionGroupId, pageable);
         } else if (keyword != null && !keyword.trim().isEmpty()) {
@@ -92,9 +101,10 @@ public class OptionItemServiceImpl implements OptionItemService {
             page = optionItemRepository.findAll(pageable);
         }
 
-        List<OptionItemResponse> content = page.getContent().stream()
-                .map(optionItemMapper::toResponse)
-                .collect(Collectors.toList());
+        List<OptionItemResponse> content =
+                page.getContent().stream()
+                        .map(optionItemMapper::toResponse)
+                        .collect(Collectors.toList());
 
         return PageResponse.<OptionItemResponse>builder()
                 .content(content)
@@ -110,15 +120,20 @@ public class OptionItemServiceImpl implements OptionItemService {
     @Override
     public void deleteOptionItem(Long id) {
         OptionItem optionItem = findById(id);
-        
+
         // Soft delete
         optionItem.softDelete(null);
         optionItemRepository.save(optionItem);
     }
 
     private OptionItem findById(Long id) {
-        OptionItem item = optionItemRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lựa chọn với ID: " + id));
+        OptionItem item =
+                optionItemRepository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy lựa chọn với ID: " + id));
         tenantGuard.assertRestaurant(item.getOptionGroup().getRestaurant().getId());
         return item;
     }

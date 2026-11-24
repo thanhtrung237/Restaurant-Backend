@@ -1,14 +1,15 @@
 package com.group.restaurant.models;
 
 import jakarta.persistence.*;
+import java.time.Instant;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.time.Instant;
-
 @Entity
-@Table(name = "staff_notification", indexes = @Index(name = "idx_staff_notification_branch", columnList = "branch_id,id"))
+@Table(
+        name = "staff_notification",
+        indexes = @Index(name = "idx_staff_notification_branch", columnList = "branch_id,id"))
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -49,5 +50,12 @@ public class StaffNotification {
         }
     }
 
-    public enum Type { NEW_ORDER, PAYMENT_REQUESTED, STAFF_CALL, PAYMENT_QR_OPENED, BANK_PAYMENT_VERIFIED, DISCOUNT_APPROVAL }
+    public enum Type {
+        NEW_ORDER,
+        PAYMENT_REQUESTED,
+        STAFF_CALL,
+        PAYMENT_QR_OPENED,
+        BANK_PAYMENT_VERIFIED,
+        DISCOUNT_APPROVAL
+    }
 }

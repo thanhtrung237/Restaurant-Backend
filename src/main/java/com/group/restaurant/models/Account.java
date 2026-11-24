@@ -2,16 +2,19 @@ package com.group.restaurant.models;
 
 import com.group.restaurant.enums.AccountStatus;
 import jakarta.persistence.*;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
 
-import java.util.ArrayList;
-import java.util.List;
-
 @Entity
-@Table(name = "account", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_account_restaurant_username", columnNames = {"restaurant_id", "username"})
-})
+@Table(
+        name = "account",
+        uniqueConstraints = {
+            @UniqueConstraint(
+                    name = "uk_account_restaurant_username",
+                    columnNames = {"restaurant_id", "username"})
+        })
 @SQLRestriction("is_deleted = false")
 @Getter
 @Setter
@@ -24,11 +27,12 @@ public class Account extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-   
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "restaurant_id", nullable = true) // nullable=true để hỗ trợ Platform Admin (không thuộc nhà hàng nào)
+    @JoinColumn(
+            name = "restaurant_id",
+            nullable = true) // nullable=true để hỗ trợ Platform Admin (không thuộc nhà hàng nào)
     private Restaurant restaurant;
-    
+
     @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
 
@@ -48,7 +52,9 @@ public class Account extends BaseEntity {
     @Column(length = 100)
     private String email;
 
-    @OneToMany(mappedBy = "account", cascade = { CascadeType.PERSIST, CascadeType.MERGE })
+    @OneToMany(
+            mappedBy = "account",
+            cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @Builder.Default
     private List<Assignment> assignments = new ArrayList<>();
 }

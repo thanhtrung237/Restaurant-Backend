@@ -19,13 +19,16 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @lombok.RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final GuestWebSocketInterceptor guestWebSocketInterceptor;
-    @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origin-patterns:http://localhost:*,http://192.168.1.*:*,http://127.0.0.1:*}")
+
+    @org.springframework.beans.factory.annotation.Value(
+            "${app.cors.allowed-origin-patterns:http://localhost:*,http://192.168.1.*:*,http://127.0.0.1:*}")
     private String allowedOriginPatterns;
+
     @Override
-    public void configureClientInboundChannel(org.springframework.messaging.simp.config.ChannelRegistration registration) {
+    public void configureClientInboundChannel(
+            org.springframework.messaging.simp.config.ChannelRegistration registration) {
         registration.interceptors(guestWebSocketInterceptor);
     }
-
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
@@ -38,8 +41,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns(java.util.Arrays.stream(allowedOriginPatterns.split(","))
-                        .map(String::trim).filter(origin -> !origin.isEmpty()).toArray(String[]::new))
+                .setAllowedOriginPatterns(
+                        java.util.Arrays.stream(allowedOriginPatterns.split(","))
+                                .map(String::trim)
+                                .filter(origin -> !origin.isEmpty())
+                                .toArray(String[]::new))
                 .withSockJS(); // fallback cho trình duyệt không hỗ trợ native WS
     }
 }

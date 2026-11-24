@@ -1,10 +1,9 @@
 package com.group.restaurant.models;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
-
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "audit_log")

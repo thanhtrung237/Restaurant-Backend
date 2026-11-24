@@ -14,12 +14,11 @@ import com.group.restaurant.repositories.DishRepository;
 import com.group.restaurant.repositories.RestaurantRepository;
 import com.group.restaurant.services.CategoryService;
 import com.group.restaurant.utils.TenantGuard;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -34,9 +33,14 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public CategoryResponse createCategory(CategoryAddRequest request) {
-        Restaurant restaurant = restaurantRepository.findById(request.getRestaurantId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy nhà hàng với ID: " + request.getRestaurantId()));
+        Restaurant restaurant =
+                restaurantRepository
+                        .findById(request.getRestaurantId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy nhà hàng với ID: "
+                                                        + request.getRestaurantId()));
 
         Category category = categoryMapper.toEntity(request);
         category.setRestaurant(restaurant);
@@ -65,18 +69,17 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional(readOnly = true)
     public List<CategoryResponse> getCategoriesByRestaurant(Long restaurantId) {
         tenantGuard.assertRestaurant(restaurantId);
-        return categoryRepository.findByRestaurantIdOrderByDisplayOrderAsc(restaurantId)
-                .stream()
+        return categoryRepository.findByRestaurantIdOrderByDisplayOrderAsc(restaurantId).stream()
                 .map(categoryMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<CategoryResponse> getCategoriesByRestaurantAndStatus(Long restaurantId, CategoryStatus status) {
+    public List<CategoryResponse> getCategoriesByRestaurantAndStatus(
+            Long restaurantId, CategoryStatus status) {
         tenantGuard.assertRestaurant(restaurantId);
-        return categoryRepository.findByRestaurantIdAndStatus(restaurantId, status)
-                .stream()
+        return categoryRepository.findByRestaurantIdAndStatus(restaurantId, status).stream()
                 .map(categoryMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -108,8 +111,13 @@ public class CategoryServiceImpl implements CategoryService {
 
     /** Chốt tenant tại finder: phủ getCategoryById / updateCategory / changeStatus / deleteCategory. */
     private Category findById(Long id) {
-        Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy danh mục với ID: " + id));
+        Category category =
+                categoryRepository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Không tìm thấy danh mục với ID: " + id));
         tenantGuard.assertRestaurant(
                 category.getRestaurant() != null ? category.getRestaurant().getId() : null);
         return category;

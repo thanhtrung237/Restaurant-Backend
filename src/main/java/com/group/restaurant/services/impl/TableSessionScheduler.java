@@ -10,14 +10,13 @@ import com.group.restaurant.repositories.TableSessionRepository;
 import com.group.restaurant.services.AuditLogService;
 import com.group.restaurant.services.audit.AuditAction;
 import com.group.restaurant.services.audit.AuditEvent;
+import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * Job nền xử lý tự động hủy phiên bàn theo BR-27 và BR-29.
@@ -49,7 +48,8 @@ public class TableSessionScheduler {
     @Scheduled(fixedDelay = 60_000)
     @Transactional
     public void cancelExpiredWaitingForOpenSessions() {
-        List<TableSession> sessions = tableSessionRepository.findByStatus(TableSessionStatus.WAITING_FOR_OPEN);
+        List<TableSession> sessions =
+                tableSessionRepository.findByStatus(TableSessionStatus.WAITING_FOR_OPEN);
         LocalDateTime now = LocalDateTime.now();
         int cancelled = 0;
 
@@ -59,7 +59,9 @@ public class TableSessionScheduler {
             if (createdAt == null) continue;
 
             if (createdAt.plusMinutes(timeoutMinutes).isBefore(now)) {
-                cancelAndFreeTable(session, "Phiên CHỜ MỞ BÀN hết hạn tự động sau " + timeoutMinutes + " phút (BR-27)");
+                cancelAndFreeTable(
+                        session,
+                        "Phiên CHỜ MỞ BÀN hết hạn tự động sau " + timeoutMinutes + " phút (BR-27)");
                 cancelled++;
             }
         }
@@ -76,7 +78,8 @@ public class TableSessionScheduler {
     @Scheduled(fixedDelay = 60_000)
     @Transactional
     public void cancelExpiredReservedSessions() {
-        List<TableSession> sessions = tableSessionRepository.findByStatus(TableSessionStatus.RESERVED);
+        List<TableSession> sessions =
+                tableSessionRepository.findByStatus(TableSessionStatus.RESERVED);
         LocalDateTime now = LocalDateTime.now();
         int cancelled = 0;
 
@@ -87,10 +90,15 @@ public class TableSessionScheduler {
             LocalDateTime deadline = session.getReservationTime().plusMinutes(holdMinutes);
 
             if (deadline.isBefore(now)) {
-                cancelAndFreeTable(session,
-                        "Phiên ĐẶT TRƯỚC tự động hủy: khách " + session.getReservationName()
-                        + " không đến sau " + holdMinutes + " phút kể từ giờ hẹn "
-                        + session.getReservationTime() + " (BR-29)");
+                cancelAndFreeTable(
+                        session,
+                        "Phiên ĐẶT TRƯỚC tự động hủy: khách "
+                                + session.getReservationName()
+                                + " không đến sau "
+                                + holdMinutes
+                                + " phút kể từ giờ hẹn "
+                                + session.getReservationTime()
+                                + " (BR-29)");
                 cancelled++;
             }
         }
@@ -116,18 +124,22 @@ public class TableSessionScheduler {
 
         try {
             Long branchId = session.getBranch() != null ? session.getBranch().getId() : null;
-            auditLogService.record(AuditEvent.builder()
-                    .entityType("TableSession")
-                    .entityId(session.getId())
-                    .actionType(AuditAction.CANCEL)
-                    .branchId(branchId)
-                    .valueBefore("status=" + previousStatus)
-                    .valueAfter("status=" + TableSessionStatus.CANCELLED)
-                    .reason(reason)
-                    .build());
+            auditLogService.record(
+                    AuditEvent.builder()
+                            .entityType("TableSession")
+                            .entityId(session.getId())
+                            .actionType(AuditAction.CANCEL)
+                            .branchId(branchId)
+                            .valueBefore("status=" + previousStatus)
+                            .valueAfter("status=" + TableSessionStatus.CANCELLED)
+                            .reason(reason)
+                            .build());
         } catch (Exception e) {
             // Không để lỗi ghi log làm rollback transaction hủy phiên
-            log.warn("[Scheduler] Ghi audit log thất bại cho session {}: {}", session.getId(), e.getMessage());
+            log.warn(
+                    "[Scheduler] Ghi audit log thất bại cho session {}: {}",
+                    session.getId(),
+                    e.getMessage());
         }
     }
 

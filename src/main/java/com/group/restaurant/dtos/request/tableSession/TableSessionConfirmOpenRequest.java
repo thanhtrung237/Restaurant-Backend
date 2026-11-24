@@ -6,8 +6,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
-  Phục vụ xác nhận mở bàn → SERVING
-  Áp dụng cho cả phiên WAITING_FOR_OPEN và RESERVED
+ * Phục vụ xác nhận mở bàn → SERVING
+ * Áp dụng cho cả phiên WAITING_FOR_OPEN và RESERVED
  */
 @Getter
 @Setter

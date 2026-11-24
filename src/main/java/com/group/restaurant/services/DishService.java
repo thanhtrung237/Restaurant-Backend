@@ -5,9 +5,8 @@ import com.group.restaurant.dtos.request.dish.DishUpdateRequest;
 import com.group.restaurant.dtos.response.base.PageResponse;
 import com.group.restaurant.dtos.response.dish.DishResponse;
 import com.group.restaurant.enums.DishStatus;
-import org.springframework.data.domain.Pageable;
-
 import java.util.List;
+import org.springframework.data.domain.Pageable;
 
 public interface DishService {
 
@@ -17,7 +16,8 @@ public interface DishService {
 
     DishResponse getDishById(Long id);
 
-    PageResponse<DishResponse> getDishesByRestaurant(Long restaurantId, DishStatus status, Pageable pageable);
+    PageResponse<DishResponse> getDishesByRestaurant(
+            Long restaurantId, DishStatus status, Pageable pageable);
 
     // Lấy món riêng của một chi nhánh (FR-MNU-04)
     List<DishResponse> getDishesByBranch(Long branchId);

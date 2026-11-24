@@ -1,5 +1,8 @@
 package com.group.restaurant.controllers;
 
+import static org.springframework.http.HttpStatus.CREATED;
+import static org.springframework.http.HttpStatus.OK;
+
 import com.group.restaurant.dtos.request.account.AccountAddRequest;
 import com.group.restaurant.dtos.request.account.AccountUpdateRequest;
 import com.group.restaurant.dtos.response.account.AccountResponse;
@@ -8,17 +11,13 @@ import com.group.restaurant.dtos.response.base.ResponseSuccess;
 import com.group.restaurant.enums.AccountStatus;
 import com.group.restaurant.services.AccountService;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-
-import static org.springframework.http.HttpStatus.CREATED;
-import static org.springframework.http.HttpStatus.OK;
 
 @RestController
 @RequestMapping("${api.prefix}/accounts")
@@ -27,23 +26,29 @@ public class AccountController {
 
     private final AccountService accountService;
 
-    // Quản trị nhà hàng quản lý nhân viên (FR-ADM-01); PLATFORM_ADMIN tạo tài khoản chủ nhà hàng khi onboard (FR-TEN-02)
+    // Quản trị nhà hàng quản lý nhân viên (FR-ADM-01); PLATFORM_ADMIN tạo tài khoản chủ nhà hàng
+    // khi onboard (FR-TEN-02)
     @PostMapping("")
     @PreAuthorize("hasAnyRole('MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<AccountResponse>> createAccount(
             @Valid @RequestBody AccountAddRequest request) {
-        return ResponseEntity.status(CREATED).body(new ResponseSuccess<>(
-                CREATED, "Tạo tài khoản thành công", accountService.createAccount(request)
-        ));
+        return ResponseEntity.status(CREATED)
+                .body(
+                        new ResponseSuccess<>(
+                                CREATED,
+                                "Tạo tài khoản thành công",
+                                accountService.createAccount(request)));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<AccountResponse>> updateAccount(
             @PathVariable Long id, @Valid @RequestBody AccountUpdateRequest request) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK, "Cập nhật tài khoản thành công", accountService.updateAccount(id, request)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Cập nhật tài khoản thành công",
+                        accountService.updateAccount(id, request)));
     }
 
     // Màn đăng nhập gọi cho CHÍNH MÌNH (LoginResponse không trả đủ thông tin tài khoản),
@@ -52,17 +57,20 @@ public class AccountController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('MANAGER', 'PLATFORM_ADMIN') or @tenantGuard.isSelf(#id)")
     public ResponseEntity<ResponseSuccess<AccountResponse>> getAccountById(@PathVariable Long id) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK, "Lấy tài khoản thành công", accountService.getAccountById(id)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK, "Lấy tài khoản thành công", accountService.getAccountById(id)));
     }
 
     @GetMapping("/username/{username}")
     @PreAuthorize("hasAnyRole('MANAGER', 'BRANCH_MANAGER', 'PLATFORM_ADMIN')")
-    public ResponseEntity<ResponseSuccess<AccountResponse>> getAccountByUsername(@PathVariable String username) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK, "Lấy tài khoản thành công", accountService.getAccountByUsername(username)
-        ));
+    public ResponseEntity<ResponseSuccess<AccountResponse>> getAccountByUsername(
+            @PathVariable String username) {
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy tài khoản thành công",
+                        accountService.getAccountByUsername(username)));
     }
 
     @GetMapping("")
@@ -73,29 +81,32 @@ public class AccountController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK, "Lấy danh sách tài khoản thành công",
-                accountService.getAllAccounts(restaurantId, status, pageable)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy danh sách tài khoản thành công",
+                        accountService.getAllAccounts(restaurantId, status, pageable)));
     }
 
     @GetMapping("/restaurant/{restaurantId}")
     @PreAuthorize("hasAnyRole('MANAGER', 'PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<List<AccountResponse>>> getAccountsByRestaurant(
             @PathVariable Long restaurantId) {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK, "Lấy danh sách tài khoản theo nhà hàng thành công",
-                accountService.getAccountsByRestaurant(restaurantId)
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy danh sách tài khoản theo nhà hàng thành công",
+                        accountService.getAccountsByRestaurant(restaurantId)));
     }
 
     @GetMapping("/platform-admins")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<ResponseSuccess<List<AccountResponse>>> getPlatformAdmins() {
-        return ResponseEntity.ok(new ResponseSuccess<>(
-                OK, "Lấy danh sách quản trị viên nền tảng thành công",
-                accountService.getPlatformAdmins()
-        ));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(
+                        OK,
+                        "Lấy danh sách quản trị viên nền tảng thành công",
+                        accountService.getPlatformAdmins()));
     }
 
     // Quản trị nhà hàng vô hiệu hóa tài khoản
@@ -104,7 +115,8 @@ public class AccountController {
     public ResponseEntity<ResponseSuccess<Void>> changeStatus(
             @PathVariable Long id, @RequestParam AccountStatus status) {
         accountService.changeStatus(id, status);
-        return ResponseEntity.ok(new ResponseSuccess<>(OK, "Thay đổi trạng thái tài khoản thành công", null));
+        return ResponseEntity.ok(
+                new ResponseSuccess<>(OK, "Thay đổi trạng thái tài khoản thành công", null));
     }
 
     // Tự đổi mật khẩu (bất kỳ nhân viên nào)
