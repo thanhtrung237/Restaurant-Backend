@@ -23,14 +23,13 @@ RUN --mount=type=cache,target=/root/.gradle \
     find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-plain.jar' \
        -exec cp {} /tmp/app.jar \;
 
-FROM eclipse-temurin:21-jre-jammy AS runtime
+FROM eclipse-temurin:21-jre-jammy AS runtime-base
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 restaurant \
     && useradd --system --uid 10001 --gid restaurant --home-dir /app restaurant
 WORKDIR /app
-COPY --from=build --chown=restaurant:restaurant /tmp/app.jar ./app.jar
 ENV SPRING_PROFILES_ACTIVE=docker \
     SERVER_PORT=8080 \
     TZ=Asia/Ho_Chi_Minh
@@ -40,3 +39,11 @@ EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=5s --start-period=240s --retries=5 \
     CMD curl --fail --silent --output /dev/null http://127.0.0.1:8080/actuator/health/readiness || exit 1
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+
+# CD packages the runnable JAR already produced by the Gradle CI job.
+FROM runtime-base AS runtime-ci
+COPY --from=ci_jar --chown=restaurant:restaurant /app.jar ./app.jar
+
+# Keep source builds as the default for local Docker and the main branch.
+FROM runtime-base AS runtime
+COPY --from=build --chown=restaurant:restaurant /tmp/app.jar ./app.jar

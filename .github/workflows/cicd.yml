@@ -54,6 +54,27 @@ jobs:
       - name: Build and run tests
         run: ./gradlew --no-daemon --console=plain clean build
 
+      - name: Prepare backend JAR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/deploy'
+        shell: bash
+        run: |
+          mapfile -t jars < <(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-plain.jar')
+          if [[ ${#jars[@]} -ne 1 ]]; then
+            echo "Expected exactly one runnable JAR in build/libs, found ${#jars[@]}." >&2
+            exit 1
+          fi
+          install -D -- "${jars[0]}" build/ci-artifact/app.jar
+
+      - name: Upload backend JAR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/deploy'
+        uses: actions/upload-artifact@v6
+        with:
+          name: backend-boot-jar
+          path: build/ci-artifact/app.jar
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
       - name: Upload failed test report
         if: failure()
         uses: actions/upload-artifact@v6
@@ -116,10 +137,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Build and smoke test
+      - name: Download backend JAR from CI
+        uses: actions/download-artifact@v7
+        with:
+          name: backend-boot-jar
+          path: build/ci-artifact
+
+      - name: Package Docker image
         run: |
-          docker build --platform linux/amd64 --tag "restaurant-backend:$GITHUB_SHA" .
-          bash .github/scripts/smoke-backend.sh "restaurant-backend:$GITHUB_SHA"
+          docker build --platform linux/amd64 --target runtime-ci \
+            --build-context ci_jar=build/ci-artifact \
+            --tag "restaurant-backend:$GITHUB_SHA" .
+
+      - name: Smoke test backend with MySQL
+        run: bash .github/scripts/smoke-backend.sh "restaurant-backend:$GITHUB_SHA"
 
       - name: Push Docker image
         id: push_image
