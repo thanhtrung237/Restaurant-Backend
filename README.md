@@ -1,80 +1,263 @@
 # Restaurant-Backend
 
-## Ba container độc lập: FE, BE, MySQL
+## Docker local: hai nhóm riêng cho BE và FE
 
-Chạy trong `Restaurant-Backend` với hai repo BE/FE nằm cạnh nhau:
+Docker Desktop hiển thị hai nhóm Compose, tổng cộng ba container riêng:
+
+```text
+restaurant-service
+  backend-1    Spring Boot
+  mysql-1      MySQL 8.4
+restaurant-client
+  frontend-1   React / Nginx
+```
+
+Đặt hai repo BE/FE cạnh nhau. Mở Docker Desktop và chạy PowerShell tại repo BE:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start-docker.ps1 -Build
 ```
 
-Script build hai image ứng dụng và dùng image MySQL chính thức, sau đó chạy ba
-container bằng `docker run`. Docker Desktop hiển thị từng container riêng,
-không nằm trong nhóm Compose. Compose chỉ được dùng để đọc cấu hình môi trường.
+Script dùng Node.js đã cài cho FE. Khi chuyển từ cấu hình local cũ, script build
+trước, backup vào `.docker-runtime/compose-groups/`, dừng container cũ và dùng
+lại volume `MYSQL_VOLUME_NAME`. Sau khi container mới healthy, script đối chiếu
+số dòng từng bảng rồi mới xóa container cũ. Volume và dữ liệu được giữ lại;
+không thay đổi EC2. Cấu hình gộp Java và MySQL trong một container đã được bỏ.
 
-| Container | Truy cập từ máy tính | Cổng bên trong |
-| --- | --- | --- |
-| `restaurant-frontend` | http://localhost:8088 | 80 |
-| `restaurant-backend` | http://localhost:8081 | 8080 |
-| `restaurant-mysql` | `127.0.0.1:3307` | 3306 |
+| Thành phần | Địa chỉ mặc định |
+| --- | --- |
+| FE / đăng nhập | http://localhost:8088/dang-nhap |
+| BE / Swagger | http://localhost:8081/swagger-ui/index.html |
+| MySQL Workbench | `127.0.0.1:3307` |
 
-MySQL Workbench dùng host `127.0.0.1`, port `3307`; username/password/database
-lấy từ `.env.docker`. Các service dùng mạng `restaurant-network`, alias
-`mysql`, `backend`, `frontend`. FE vẫn gọi API/WebSocket qua Nginx cùng origin.
-Các port có thể đổi bằng `FRONTEND_PORT`, `BACKEND_PORT`, `MYSQL_PORT`.
-`MYSQL_USER` phải là tài khoản ứng dụng, ví dụ `restaurant`, không đặt `root`.
-Tài khoản quản trị `root` dùng mật khẩu riêng ở `MYSQL_ROOT_PASSWORD`.
+Database, username và password lấy từ `.env.docker` hiện tại. Không chép file
+mẫu đè lên cấu hình đang có. Nếu cài mới, sao chép `.env.docker.example` thành
+`.env.docker`, điền hai mật khẩu MySQL và hai JWT secret Base64 khác nhau (mỗi
+khóa ít nhất 32 byte ngẫu nhiên) trước khi chạy script. Có thể tạo từng khóa
+bằng `node -e "console.log(require('node:crypto').randomBytes(64).toString('base64'))"`.
+Database mới rỗng cần import dữ liệu riêng; không tự có dữ liệu từ MySQL local khác.
 
-Volume mặc định `restaurant-local_mysql_data` được dùng lại từ bộ Compose cũ.
-Nếu bộ Compose đang chạy, dừng nó bằng `docker compose --env-file .env.docker stop`
-trước khi chuyển chế độ. Không chạy hai MySQL cùng ghi vào volume này. Script
-kiểm tra và dừng nếu volume đang được một container đang chạy khác sử dụng.
+Hai nhóm dùng chung network external `restaurant-shared`. FE giữ API `/api/v1`
+và SockJS `/ws`, Nginx chuyển tới `backend:8080` trên network chung. BE kết nối
+MySQL qua `mysql:3306`; mỗi dịch vụ vẫn ở container riêng.
 
-Build/chạy lại từng container độc lập sau khi sửa code:
+Sau khi sửa code, có thể cập nhật từng phần; cập nhật BE không restart MySQL:
 
 ```powershell
 .\start-docker.ps1 -Service backend -Build -Recreate
 .\start-docker.ps1 -Service frontend -Build -Recreate
-.\start-docker.ps1 -Service mysql
 ```
 
-Nếu PowerShell chặn thực thi `.ps1`, dùng dạng
-`powershell -ExecutionPolicy Bypass -File .\start-docker.ps1` và thêm các tham số
-`-Service`, `-Build`, `-Recreate` tương ứng ở cuối lệnh.
-
-Không có `-Recreate`, script giữ container đã tồn tại và khởi động nó nếu đang
-dừng. `-Recreate` chỉ thay container thuộc script này, không xóa database volume.
-Các file env trung gian được tạo trong `.docker-runtime` đã Git ignore và được
-xóa sau khi chạy; không in credentials ra terminal.
+Các lệnh thủ công sau dùng khi network/volume đã được script chuẩn bị:
 
 ```powershell
-docker logs -f --tail=100 restaurant-backend
-docker logs -f --tail=100 restaurant-frontend
-docker logs -f --tail=100 restaurant-mysql
+# Chạy trong Restaurant-Backend: nhóm BE + DB
+docker compose --env-file .env.docker up -d --build --wait --wait-timeout 600
+docker compose --env-file .env.docker ps
+docker compose --env-file .env.docker logs -f backend mysql
 
-# Dừng riêng từng container; database vẫn được giữ trong volume
-docker stop restaurant-frontend
-docker stop restaurant-backend
-docker stop restaurant-mysql
+# Cũng từ Restaurant-Backend: nhóm FE riêng
+docker compose --env-file .env.docker -f ../Restaurant-Frontend/compose.yaml up -d --build --wait
+docker compose --env-file .env.docker -f ../Restaurant-Frontend/compose.yaml ps
+docker compose --env-file .env.docker -f ../Restaurant-Frontend/compose.yaml logs -f frontend
 
-# Khởi động lại cả ba theo thứ tự và đợi healthcheck
-.\start-docker.ps1
+# Dừng FE trước, sau đó BE/DB; dữ liệu vẫn ở volume
+docker compose --env-file .env.docker -f ../Restaurant-Frontend/compose.yaml stop
+docker compose --env-file .env.docker stop
 ```
 
-Database mới vẫn rỗng, chưa có tài khoản. Để nhập dump database của project vào
-container độc lập, dừng ứng dụng trong lúc nhập:
+Không dùng lệnh Compose cũ khi container cũ đang giữ volume; dùng script để
+chuyển lần đầu. Volume database là external; không xóa volume hoặc dùng
+`down -v` để cập nhật ứng dụng. Backup của các lần chuyển trước vẫn được giữ.
+MySQL image được kiểm tra khớp image đang dùng trước khi chuyển, không tự nâng
+phiên bản DB. Khi cần pin phiên bản, đặt `MYSQL_IMAGE=mysql@sha256:<digest>`
+trong `.env.docker`. Có thể đổi network qua `RESTAURANT_NETWORK_NAME`.
+
+Cấu hình EC2 ở `deploy/ec2/` vẫn là cấu hình server riêng. Các bước dưới đây
+về EC2 không thay đổi Docker local thành cấu hình production.
+
+## Deploy lên AWS EC2 (Ubuntu x86_64)
+
+Bộ cấu hình server nằm trong `deploy/ec2/`, tách khỏi Docker local. Có đúng ba
+container FE, BE và MySQL; HTTPS sau này do Caddy chạy trên host EC2 đảm nhiệm.
+Các image được pull từ GHCR, không build Java/Node trên EC2.
+
+### Tạo EC2 lần đầu
+
+EC2 backend mới dùng `deploy/ec2/compose.backend.yaml` (chỉ BE và MySQL),
+copy lên server thành `~/restaurant-ec2/compose.yaml`. Caddy chạy trên host;
+`deploy/ec2/Caddyfile.swagger-ip` phục vụ Swagger tại
+`http://47.129.142.237/swagger-ui/index.html`. BE vẫn bind loopback 8081,
+MySQL không publish port. Swagger yêu cầu `SWAGGER_ENABLED=true`.
+
+Khi DNS `restaurant.thanhtrung.click` đã trỏ về EC2, dùng
+`deploy/ec2/Caddyfile.backend` cho `/etc/caddy/Caddyfile` để có Swagger HTTPS:
+`https://restaurant.thanhtrung.click/swagger-ui/index.html`. File này cũng giữ
+đường dẫn IP HTTP. FE Vercel dùng
+`VITE_API_BASE_URL=https://restaurant.thanhtrung.click/api/v1` và
+`VITE_WS_URL=https://restaurant.thanhtrung.click/ws`; đổi env cần Redeploy FE.
+
+Lần khởi tạo Swagger trên server mới chỉ nhập cấu trúc bảng, chưa chuyển tài
+khoản hoặc dữ liệu nghiệp vụ từ EC2 cũ. Mật khẩu DB/JWT của máy mới được tạo
+riêng và lưu ở `.env.ec2` trên server (quyền 600), không commit lên Git.
+`deploy/ec2/install-backend-host.sh` cài Docker/Caddy trên Ubuntu. Bộ cấu hình
+ba container FE/BE/MySQL bên dưới vẫn dành cho máy EC2 cũ.
+
+Trong AWS Console → EC2 → Launch instance:
+
+- Region gợi ý: Singapore (`ap-southeast-1`).
+- AMI: Ubuntu Server 24.04 LTS, **64-bit x86**, không chọn ARM/Graviton cho các
+  image amd64 hiện tại.
+- Instance gợi ý cho cả Java và MySQL: `t3.medium` (2 vCPU, 4 GiB RAM).
+- Storage: gp3 khoảng 40 GiB, bật encryption.
+- Key pair: tạo key RSA, lưu file `.pem` trên máy, ngoài Git repo.
+- Network: public subnet có route Internet Gateway, bật public IPv4.
+- Security Group inbound: SSH TCP 22 từ **My IP**; HTTP 80 và HTTPS 443 từ
+  Internet. Không mở 3306/3307 hoặc cổng backend 8080/8081 ra Internet.
+- Xem chi phí trước khi Launch và kiểm tra Billing/Free Tier/Budgets. EC2, EBS,
+  public IPv4 và lưu lượng có thể tính phí; không mặc định coi EC2 là miễn phí.
+
+Hướng dẫn AWS:
+https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/tutorial-launch-my-first-ec2-instance.html
+
+### SSH và cài Docker Engine
+
+Trong PowerShell local, thay đường dẫn key và IP thực tế:
 
 ```powershell
-docker stop restaurant-frontend restaurant-backend
-docker cp .\restaurant.sql restaurant-mysql:/tmp/restaurant.sql
-docker exec restaurant-mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --default-character-set=utf8mb4 -u"$MYSQL_USER" "$MYSQL_DATABASE" < /tmp/restaurant.sql'
-docker exec restaurant-mysql rm /tmp/restaurant.sql
-.\start-docker.ps1
+ssh -i "C:\Users\Tan Tai\Downloads\restaurant-ec2.pem" ubuntu@EC2_PUBLIC_IP
 ```
 
-Chỉ dùng dump đúng database, tránh `USE` trỏ sang tên database khác và lưu ý dump
-có `DROP TABLE` sẽ thay bảng hiện tại. Không import vào dữ liệu cần giữ nếu chưa
-có backup.
+Đối chiếu SSH host fingerprint với thông tin instance khi kết nối lần đầu.
+Trong SSH Ubuntu, cài Docker theo apt repository chính thức:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo usermod -aG docker ubuntu
+exit
+```
+
+SSH lại để nhận group mới, rồi kiểm tra `docker version`, `docker compose version`.
+Tài liệu: https://docs.docker.com/engine/install/ubuntu/
+
+### Chuyển cấu hình và chọn image đã publish
+
+Ưu tiên dùng bản publish thành công trên `main` của cả hai repo. Lấy tag
+`sha-<commit>` từ các job publish; SHA BE và FE có thể khác nhau. Cấu hình EC2
+không tự thấy image đang nằm trên Docker Desktop.
+
+Nếu bản đầu tiên được chuyển trực tiếp qua SSH bằng `docker save`/`docker load`,
+đặt `BACKEND_IMAGE` và `FRONTEND_IMAGE` đúng các tag đã load trên EC2, rồi chạy
+`bash deploy.sh all --skip-pull`. Chế độ này không cần công khai image hoặc token
+GHCR; khi cập nhật tiếp cần chuyển image mới hoặc đổi sang các tag GHCR hợp lệ.
+Không bỏ `--skip-pull` trong lúc env vẫn dùng các tag local này.
+
+Trong PowerShell ở repo backend:
+
+```powershell
+$ec2Key = 'C:\Users\Tan Tai\Downloads\restaurant-ec2.pem'
+$ec2Host = 'EC2_PUBLIC_IP'
+ssh -i $ec2Key "ubuntu@$ec2Host" 'mkdir -p ~/restaurant-ec2 && chmod 700 ~/restaurant-ec2'
+scp -i $ec2Key deploy/ec2/compose.yaml deploy/ec2/.env.example deploy/ec2/nginx.conf.template deploy/ec2/deploy.sh deploy/ec2/backup-db.sh deploy/ec2/Caddyfile.example "ubuntu@${ec2Host}:restaurant-ec2/"
+```
+
+Trong SSH Ubuntu:
+
+```bash
+cd ~/restaurant-ec2
+sed -i 's/\r$//' deploy.sh backup-db.sh
+chmod +x deploy.sh backup-db.sh
+umask 077
+cp -n .env.example .env.ec2
+nano .env.ec2
+```
+
+Điền image GHCR, public IP, database name và credentials. Tạo hai mật khẩu khác
+nhau bằng `openssl rand -hex 24`, hai JWT secret khác nhau bằng
+`openssl rand -base64 64 | tr -d '\n'; echo`. Đặt Cloudinary credentials thật nếu
+cần upload ảnh. Không gửi `.pem`, AWS secret key hoặc file env thật lên Git.
+
+Image private cần login GHCR trên EC2 bằng tài khoản có quyền đọc package và
+token `read:packages`. Chạy `docker login ghcr.io -u GITHUB_USERNAME`, nhập token
+tại password prompt. Tài khoản GitHub phải được cấp quyền đọc cả hai package.
+
+### Khởi tạo database và chạy bằng public IP
+
+Export **cấu trúc và dữ liệu từ MySQL Docker 8.4 đang chạy local**, không lấy
+thẳng dump từ MySQL 9.4 nếu chưa kiểm tra tương thích. Không chọn Include Create
+Schema; nếu dump có `USE`, tên đó phải khớp `MYSQL_DATABASE` trên EC2, kể cả chữ
+hoa/thường. Copy dump riêng bằng SCP tới `~/restaurant-ec2/restaurant.sql`.
+
+Trong SSH Ubuntu:
+
+```bash
+cd ~/restaurant-ec2
+docker compose --env-file .env.ec2 -f compose.yaml config --quiet
+docker compose --env-file .env.ec2 -f compose.yaml up -d --wait --wait-timeout 300 mysql
+
+# Chỉ import vào database EC2 mới/rỗng. Dump có DROP TABLE sẽ thay bảng hiện có.
+docker compose --env-file .env.ec2 -f compose.yaml exec -T mysql sh -ec 'export MYSQL_PWD="$MYSQL_PASSWORD"; exec mysql --default-character-set=utf8mb4 -u"$MYSQL_USER" "$MYSQL_DATABASE"' < restaurant.sql
+
+bash deploy.sh all
+```
+
+Backend mặc định `ddl-auto=validate`: schema cần tồn tại và khớp model trước
+khi BE healthy. Nếu validate báo thiếu cột, chuẩn bị migration phù hợp trước,
+không chuyển sang `create`/`create-drop` trên database đã nhập dữ liệu.
+
+Mở `http://EC2_PUBLIC_IP`. FE/API hoạt động qua cổng 80; MySQL không public, BE
+chỉ bind loopback. Đây là bước kiểm tra kết nối ban đầu; geolocation trên điện
+thoại cần HTTPS. Dữ liệu EC2 dùng volume `restaurant-production_mysql_data`,
+không dùng chung volume với Docker local.
+
+### Thêm HTTPS khi đã có tên miền
+
+1. Trỏ DNS A của hostname về public IPv4 EC2. IP public thông thường có thể đổi
+   khi stop/start EC2; Elastic IP giúp cố định nhưng cũng có thể phát sinh phí.
+2. Cài Caddy trên Ubuntu theo https://caddyserver.com/docs/install#debian-ubuntu-raspbian.
+   Dừng Caddy trong lúc chuyển frontend khỏi cổng 80.
+3. Đổi `.env.ec2`: `APP_PUBLIC_ORIGIN=https://TEN_MIEN`,
+   `HTTP_BIND_ADDRESS=127.0.0.1`, `FRONTEND_PORT=8088`, `TRUST_PROXY_HEADERS=1`.
+4. Chạy `bash deploy.sh all` để áp dụng origin và port mới cho BE/FE.
+5. Thay hostname trong `Caddyfile.example`, copy vào `/etc/caddy/Caddyfile`, chạy
+   `sudo caddy validate --config /etc/caddy/Caddyfile` rồi `sudo systemctl restart caddy`.
+6. Kiểm tra đăng nhập, QR/vị trí trên điện thoại, WebSocket, upload ảnh và SePay
+   bằng domain HTTPS. Cập nhật URL webhook SePay nếu sử dụng.
+
+Nginx server chỉ tin forwarded headers khi `TRUST_PROXY_HEADERS=1`. Chỉ bật
+chế độ này khi frontend đã bind loopback sau Caddy. Swagger tắt mặc định; nếu
+bật để debug thì xem xét giới hạn quyền truy cập trước khi public.
+
+### Cập nhật, rollback và backup
+
+```bash
+# Đổi đúng tag SHA trong .env.ec2, sau đó cập nhật service cần thiết
+bash deploy.sh backend
+bash deploy.sh frontend
+
+docker compose --env-file .env.ec2 -f compose.yaml logs -f --tail=100 backend
+bash backup-db.sh
+```
+
+Với image đã chuyển bằng SSH, thêm `--skip-pull` sau `all`, `backend` hoặc
+`frontend`. `docker load` phải hoàn tất trước khi gọi deploy.
+
+Script deploy có lock và chỉ thay app container, không recreate/upgrade MySQL.
+Lưu lại tag SHA đang chạy trước khi sửa env. Khi cần rollback app, phục hồi tag
+SHA cũ rồi deploy lại; rollback image không tự hoàn tác migration database.
+File backup được lưu riêng tư trong `backups/`; copy backup ra ngoài EC2 (ví dụ
+máy local hoặc S3) và thử restore. Không dùng `down -v` để cập nhật ứng dụng.
+
+Job deploy Windows trong workflow hiện có vẫn dành cho Docker Desktop. Sau khi
+bản EC2 đầu tiên chạy thành công, đổi/tạo job deploy qua SSH hoặc AWS SSM tới
+đúng instance. Không cần tạo AWS access key chỉ để SSH/pull image từ GHCR.
 
 ## Swagger / OpenAPI cho backend
 
@@ -93,181 +276,6 @@ Guest endpoint có thể cần `X-Guest-Token` riêng.
 Swagger không lưu token qua lần tải trang tiếp theo. Đặt `SWAGGER_ENABLED=false`
 và recreate backend để tắt UI lẫn OpenAPI JSON. Khi chạy trên production cần
 quyết định rõ có công khai tài liệu hay không.
-
-## Chạy local bằng Docker Compose (tùy chọn)
-
-Đây là chế độ thay thế script standalone ở trên; không chạy đồng thời cả hai
-chế độ trên cùng cổng và volume.
-
-Bộ Compose chạy MySQL 8.4, backend Java 21 và frontend Nginx. Đây là cấu hình
-local, dùng database riêng trong Docker volume và `ddl-auto=update` để tạo bảng.
-Chưa bao gồm HTTPS, migration production hay GitHub Actions.
-
-Hai Git repo phải nằm cạnh nhau:
-
-```text
-KLTN/
-├── RestaurantApp-BE/   # compose.yaml nằm tại đây
-└── RestaurantApp-FE/
-```
-
-Nếu thư mục FE có tên khác, đặt `FRONTEND_BUILD_CONTEXT` trong `.env.docker`.
-
-### 1. Chuẩn bị
-
-- Cài và mở [Docker Desktop cho Windows](https://docs.docker.com/desktop/setup/install/windows-install/),
-  dùng WSL 2 và Linux containers. Kiểm tra `docker version` và `docker compose version`.
-- Cần Internet cho lần build đầu để tải base image, Gradle và dependency.
-- Không cần cài MySQL, Node hay Java trên host để chạy Docker.
-- Nếu chưa có `.env.docker`, sao chép file mẫu; không ghi đè file đã có:
-
-```powershell
-cd E:\TanTai\KhoaLuanTotNghiep\KLTN_project\Restaurant-Backend
-if (-not (Test-Path .env.docker)) {
-    Copy-Item .env.docker.example .env.docker
-}
-```
-
-Mở `.env.docker`, đặt hai mật khẩu MySQL khác nhau và hai JWT secret khác nhau.
-Mỗi JWT secret là Base64 của ít nhất 32 byte ngẫu nhiên. Tạo từng secret bằng
-PowerShell (chạy hai lần):
-
-```powershell
-$keyBytes = New-Object byte[] 64
-$keyGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
-try { $keyGenerator.GetBytes($keyBytes) } finally { $keyGenerator.Dispose() }
-[Convert]::ToBase64String($keyBytes)
-```
-
-`.env.docker` đã được Git ignore. Compose chỉ nhận các biến được khai báo trong
-`compose.yaml`; không dùng hoặc copy `.env` hiện tại của backend vào image.
-Nếu Codex đã tạo `.env.docker` cho bạn, các mật khẩu/JWT local đã được sinh ngẫu
-nhiên và bạn có thể dùng ngay. Không đưa chúng lên GitHub.
-
-### 2. Build và chạy
-
-Chạy các lệnh sau trong `Restaurant-Backend`:
-
-```powershell
-docker compose --env-file .env.docker config --quiet
-docker compose --env-file .env.docker up -d --build --wait --wait-timeout 300
-docker compose --env-file .env.docker ps
-```
-
-Mở **http://localhost:8088**. Backend được map ra `localhost:8081` để truy cập
-Swagger/API, MySQL ra `localhost:3307` cho Workbench. Backend đợi MySQL chạy được truy vấn; frontend đợi
-backend readiness kiểm tra kết nối database thành công.
-
-- `/api/v1/...` được Nginx chuyển sang `backend:8080`, giữ nguyên URL và query.
-- `/ws` và các URL con SockJS được proxy, hỗ trợ WebSocket Upgrade.
-- Refresh các đường dẫn React Router vẫn trả về `index.html`.
-- `/healthz` kiểm tra Nginx; nó không thay thế readiness của backend.
-
-Kiểm tra frontend và endpoint SockJS qua proxy:
-
-```powershell
-Invoke-WebRequest http://localhost:8088/healthz -UseBasicParsing
-Invoke-WebRequest http://localhost:8088/ws/info -UseBasicParsing
-docker compose --env-file .env.docker exec backend curl -fsS http://127.0.0.1:8080/actuator/health/readiness
-```
-
-Nếu port 8088 đang bận, đổi `FRONTEND_PORT` và các origin tương ứng trong
-`APP_CORS_ALLOWED_ORIGIN_PATTERNS`, rồi chạy lại `up -d`.
-
-### 3. Dữ liệu và tài khoản đăng nhập
-
-Lần đầu MySQL tạo database rỗng. Hibernate tạo schema, nhưng **không có sẵn tài
-khoản hoặc dữ liệu nhà hàng**. `src/main/resources/data.sql` hiện chứa SQL mẫu
-đã comment; cấu hình Docker chủ động tắt tự động chạy SQL.
-
-Sau khi backend đã tạo bảng, kiểm tra kết nối và số tài khoản từ đúng database
-Docker. Với Docker Compose, chạy từ thư mục backend:
-
-```powershell
-docker compose --env-file .env.docker ps
-docker compose --env-file .env.docker exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u"$MYSQL_USER" "$MYSQL_DATABASE" -e "SELECT DATABASE(); SELECT COUNT(*) AS accounts FROM account;"'
-```
-
-Nếu đây là database demo mới và các bảng nghiệp vụ còn trống, nạp dữ liệu mẫu
-một lần:
-
-```powershell
-docker compose --env-file .env.docker --profile demo run --rm seed-demo
-```
-
-Nếu dùng script standalone, nạp file Docker seed sau khi backend đã tạo bảng
-và bạn đã kiểm tra database demo còn trống:
-
-```powershell
-docker cp ./docker/seed-demo.mysql restaurant-mysql:/tmp/restaurant-seed-demo.sql
-docker exec restaurant-mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --default-character-set=utf8mb4 --protocol=TCP -h 127.0.0.1 -u"$MYSQL_USER" "$MYSQL_DATABASE" < /tmp/restaurant-seed-demo.sql'
-```
-
-Đăng nhập web demo với mã nhà hàng `NH001`, tên đăng nhập `admin` và mật khẩu
-`PhoVietDemo!26`. Tài khoản MySQL trong `.env.docker` dùng cho kết nối database.
-
-Để dùng dữ liệu hiện có, xuất một database bằng MySQL Workbench/mysqldump thành
-`restaurant.sql`. Dùng bản export của đúng project, không chứa `CREATE DATABASE`
-hoặc `USE` trỏ sang database khác. Chỉ import vào database Docker local mới/rỗng;
-dump có `DROP TABLE` sẽ thay thế bảng hiện tại. Giữ bản export gốc làm backup.
-
-Dừng ứng dụng trong lúc import để tránh ghi dữ liệu đồng thời:
-
-```powershell
-docker compose --env-file .env.docker stop frontend backend
-docker compose --env-file .env.docker cp .\restaurant.sql mysql:/tmp/restaurant.sql
-docker compose --env-file .env.docker exec mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --default-character-set=utf8mb4 -u"$MYSQL_USER" "$MYSQL_DATABASE" < /tmp/restaurant.sql'
-docker compose --env-file .env.docker exec mysql rm /tmp/restaurant.sql
-docker compose --env-file .env.docker up -d --wait --wait-timeout 300
-```
-
-Không cần đổi database đang chạy ngoài Docker. Dữ liệu Docker nằm trong volume
-`restaurant-local_mysql_data`. `stop` hoặc `down` giữ lại volume; tránh `down -v`
-vì thao tác đó xóa dữ liệu. Mật khẩu/tên database trong `.env.docker` chỉ tạo tài
-khoản/schema khi volume MySQL được khởi tạo lần đầu; sửa file không tự đổi mật
-khẩu hoặc tên database đã tồn tại.
-
-### 4. Tính năng cần cấu hình thêm
-
-- **Upload ảnh:** thay `CLOUDINARY_URL` local bằng thông tin Cloudinary thật.
-  Placeholder chỉ giúp ứng dụng khởi động, không upload được ảnh.
-- **AI:** đặt `GEMINI_API_KEY`, và model mà tài khoản của bạn sử dụng được.
-- **SePay/Discord:** đặt các biến tương ứng nếu sử dụng; webhook từ bên ngoài cần
-  URL HTTPS công khai và secret riêng.
-- **QR + vị trí trên điện thoại:** `http://localhost:8088` phục vụ kiểm tra trên
-  máy tính. Điện thoại cần URL HTTPS tin cậy để cấp vị trí; đổi bind sang
-  `0.0.0.0` chỉ mở truy cập LAN, không tạo HTTPS.
-- **FE:** `VITE_API_BASE_URL=/api/v1`, `VITE_WS_URL=/ws` được truyền lúc build,
-  không phải runtime secret. Đổi build args thì build lại image frontend.
-
-### 5. Cập nhật, xem log và dừng
-
-```powershell
-# Sau khi cập nhật code
-docker compose --env-file .env.docker up -d --build --wait --wait-timeout 300
-
-# Xem log; Ctrl+C thoát khỏi việc theo dõi log, không dừng container
-docker compose --env-file .env.docker logs -f --tail=100 backend mysql frontend
-
-# Dừng nhưng giữ container/dữ liệu
-docker compose --env-file .env.docker stop
-
-# Gỡ container/network; vẫn giữ database volume
-docker compose --env-file .env.docker down
-```
-
-Nếu backend unhealthy, xem log backend/MySQL trước. Nếu báo thiếu JWT secret,
-điền `.env.docker`. Nếu Docker báo không kết nối được daemon, mở Docker Desktop
-và chờ engine sẵn sàng. Nếu truy vấn MySQL báo access denied sau khi sửa mật khẩu,
-đồng bộ với tài khoản trong volume hiện có thay vì xóa dữ liệu.
-
-### Lưu cấu hình lên Git
-
-Commit `Dockerfile`, `.dockerignore`, `nginx.conf`, `start-docker.ps1`, README và code liên quan ở
-từng repo. `compose.yaml` và `.env.docker.example` nằm trong repo backend, nên
-không bị bỏ quên ở thư mục cha không có Git. Không commit `.env.docker` hoặc dump
-database. Dockerfile backend chỉ build JAR; trước khi phát hành vẫn phải chạy
-test, ví dụ `./gradlew test bootJar` với Java 21.
 
 ## CI/CD backend
 

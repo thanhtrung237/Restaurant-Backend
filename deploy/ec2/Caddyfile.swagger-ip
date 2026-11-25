@@ -1,0 +1,14 @@
+# EC2 backend-only entry point. HTTP is intentional for this public IPv4 URL.
+# Add a separate HTTPS api.thanhtrung.click site after DNS points to this EC2.
+http://47.129.142.237 {
+    encode gzip
+
+    @application path /api/* /ws /ws/* /swagger-ui /swagger-ui.html /swagger-ui/* /v3/api-docs /v3/api-docs/*
+    handle @application {
+        reverse_proxy 127.0.0.1:8081
+    }
+
+    handle {
+        respond "Restaurant API - Swagger: /swagger-ui/index.html" 200
+    }
+}

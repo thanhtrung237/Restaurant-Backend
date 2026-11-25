@@ -1,0 +1,24 @@
+# Shared API/Swagger routing. Actuator remains available only on loopback.
+(restaurant_backend) {
+    encode gzip
+
+    @application path /api/* /ws /ws/* /swagger-ui /swagger-ui.html /swagger-ui/* /v3/api-docs /v3/api-docs/*
+    handle @application {
+        reverse_proxy 127.0.0.1:8081
+    }
+
+    handle {
+        respond "Restaurant API - Swagger: /swagger-ui/index.html" 200
+    }
+}
+
+# Keep the IP URL requested for Swagger working.
+http://47.129.142.237 {
+    import restaurant_backend
+}
+
+# DNS A record: restaurant.thanhtrung.click -> 47.129.142.237.
+# Caddy obtains/renews the TLS certificate and redirects HTTP to HTTPS.
+restaurant.thanhtrung.click {
+    import restaurant_backend
+}

@@ -9,7 +9,11 @@ bin
 out
 .env
 .env.*
+**/.env
+**/.env.*
 .docker-runtime
+deploy/ec2/.runtime
+deploy/ec2/backups
 *.ps1
 **/*.sql
 # Keep application SQL resources available for future schema migrations.

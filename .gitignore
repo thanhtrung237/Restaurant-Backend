@@ -52,7 +52,12 @@ out/
 ### Scripts ###
 *.ps1
 !start-docker.ps1
+!deploy/deploy-backend.ps1
 .docker-runtime/
 *.sh
+!deploy/ec2/*.sh
+deploy/ec2/.runtime/
+deploy/ec2/backups/
+deploy/ec2/*.pem
 *.sql
 !docs/sql/2026-11-22-operational-permissions.sql

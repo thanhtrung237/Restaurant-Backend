@@ -1,0 +1,7 @@
+# Install Caddy on the EC2 host after obtaining a domain.
+# Replace this hostname and copy to /etc/caddy/Caddyfile.
+# First bind frontend to 127.0.0.1:8088 and set TRUST_PROXY_HEADERS=1 in .env.ec2.
+restaurant.your-domain.com {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8088
+}

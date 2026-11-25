@@ -1,8 +1,8 @@
-name: restaurant-local
+name: restaurant-service
 
 services:
   mysql:
-    image: mysql:8.4
+    image: ${MYSQL_IMAGE:-mysql:8.4}
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-restaurant}
@@ -82,27 +82,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  frontend:
-    image: restaurant-frontend:local
-    build:
-      # Both Git repositories must be checked out next to one another.
-      context: ${FRONTEND_BUILD_CONTEXT:-../Restaurant-Frontend}
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: /api/v1
-        VITE_WS_URL: /ws
-    restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-    ports:
-      - "${HTTP_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-8088}:80"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   seed-demo:
     image: mysql:8.4
     profiles: [demo]
@@ -127,5 +106,10 @@ services:
 
 volumes:
   mysql_data:
-    # Reuse the original database volume in both Compose and standalone mode.
+    external: true
     name: ${MYSQL_VOLUME_NAME:-restaurant-local_mysql_data}
+
+networks:
+  default:
+    external: true
+    name: ${RESTAURANT_NETWORK_NAME:-restaurant-shared}
