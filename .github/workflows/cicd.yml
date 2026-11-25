@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - deploy
       - dev
       - develop
       - tai-dev
@@ -11,6 +12,7 @@ on:
   pull_request:
     branches:
       - main
+      - deploy
       - dev
       - develop
       - tai-dev
@@ -22,7 +24,7 @@ permissions:
 
 concurrency:
   group: backend-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/deploy' }}
 
 jobs:
   check:
@@ -98,21 +100,57 @@ jobs:
           docker push "$registry_image:sha-$GITHUB_SHA"
           docker push "$registry_image:latest"
 
-  deploy:
-    name: Deploy backend to Docker Compose
-    needs: publish
-    if: github.event.repository.private && vars.RESTAURANT_BACKEND_DIR != ''
-    runs-on: [self-hosted, Windows, restaurant-backend-deploy]
-    timeout-minutes: 10
+  publish-docker-hub:
+    name: Build and push to Docker Hub
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/deploy'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      release_image: ${{ steps.push_image.outputs.release_image }}
     env:
-      RESTAURANT_BACKEND_DIR: ${{ vars.RESTAURANT_BACKEND_DIR }}
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
 
-      - name: Pull and start backend
-        shell: powershell
+      - name: Build and smoke test
         run: |
-          $image = 'ghcr.io/{0}:sha-{1}' -f $env:GITHUB_REPOSITORY.ToLowerInvariant(), $env:GITHUB_SHA
-          & .\deploy\deploy-backend.ps1 -BackendDirectory $env:RESTAURANT_BACKEND_DIR -Image $image
+          docker build --platform linux/amd64 --tag "restaurant-backend:$GITHUB_SHA" .
+          bash .github/scripts/smoke-backend.sh "restaurant-backend:$GITHUB_SHA"
+
+      - name: Push Docker image
+        id: push_image
+        run: |
+          set -euo pipefail
+          [[ "$DOCKER_USERNAME" =~ ^[a-z0-9][a-z0-9_-]*$ && -n "$DOCKER_PASSWORD" ]]
+          image="docker.io/$DOCKER_USERNAME/restaurant-backend"
+          printf '%s' "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+          docker tag "restaurant-backend:$GITHUB_SHA" "$image:sha-$GITHUB_SHA"
+          docker tag "restaurant-backend:$GITHUB_SHA" "$image:latest"
+          docker push "$image:sha-$GITHUB_SHA"
+          docker push "$image:latest"
+          digest=$(docker buildx imagetools inspect "$image:sha-$GITHUB_SHA" --format '{{.Manifest.Digest}}')
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          printf 'release_image=%s@%s\n' "$image" "$digest" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy backend to EC2 via SSH
+    needs: publish-docker-hub
+    if: github.event_name == 'push' && github.ref == 'refs/heads/deploy'
+    runs-on: ${{ vars.EC2_SSH_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Update backend on EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+          RELEASE_IMAGE: ${{ needs.publish-docker-hub.outputs.release_image }}
+        run: bash .github/scripts/deploy-ec2.sh

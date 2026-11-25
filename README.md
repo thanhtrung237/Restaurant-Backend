@@ -267,9 +267,7 @@ SHA cũ rồi deploy lại; rollback image không tự hoàn tác migration data
 File backup được lưu riêng tư trong `backups/`; copy backup ra ngoài EC2 (ví dụ
 máy local hoặc S3) và thử restore. Không dùng `down -v` để cập nhật ứng dụng.
 
-Job deploy Windows trong workflow hiện có vẫn dành cho Docker Desktop. Sau khi
-bản EC2 đầu tiên chạy thành công, đổi/tạo job deploy qua SSH hoặc AWS SSM tới
-đúng instance. Không cần tạo AWS access key chỉ để SSH/pull image từ GHCR.
+Xem phần [Tự động triển khai BE lên EC2](#tự-động-triển-khai-be-lên-ec2-qua-ssh) để bật CD qua SSH.
 
 ## Swagger / OpenAPI cho backend
 
@@ -321,9 +319,55 @@ máy Docker bằng tài khoản có quyền pull.
 Thay `<commit-sha>` bằng SHA thực tế. Script chỉ cập nhật service `backend`
 và chờ readiness. Có thể dùng tag SHA cũ để chạy lại image phiên bản trước.
 
-Với repo GitHub riêng tư, đặt Actions variable `RESTAURANT_BACKEND_DIR` thành
-đường dẫn tuyệt đối đến checkout backend chứa `compose.yaml` và `.env.docker`.
-Đăng ký runner Windows với nhãn `restaurant-backend-deploy` trên máy Docker.
-Tài khoản chạy runner cần truy cập được Docker Desktop và GHCR. Khi đó job
-triển khai tự chạy sau bước phát hành trên `main`. Repo công khai dùng lệnh
-PowerShell ở trên.
+### Tự động triển khai BE lên EC2 qua SSH
+
+Push nhánh `deploy` chạy CI, build image, smoke test với MySQL, push image lên
+Docker Hub rồi SSH vào EC2 để cập nhật BE. Docker Hub có tag `latest` và
+`sha-<commit>`. EC2 lấy đúng digest do workflow xuất bản. Khi readiness hoặc
+HTTPS `/ws/info` thất bại, script thử khôi phục image BE trước đó.
+Job publish GHCR của nhánh `main` vẫn phục vụ các image phát hành hiện có.
+
+1. Tạo repository `restaurant-backend` trong tài khoản Docker Hub. Tạo access
+   token có quyền Read & Write để GitHub Actions push image.
+2. Trong GitHub repo Backend → **Settings → Secrets and variables → Actions →
+   Secrets**, tạo các secret sau.
+
+   | Secret | Giá trị |
+   | --- | --- |
+   | `DOCKER_USERNAME` | Tên tài khoản Docker Hub |
+   | `DOCKER_PASSWORD` | Access token có quyền Read & Write |
+   | `EC2_HOST` | `47.129.142.237` hoặc Public IPv4 hiện tại của EC2 |
+   | `EC2_SSH_KEY` | Nội dung private key SSH có quyền đăng nhập user `ubuntu` |
+   | `EC2_KNOWN_HOSTS` | Dòng known_hosts đã xác minh của host dùng trong `EC2_HOST` |
+
+   Với IP trên, bản ghi SSH đã xác minh nằm trong file local
+   `deploy/ec2/.runtime/known_hosts.new-backend`. Dùng key riêng dành cho CD
+   nếu có thể. Chỉ nhập khóa và token vào GitHub Secrets.
+3. EC2 Security Group cần cho phép SSH TCP 22 từ runner. Nếu SSH đang giới hạn
+   IP máy bạn, runner GitHub mặc định có thể bị timeout. Có thể cấu hình
+   repository variable `EC2_SSH_RUNNER` bằng nhãn duy nhất của một runner Linux
+   có đường SSH được phép. Giá trị mặc định là `ubuntu-24.04`.
+   Giới hạn quyền push vào `deploy` cho người được phép phát hành.
+4. Cài `deploy/ec2/deploy-release.sh` vào
+   `/home/ubuntu/restaurant-ec2/deploy-release.sh`. Đăng nhập SSH và chạy
+   `bash ~/restaurant-ec2/deploy-release.sh --check`. Nếu Docker Hub repository
+   là private, chạy `docker login -u TEN_DOCKER_HUB` trên EC2 bằng user `ubuntu`
+   với token chỉ có quyền đọc.
+5. Commit cấu hình rồi push nhánh `deploy` từ commit muốn phát hành. Trong GitHub
+   **Actions**, kiểm tra **Build & Test Spring Boot → Build and push to Docker Hub
+   → Deploy backend to EC2 via SSH**. Xem log `Deployed` và thử API tại
+   `https://restaurant.thanhtrung.click`.
+
+Mỗi lần phát hành giữ MySQL chạy và lưu bản cấu hình trước ở
+`~/restaurant-ec2/.runtime/env-before-release`. Giữ image BE cũ trên EC2 để
+rollback. Nếu cần rollback thủ công sau khi deploy thành công, đặt
+`BACKEND_IMAGE` về image ở dòng `Previous image` trong log Actions rồi chạy:
+
+```bash
+cd /home/ubuntu/restaurant-ec2
+docker compose --env-file .env.ec2 -f compose.yaml up -d --no-deps --no-build --pull never --wait backend
+```
+
+Khi cần đổi schema MySQL, chuẩn bị migration tương thích với phiên bản cần
+rollback. Xem [Docker Hub access tokens](https://docs.docker.com/security/access-tokens/)
+và [mạng GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).

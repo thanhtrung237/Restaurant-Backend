@@ -56,6 +56,7 @@ out/
 .docker-runtime/
 *.sh
 !/.github/scripts/smoke-backend.sh
+!/.github/scripts/deploy-ec2.sh
 !deploy/ec2/*.sh
 deploy/ec2/.runtime/
 deploy/ec2/backups/
