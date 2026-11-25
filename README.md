@@ -302,10 +302,6 @@ không tự tạo commit hoặc push thay đổi format lên nhánh.
 Spotless vẫn có sẵn để chạy thủ công trên máy local khi cần:
 `.\gradlew.bat spotlessApply "-PformatBase=origin/main"`.
 
-Sau khi `main` đạt bước test và build, workflow build backend image, chạy thử với MySQL
-tạm và kiểm tra `/actuator/health/readiness`. Image được phát hành lên
-`ghcr.io/thanhtrung237/restaurant-backend` với tag `latest` và `sha-<commit-sha>`.
-
 ### Triển khai trên Docker Desktop
 
 Mở PowerShell ở repo backend khi MySQL của stack Compose đã healthy. Dùng
@@ -325,7 +321,6 @@ Push nhánh `deploy` chạy CI, build image, smoke test với MySQL, push image 
 Docker Hub rồi SSH vào EC2 để cập nhật BE. Docker Hub có tag `latest` và
 `sha-<commit>`. EC2 lấy đúng digest do workflow xuất bản. Khi readiness hoặc
 HTTPS `/ws/info` thất bại, script thử khôi phục image BE trước đó.
-Job publish GHCR của nhánh `main` vẫn phục vụ các image phát hành hiện có.
 
 1. Tạo repository `restaurant-backend` trong tài khoản Docker Hub. Tạo access
    token có quyền Read & Write để GitHub Actions push image.
