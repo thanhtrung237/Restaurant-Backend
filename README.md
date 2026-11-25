@@ -97,11 +97,23 @@ Khi DNS `restaurant.thanhtrung.click` đã trỏ về EC2, dùng
 `VITE_API_BASE_URL=https://restaurant.thanhtrung.click/api/v1` và
 `VITE_WS_URL=https://restaurant.thanhtrung.click/ws`; đổi env cần Redeploy FE.
 
-Lần khởi tạo Swagger trên server mới chỉ nhập cấu trúc bảng, chưa chuyển tài
-khoản hoặc dữ liệu nghiệp vụ từ EC2 cũ. Mật khẩu DB/JWT của máy mới được tạo
-riêng và lưu ở `.env.ec2` trên server (quyền 600), không commit lên Git.
+Server mới đã nhận dữ liệu từ Docker local theo lựa chọn của người dùng:
+28 bảng, 142 dòng tại thời điểm chuyển, đối chiếu từng bảng sau khi BE khởi động.
+Database EC2 cũ không bị thay đổi. Backup trước khi nhập giữ trên EC2 trong
+`~/restaurant-ec2/backups/`. Mật khẩu DB/JWT của máy mới được tạo riêng và lưu
+ở `.env.ec2` trên server (quyền 600), không commit lên Git.
 `deploy/ec2/install-backend-host.sh` cài Docker/Caddy trên Ubuntu. Bộ cấu hình
 ba container FE/BE/MySQL bên dưới vẫn dành cho máy EC2 cũ.
+
+MySQL Workbench kết nối database mới bằng **Standard TCP/IP over SSH**:
+SSH Hostname `47.129.142.237:22`, SSH Username `ubuntu`, SSH Key File là bản key
+`deploy/ec2/.runtime/keybeupdate.private.pem` đã bảo vệ quyền truy cập trên máy bạn.
+MySQL Hostname `127.0.0.1`, MySQL Server Port `3307`, Username `restaurant`,
+Default Schema `restaurantServiceDB`. Password lấy từ `MYSQL_PASSWORD` của
+`.env.ec2` trên server hoặc bản cấu hình riêng tại
+`deploy/ec2/.runtime/new-backend/.env.ec2`; bỏ dấu nháy ngoài giá trị.
+Không dùng MYSQL_ROOT_PASSWORD hoặc password database local. Cổng 3307 chỉ bind
+loopback trên EC2, không thêm rule public 3306/3307 vào Security Group.
 
 Trong AWS Console → EC2 → Launch instance:
 
