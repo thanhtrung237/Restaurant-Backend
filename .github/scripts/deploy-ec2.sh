@@ -3,7 +3,15 @@ set -Eeuo pipefail
 umask 077
 
 [[ $EC2_HOST =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
-[[ $RELEASE_IMAGE =~ ^docker[.]io/[a-z0-9][a-z0-9_-]*/restaurant-backend@sha256:[a-f0-9]{64}$ ]]
+if [[ ! ${DOCKER_USERNAME:-} =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+    echo 'Invalid or missing DOCKER_USERNAME secret.' >&2
+    exit 1
+fi
+if [[ ! ${RELEASE_DIGEST:-} =~ ^sha256:[a-f0-9]{64}$ ]]; then
+    echo 'Missing or invalid image digest from the Docker Hub publish job.' >&2
+    exit 1
+fi
+RELEASE_IMAGE="docker.io/$DOCKER_USERNAME/restaurant-backend@$RELEASE_DIGEST"
 [[ -n $EC2_SSH_KEY && -n $EC2_KNOWN_HOSTS ]]
 
 ssh_dir=$(mktemp -d)

@@ -107,7 +107,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
-      release_image: ${{ steps.push_image.outputs.release_image }}
+      release_digest: ${{ steps.push_image.outputs.release_digest }}
     env:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
@@ -134,7 +134,7 @@ jobs:
           docker push "$image:latest"
           digest=$(docker buildx imagetools inspect "$image:sha-$GITHUB_SHA" --format '{{.Manifest.Digest}}')
           [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
-          printf 'release_image=%s@%s\n' "$image" "$digest" >> "$GITHUB_OUTPUT"
+          printf 'release_digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
 
   deploy:
     name: Deploy backend to EC2 via SSH
@@ -152,5 +152,6 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
-          RELEASE_IMAGE: ${{ needs.publish-docker-hub.outputs.release_image }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          RELEASE_DIGEST: ${{ needs.publish-docker-hub.outputs.release_digest }}
         run: bash .github/scripts/deploy-ec2.sh
