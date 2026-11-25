@@ -178,6 +178,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Show runner public IP
+        run: curl -4fsS https://checkip.amazonaws.com
+
       - name: Update backend on EC2
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
