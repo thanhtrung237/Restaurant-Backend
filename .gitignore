@@ -55,6 +55,7 @@ out/
 !deploy/deploy-backend.ps1
 .docker-runtime/
 *.sh
+!/.github/scripts/smoke-backend.sh
 !deploy/ec2/*.sh
 deploy/ec2/.runtime/
 deploy/ec2/backups/
