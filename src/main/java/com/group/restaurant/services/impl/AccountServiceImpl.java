@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.account.AccountAddRequest;
 import com.group.restaurant.dtos.request.account.AccountUpdateRequest;
 import com.group.restaurant.dtos.response.account.AccountResponse;
@@ -40,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AccountServiceImpl implements AccountService {
 
     private final AccountRepository accountRepository;
+    private final OrderNotificationService orderNotificationService;
     private final RestaurantRepository restaurantRepository;
     private final AssignmentRepository assignmentRepository;
     private final RoleRepository roleRepository;
@@ -78,6 +80,7 @@ public class AccountServiceImpl implements AccountService {
         // QĐ-03: mã nhân viên do hệ thống sinh, client không gửi.
         account.setEmployeeCode(generateEmployeeCode(restaurant.getId()));
         Account savedAccount = accountRepository.save(account);
+        orderNotificationService.notifyManagementUpdated(account.getRestaurant() == null ? null : account.getRestaurant().getId());
 
         // POST /accounts also serves Platform Admin onboarding for restaurant owners.
         if (tenantGuard.isPlatformAdmin()) {
@@ -113,6 +116,7 @@ public class AccountServiceImpl implements AccountService {
 
         accountMapper.updateEntity(account, request);
         Account updatedAccount = accountRepository.save(account);
+        orderNotificationService.notifyManagementUpdated(account.getRestaurant() == null ? null : account.getRestaurant().getId());
 
         return buildAccountResponse(updatedAccount);
     }
@@ -274,6 +278,7 @@ public class AccountServiceImpl implements AccountService {
         AccountStatus previous = account.getStatus();
         account.setStatus(status);
         accountRepository.save(account);
+        orderNotificationService.notifyManagementUpdated(account.getRestaurant() == null ? null : account.getRestaurant().getId());
 
         auditLogService.record(
                 AuditEvent.builder()
@@ -304,6 +309,7 @@ public class AccountServiceImpl implements AccountService {
 
         account.setPasswordHash(hashPassword(newPassword));
         accountRepository.save(account);
+        orderNotificationService.notifyManagementUpdated(account.getRestaurant() == null ? null : account.getRestaurant().getId());
     }
 
     @Override
@@ -316,6 +322,7 @@ public class AccountServiceImpl implements AccountService {
 
         account.setPasswordHash(hashPassword(newPassword));
         accountRepository.save(account);
+        orderNotificationService.notifyManagementUpdated(account.getRestaurant() == null ? null : account.getRestaurant().getId());
 
         // KHÔNG ghi mật khẩu (kể cả hash) vào valueAfter — nhật ký là dữ liệu đọc được
         // bởi mọi quản trị viên. Chỉ ghi sự kiện "đã reset".
@@ -345,6 +352,7 @@ public class AccountServiceImpl implements AccountService {
 
         account.softDelete(null);
         accountRepository.save(account);
+        orderNotificationService.notifyManagementUpdated(account.getRestaurant() == null ? null : account.getRestaurant().getId());
     }
 
     /**

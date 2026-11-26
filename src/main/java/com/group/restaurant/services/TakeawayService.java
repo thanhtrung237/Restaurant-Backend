@@ -116,7 +116,7 @@ public class TakeawayService {
             throw new ConflictException("Đơn cần hoàn tất chế biến và thanh toán trước khi giao.");
         }
         session.setPickedUpAt(LocalDateTime.now());
-        notifications.notifyTakeawayUpdated(session);
+        notifications.notifySessionUpdated(session);
     }
 
     private Entry describe(TableSession session) {

@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.group.restaurant.dtos.request.promotion.PromotionAddRequest;
 import com.group.restaurant.dtos.request.promotion.PromotionUpdateRequest;
@@ -40,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PromotionServiceImpl implements PromotionService {
 
     private final PromotionRepository promotionRepository;
+    private final OrderNotificationService orderNotificationService;
     private final PromotionBranchRepository promotionBranchRepository;
     private final BranchRepository branchRepository;
     private final RestaurantRepository restaurantRepository;
@@ -103,6 +105,7 @@ public class PromotionServiceImpl implements PromotionService {
         promotion.setAllBranches(Boolean.TRUE.equals(request.getAllBranches()));
 
         Promotion saved = promotionRepository.save(promotion);
+        orderNotificationService.notifyMenuUpdated(promotion.getRestaurant().getId());
 
         // Gán chi nhánh trong cùng transaction
         if (Boolean.TRUE.equals(request.getAllBranches())) {
@@ -301,6 +304,7 @@ public class PromotionServiceImpl implements PromotionService {
         }
 
         Promotion updated = promotionRepository.save(promotion);
+        orderNotificationService.notifyMenuUpdated(promotion.getRestaurant().getId());
 
         String newValue =
                 String.format(
@@ -400,6 +404,7 @@ public class PromotionServiceImpl implements PromotionService {
         PromotionStatus oldStatus = promotion.getStatus();
         promotion.setStatus(status);
         promotionRepository.save(promotion);
+        orderNotificationService.notifyMenuUpdated(promotion.getRestaurant().getId());
 
         // Ghi nhật ký
         auditLogService.record(
@@ -429,6 +434,7 @@ public class PromotionServiceImpl implements PromotionService {
 
         promotion.softDelete(null);
         promotionRepository.save(promotion);
+        orderNotificationService.notifyMenuUpdated(promotion.getRestaurant().getId());
 
         // Ghi nhật ký
         auditLogService.record(

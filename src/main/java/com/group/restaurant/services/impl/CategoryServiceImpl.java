@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.category.CategoryAddRequest;
 import com.group.restaurant.dtos.request.category.CategoryUpdateRequest;
 import com.group.restaurant.dtos.response.category.CategoryResponse;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final OrderNotificationService orderNotificationService;
     private final RestaurantRepository restaurantRepository;
     private final DishRepository dishRepository;
     private final CategoryMapper categoryMapper;
@@ -47,6 +49,7 @@ public class CategoryServiceImpl implements CategoryService {
         category.setStatus(CategoryStatus.ACTIVE);
 
         Category saved = categoryRepository.save(category);
+        orderNotificationService.notifyMenuUpdated(category.getRestaurant().getId());
         return categoryMapper.toResponse(saved);
     }
 
@@ -55,6 +58,7 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = findById(id);
         categoryMapper.updateEntity(category, request);
         Category updated = categoryRepository.save(category);
+        orderNotificationService.notifyMenuUpdated(category.getRestaurant().getId());
         return categoryMapper.toResponse(updated);
     }
 
@@ -89,6 +93,7 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = findById(id);
         category.setStatus(status);
         categoryRepository.save(category);
+        orderNotificationService.notifyMenuUpdated(category.getRestaurant().getId());
     }
 
     @Override
@@ -107,6 +112,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         category.softDelete(null);
         categoryRepository.save(category);
+        orderNotificationService.notifyMenuUpdated(category.getRestaurant().getId());
     }
 
     /** Chốt tenant tại finder: phủ getCategoryById / updateCategory / changeStatus / deleteCategory. */

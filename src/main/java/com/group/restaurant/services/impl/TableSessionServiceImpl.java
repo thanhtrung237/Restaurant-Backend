@@ -80,6 +80,7 @@ public class TableSessionServiceImpl implements TableSessionService {
         table.setStatus(DiningTableStatus.OCCUPIED);
         diningTableRepository.save(table);
         TableSession saved = tableSessionRepository.save(session);
+        orderNotificationService.notifySessionUpdated(saved);
         return buildResponse(saved);
     }
 
@@ -121,6 +122,7 @@ public class TableSessionServiceImpl implements TableSessionService {
         table.setStatus(DiningTableStatus.RESERVED);
         diningTableRepository.save(table);
         TableSession saved = tableSessionRepository.save(session);
+        orderNotificationService.notifySessionUpdated(saved);
 
         auditLogService.record(
                 AuditEvent.builder()
@@ -179,6 +181,7 @@ public class TableSessionServiceImpl implements TableSessionService {
         diningTableRepository.save(table);
 
         TableSession saved = tableSessionRepository.save(session);
+        orderNotificationService.notifySessionUpdated(saved);
 
         // BR-12: ghi nhật ký đổi trạng thái phiên khi mở bàn
         auditLogService.record(
@@ -227,7 +230,7 @@ public class TableSessionServiceImpl implements TableSessionService {
         table.setStatus(DiningTableStatus.AVAILABLE);
         diningTableRepository.save(table);
 
-        TableSessionResponse response = buildResponse(tableSessionRepository.save(session));
+        TableSessionResponse response = saveAndNotify(session);
 
         // BR-12: ghi nhật ký đổi trạng thái phiên
         auditLogService.record(
@@ -274,13 +277,13 @@ public class TableSessionServiceImpl implements TableSessionService {
 
         session.setStatus(TableSessionStatus.WAITING_FOR_PAY);
         TableSession saved = tableSessionRepository.save(session);
+        orderNotificationService.notifySessionUpdated(saved);
 
         String tableNo = session.getTable() != null ? session.getTable().getName() : "";
         Long branchId = session.getBranch() != null ? session.getBranch().getId() : null;
         if (branchId != null && !session.isTakeaway()) {
             orderNotificationService.notifyPaymentRequested(branchId, session.getId(), tableNo);
         }
-        orderNotificationService.notifyTakeawayUpdated(saved);
 
         return buildResponse(saved);
     }
@@ -310,7 +313,7 @@ public class TableSessionServiceImpl implements TableSessionService {
         }
 
         session.setStatus(TableSessionStatus.SERVING);
-        return buildResponse(tableSessionRepository.save(session));
+        return saveAndNotify(session);
     }
 
     @Override
@@ -348,7 +351,7 @@ public class TableSessionServiceImpl implements TableSessionService {
         table.setStatus(DiningTableStatus.OCCUPIED);
         diningTableRepository.save(table);
 
-        return buildResponse(tableSessionRepository.save(session));
+        return saveAndNotify(session);
     }
 
     @Override
@@ -359,7 +362,7 @@ public class TableSessionServiceImpl implements TableSessionService {
             throw new ConflictException("Chỉ có thể cập nhật phiên làm việc đang mở");
         }
         tableSessionMapper.updateEntity(session, request);
-        return buildResponse(tableSessionRepository.save(session));
+        return saveAndNotify(session);
     }
 
     @Override
@@ -424,7 +427,7 @@ public class TableSessionServiceImpl implements TableSessionService {
         table.setStatus(DiningTableStatus.AVAILABLE);
         diningTableRepository.save(table);
 
-        return buildResponse(tableSessionRepository.save(session));
+        return saveAndNotify(session);
     }
 
     @Override
@@ -459,7 +462,7 @@ public class TableSessionServiceImpl implements TableSessionService {
             table.setStatus(DiningTableStatus.AVAILABLE);
             diningTableRepository.save(table);
         }
-        TableSessionResponse response = buildResponse(tableSessionRepository.save(session));
+        TableSessionResponse response = saveAndNotify(session);
 
         auditLogService.record(
                 AuditEvent.builder()
@@ -550,6 +553,13 @@ public class TableSessionServiceImpl implements TableSessionService {
         tenantGuard.assertBranch(session.getBranch());
         session.softDelete(null);
         tableSessionRepository.save(session);
+        orderNotificationService.notifySessionUpdated(session);
+    }
+
+    private TableSessionResponse saveAndNotify(TableSession session) {
+        TableSession saved = tableSessionRepository.save(session);
+        orderNotificationService.notifySessionUpdated(saved);
+        return buildResponse(saved);
     }
 
     @Override
@@ -623,6 +633,7 @@ public class TableSessionServiceImpl implements TableSessionService {
 
         session.setTable(targetTable);
         TableSession saved = tableSessionRepository.save(session);
+        orderNotificationService.notifySessionUpdated(saved);
 
         auditLogService.record(
                 AuditEvent.builder()
@@ -741,6 +752,7 @@ public class TableSessionServiceImpl implements TableSessionService {
         sourceSession.setMergedIntoSession(targetSession);
         sourceSession.setClosedAt(LocalDateTime.now());
         tableSessionRepository.save(sourceSession);
+        orderNotificationService.notifySessionUpdated(sourceSession);
 
         // Trả bàn nguồn về AVAILABLE
         DiningTable sourceTable = sourceSession.getTable();
@@ -757,6 +769,7 @@ public class TableSessionServiceImpl implements TableSessionService {
         }
 
         TableSession savedTarget = tableSessionRepository.save(targetSession);
+        orderNotificationService.notifySessionUpdated(savedTarget);
 
         auditLogService.record(
                 AuditEvent.builder()

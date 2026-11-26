@@ -174,7 +174,6 @@ public class InvoiceServiceImpl implements InvoiceService {
                         .reason("Lập hóa đơn cho phiên bàn #" + session.getId())
                         .build());
 
-        if (existingInvoice == null) orderNotificationService.notifyTakeawayUpdated(session);
         return buildInvoiceResponse(savedInvoice);
     }
 
@@ -336,6 +335,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             }
         }
 
+        orderNotificationService.notifySessionUpdated(saved.getTableSession());
         return new SavedBill(saved, bill);
     }
 
@@ -435,6 +435,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         InvoiceStatus previousStatus = invoice.getStatus();
         invoice.setStatus(InvoiceStatus.CANCELLED);
         invoiceRepository.save(invoice);
+        orderNotificationService.notifySessionUpdated(invoice.getTableSession());
 
         auditLogService.record(
                 AuditEvent.builder()
@@ -573,7 +574,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                         .reason("Phát hành HĐĐT cho hóa đơn " + invoice.getInvoiceNumber())
                         .build());
 
-        orderNotificationService.notifyTakeawayUpdated(session);
+        orderNotificationService.notifySessionUpdated(session);
         // Re-fetch từ DB sau saveAndFlush để response trả về đúng data đã persist
         Invoice refreshed = findInvoiceById(invoiceId);
         return buildInvoiceResponse(refreshed);
@@ -718,7 +719,10 @@ public class InvoiceServiceImpl implements InvoiceService {
             throw new ConflictException(
                     "Tạm tính đã thay đổi. Vui lòng tải lại trước khi đưa cho khách.");
         }
-        if (invoice.getQuoteSharedAt() == null) invoice.setQuoteSharedAt(LocalDateTime.now());
+        if (invoice.getQuoteSharedAt() == null) {
+            invoice.setQuoteSharedAt(LocalDateTime.now());
+            orderNotificationService.notifySessionUpdated(invoice.getTableSession());
+        }
     }
 
     private String buildVietQrUrl(

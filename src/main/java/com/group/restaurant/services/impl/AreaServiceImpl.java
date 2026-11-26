@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.area.AreaAddRequest;
 import com.group.restaurant.dtos.request.area.AreaUpdateRequest;
 import com.group.restaurant.dtos.response.area.AreaResponse;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AreaServiceImpl implements AreaService {
 
     private final AreaRepository areaRepository;
+    private final OrderNotificationService orderNotificationService;
     private final BranchRepository branchRepository;
     private final DiningTableRepository diningTableRepository;
     private final AreaMapper areaMapper;
@@ -63,6 +65,7 @@ public class AreaServiceImpl implements AreaService {
         area.setStatus(AreaStatus.ACTIVE);
 
         Area savedArea = areaRepository.save(area);
+        orderNotificationService.notifyManagementUpdated(area.getBranch().getRestaurant().getId());
         return buildAreaResponse(savedArea);
     }
 
@@ -79,6 +82,7 @@ public class AreaServiceImpl implements AreaService {
 
         areaMapper.updateEntity(area, request);
         Area updatedArea = areaRepository.save(area);
+        orderNotificationService.notifyManagementUpdated(area.getBranch().getRestaurant().getId());
         return buildAreaResponse(updatedArea);
     }
 
@@ -133,6 +137,7 @@ public class AreaServiceImpl implements AreaService {
         Area area = findAreaForWrite(id);
         area.setStatus(status);
         areaRepository.save(area);
+        orderNotificationService.notifyManagementUpdated(area.getBranch().getRestaurant().getId());
     }
 
     @Override
@@ -144,6 +149,7 @@ public class AreaServiceImpl implements AreaService {
         }
         area.softDelete(null);
         areaRepository.save(area);
+        orderNotificationService.notifyManagementUpdated(area.getBranch().getRestaurant().getId());
     }
 
     private Area findAreaForWrite(Long id) {

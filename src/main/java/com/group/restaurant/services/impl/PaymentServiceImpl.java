@@ -156,7 +156,7 @@ public class PaymentServiceImpl implements PaymentService {
                         .reason(fullyPaid ? "Thu đủ tiền hóa đơn" : "Thu một phần hóa đơn")
                         .build());
 
-        orderNotificationService.notifyTakeawayUpdated(invoice.getTableSession());
+        orderNotificationService.notifySessionUpdated(invoice.getTableSession());
         return savedPayment;
     }
 

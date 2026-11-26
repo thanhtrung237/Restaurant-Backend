@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.dishOverride.DishOverrideAddRequest;
 import com.group.restaurant.dtos.request.dishOverride.DishOverrideUpdateRequest;
 import com.group.restaurant.dtos.response.dishOverride.DishOverrideResponse;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DishOverrideServiceImpl implements DishOverrideService {
 
     private final DishOverrideRepository dishOverrideRepository;
+    private final OrderNotificationService orderNotificationService;
     private final BranchRepository branchRepository;
     private final DishRepository dishRepository;
     private final DishOverrideMapper dishOverrideMapper;
@@ -72,6 +74,7 @@ public class DishOverrideServiceImpl implements DishOverrideService {
         }
 
         DishOverride saved = dishOverrideRepository.save(dishOverride);
+        orderNotificationService.notifyMenuUpdated(dishOverride.getBranch().getRestaurant().getId());
         return dishOverrideMapper.toResponse(saved);
     }
 
@@ -83,6 +86,7 @@ public class DishOverrideServiceImpl implements DishOverrideService {
             dishOverride.setOverridePrice(null);
         }
         DishOverride updated = dishOverrideRepository.save(dishOverride);
+        orderNotificationService.notifyMenuUpdated(dishOverride.getBranch().getRestaurant().getId());
         return dishOverrideMapper.toResponse(updated);
     }
 
@@ -115,6 +119,7 @@ public class DishOverrideServiceImpl implements DishOverrideService {
         DishOverride dishOverride = findWritableOverride(id);
         dishOverride.softDelete(null);
         dishOverrideRepository.save(dishOverride);
+        orderNotificationService.notifyMenuUpdated(dishOverride.getBranch().getRestaurant().getId());
     }
 
     private DishOverride findWritableOverride(Long id) {

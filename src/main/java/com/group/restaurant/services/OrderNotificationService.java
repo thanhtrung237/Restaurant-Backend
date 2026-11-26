@@ -8,12 +8,22 @@ import com.group.restaurant.models.TableSession;
  */
 public interface OrderNotificationService {
 
+    void notifyTableOpenRequested(TableSession session);
+
     /** Push order mới đến tất cả subscriber theo chi nhánh */
     void notifyNewOrder(
             Long branchId, Long orderId, Long tableSessionId, String tableNo, Long orderedById);
 
     /** Push khi dòng món đổi trạng thái */
     void notifyItemStatusChanged(Long sessionId, Long orderDetailId, OrderDetailStatus newStatus);
+
+    void notifyMenuUpdated(Long restaurantId);
+
+    void notifyManagementUpdated(Long restaurantId);
+
+    void notifyStructureUpdated(Long restaurantId);
+
+    void notifySessionUpdated(TableSession session);
 
     void notifyTakeawayUpdated(TableSession session);
 

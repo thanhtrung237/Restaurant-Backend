@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.dishOptionGroup.DishOptionGroupAddRequest;
 import com.group.restaurant.dtos.response.dishOptionGroup.DishOptionGroupResponse;
 import com.group.restaurant.exceptions.ConflictException;
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DishOptionGroupServiceImpl implements DishOptionGroupService {
 
     private final DishOptionGroupRepository dishOptionGroupRepository;
+    private final OrderNotificationService orderNotificationService;
     private final DishRepository dishRepository;
     private final OptionGroupRepository optionGroupRepository;
     private final DishOptionGroupMapper dishOptionGroupMapper;
@@ -69,6 +71,7 @@ public class DishOptionGroupServiceImpl implements DishOptionGroupService {
         dishOptionGroup.setOptionGroup(optionGroup);
 
         DishOptionGroup saved = dishOptionGroupRepository.save(dishOptionGroup);
+        orderNotificationService.notifyMenuUpdated(dishOptionGroup.getDish().getRestaurant().getId());
         return dishOptionGroupMapper.toResponse(saved);
     }
 
@@ -107,6 +110,7 @@ public class DishOptionGroupServiceImpl implements DishOptionGroupService {
         // Soft delete
         dishOptionGroup.softDelete(null);
         dishOptionGroupRepository.save(dishOptionGroup);
+        orderNotificationService.notifyMenuUpdated(dishOptionGroup.getDish().getRestaurant().getId());
     }
 
     private Dish lockDish(Long id) {

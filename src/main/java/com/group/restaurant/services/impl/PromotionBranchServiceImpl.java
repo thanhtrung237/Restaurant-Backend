@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.promotionBranch.PromotionBranchAddRequest;
 import com.group.restaurant.dtos.response.promotionBranch.PromotionBranchResponse;
 import com.group.restaurant.exceptions.ConflictException;
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PromotionBranchServiceImpl implements PromotionBranchService {
 
     private final PromotionBranchRepository promotionBranchRepository;
+    private final OrderNotificationService orderNotificationService;
     private final BranchRepository branchRepository;
     private final PromotionRepository promotionRepository;
     private final PromotionBranchMapper promotionBranchMapper;
@@ -71,6 +73,7 @@ public class PromotionBranchServiceImpl implements PromotionBranchService {
                 PromotionBranch.builder().branch(branch).promotion(promotion).build();
 
         PromotionBranch saved = promotionBranchRepository.save(promotionBranch);
+        orderNotificationService.notifyMenuUpdated(promotion.getRestaurant().getId());
         return promotionBranchMapper.toResponse(saved);
     }
 
@@ -101,11 +104,14 @@ public class PromotionBranchServiceImpl implements PromotionBranchService {
 
     @Override
     public void removePromotionFromBranch(Long id) {
-        if (!promotionBranchRepository.existsById(id)) {
+        var link = promotionBranchRepository.findById(id).orElse(null);
+        if (link == null) {
             throw new ResourceNotFoundException(
                     "Không tìm thấy liên kết khuyến mãi - chi nhánh với ID: " + id);
         }
 
+        Long restaurantId = link.getPromotion().getRestaurant().getId();
         promotionBranchRepository.hardDeleteById(id);
+        orderNotificationService.notifyMenuUpdated(restaurantId);
     }
 }

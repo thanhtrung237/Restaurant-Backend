@@ -24,6 +24,7 @@ public interface TableSessionMapper {
     @Mapping(target = "tableId", source = "table.id")
     @Mapping(target = "tableName", source = "displayName")
     @Mapping(target = "branchId", source = "branch.id")
+    @Mapping(target = "restaurantId", source = "branch.restaurant.id")
     @Mapping(target = "orderCount", ignore = true)
     // Người mở phiên lấy từ cột audit có sẵn, không thêm cột mới.
     @Mapping(target = "openedBy", source = "createBy")

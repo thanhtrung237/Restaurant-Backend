@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.branch.BranchAddRequest;
 import com.group.restaurant.dtos.request.branch.BranchAdminConfigRequest;
 import com.group.restaurant.dtos.request.branch.BranchCopyConfigRequest;
@@ -41,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class BranchServiceImpl implements BranchService {
 
     private final BranchRepository branchRepository;
+    private final OrderNotificationService orderNotificationService;
     private final RestaurantRepository restaurantRepository;
     private final AreaRepository areaRepository;
     private final DiningTableRepository diningTableRepository;
@@ -78,6 +80,7 @@ public class BranchServiceImpl implements BranchService {
         branch.setVatAppliedOnServiceFee(Boolean.TRUE);
 
         Branch savedBranch = branchRepository.save(branch);
+        orderNotificationService.notifyStructureUpdated(branch.getRestaurant().getId());
         return buildBranchResponse(savedBranch);
     }
 
@@ -87,6 +90,7 @@ public class BranchServiceImpl implements BranchService {
 
         branchMapper.updateEntity(branch, request);
         Branch updatedBranch = branchRepository.save(branch);
+        orderNotificationService.notifyStructureUpdated(branch.getRestaurant().getId());
 
         return buildBranchResponse(updatedBranch);
     }
@@ -195,6 +199,7 @@ public class BranchServiceImpl implements BranchService {
         Branch branch = findBranchById(id);
         branch.setStatus(status);
         branchRepository.save(branch);
+        orderNotificationService.notifyStructureUpdated(branch.getRestaurant().getId());
     }
 
     @Override
@@ -230,6 +235,7 @@ public class BranchServiceImpl implements BranchService {
 
         branch.softDelete(null);
         branchRepository.save(branch);
+        orderNotificationService.notifyStructureUpdated(branch.getRestaurant().getId());
     }
 
     @Override
@@ -256,6 +262,7 @@ public class BranchServiceImpl implements BranchService {
             branch.setReservationHoldMinutes(request.getReservationHoldMinutes());
 
         BranchResponse managerConfigResponse = buildBranchResponse(branchRepository.save(branch));
+        orderNotificationService.notifyManagementUpdated(branch.getRestaurant().getId());
 
         auditLogService.record(
                 AuditEvent.builder()
@@ -317,6 +324,7 @@ public class BranchServiceImpl implements BranchService {
         if (request.getTaxCode() != null) branch.setTaxCode(request.getTaxCode());
 
         BranchResponse response = buildBranchResponse(branchRepository.save(branch));
+        orderNotificationService.notifyManagementUpdated(branch.getRestaurant().getId());
         if (openSessionCount > 0) {
             response.setHasOpenSessionWarning(true);
             response.setOpenSessionCount(openSessionCount);
@@ -410,7 +418,9 @@ public class BranchServiceImpl implements BranchService {
             target.setBankName(source.getBankName());
         }
 
-        return buildBranchResponse(branchRepository.save(target));
+        Branch saved = branchRepository.save(target);
+        orderNotificationService.notifyManagementUpdated(saved.getRestaurant().getId());
+        return buildBranchResponse(saved);
     }
 
     /**

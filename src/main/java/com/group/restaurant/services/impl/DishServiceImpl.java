@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.dish.DishAddRequest;
 import com.group.restaurant.dtos.request.dish.DishUpdateRequest;
 import com.group.restaurant.dtos.response.base.PageResponse;
@@ -41,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DishServiceImpl implements DishService {
 
     private final DishRepository dishRepository;
+    private final OrderNotificationService orderNotificationService;
     private final RestaurantRepository restaurantRepository;
     private final BranchRepository branchRepository;
     private final CategoryRepository categoryRepository;
@@ -86,6 +88,7 @@ public class DishServiceImpl implements DishService {
         dish.setBranch(branch);
 
         Dish saved = dishRepository.save(dish);
+        orderNotificationService.notifyMenuUpdated(dish.getRestaurant().getId());
         return dishMapper.toResponse(saved);
     }
 
@@ -100,6 +103,7 @@ public class DishServiceImpl implements DishService {
 
         dishMapper.updateEntity(dish, request);
         Dish updated = dishRepository.save(dish);
+        orderNotificationService.notifyMenuUpdated(dish.getRestaurant().getId());
         return dishMapper.toResponse(updated);
     }
 
@@ -165,6 +169,7 @@ public class DishServiceImpl implements DishService {
         Dish dish = findWritableDish(id);
         dish.setStatus(status);
         dishRepository.save(dish);
+        orderNotificationService.notifyMenuUpdated(dish.getRestaurant().getId());
     }
 
     /**
@@ -243,6 +248,7 @@ public class DishServiceImpl implements DishService {
 
         dish.softDelete(null);
         dishRepository.save(dish);
+        orderNotificationService.notifyMenuUpdated(dish.getRestaurant().getId());
     }
 
     private Dish findWritableDish(Long id) {

@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.response.branchDishStock.BranchDishStockResponse;
 import com.group.restaurant.enums.OperationalPermission;
 import com.group.restaurant.enums.StockStatus;
@@ -28,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class BranchDishStockServiceImpl implements BranchDishStockService {
 
     private final BranchDishStockRepository stockRepository;
+    private final OrderNotificationService orderNotificationService;
     private final BranchRepository branchRepository;
     private final DishRepository dishRepository;
     private final BranchDishStockMapper stockMapper;
@@ -53,6 +55,7 @@ public class BranchDishStockServiceImpl implements BranchDishStockService {
         }
 
         BranchDishStock saved = stockRepository.save(stock);
+        orderNotificationService.notifyMenuUpdated(stock.getBranch().getRestaurant().getId());
         return stockMapper.toResponse(saved);
     }
 
@@ -84,6 +87,10 @@ public class BranchDishStockServiceImpl implements BranchDishStockService {
     public int resetStockForBranch(Long branchId) {
         // FR-MNU-03: Mở bán lại tất cả món đang hết tại chi nhánh
         int count = stockRepository.resetStockForBranch(branchId);
+        if (count > 0) {
+            branchRepository.findById(branchId)
+                    .ifPresent(branch -> orderNotificationService.notifyMenuUpdated(branch.getRestaurant().getId()));
+        }
         log.info("Restored {} dishes to AVAILABLE at branch {}", count, branchId);
         return count;
     }

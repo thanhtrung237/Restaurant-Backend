@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.role.RoleAddRequest;
 import com.group.restaurant.dtos.request.role.RoleUpdateRequest;
 import com.group.restaurant.dtos.response.base.PageResponse;
@@ -30,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RoleServiceImpl implements RoleService {
 
     private final RoleRepository roleRepository;
+    private final OrderNotificationService orderNotificationService;
     private final RestaurantRepository restaurantRepository;
     private final AssignmentRepository assignmentRepository;
     private final RoleMapper roleMapper;
@@ -54,6 +56,7 @@ public class RoleServiceImpl implements RoleService {
         role.setRestaurant(restaurant);
 
         Role savedRole = roleRepository.save(role);
+        orderNotificationService.notifyManagementUpdated(role.getRestaurant() == null ? null : role.getRestaurant().getId());
         return buildRoleResponse(savedRole);
     }
 
@@ -63,6 +66,7 @@ public class RoleServiceImpl implements RoleService {
 
         roleMapper.updateEntity(role, request);
         Role updatedRole = roleRepository.save(role);
+        orderNotificationService.notifyManagementUpdated(role.getRestaurant() == null ? null : role.getRestaurant().getId());
 
         return buildRoleResponse(updatedRole);
     }
@@ -184,6 +188,7 @@ public class RoleServiceImpl implements RoleService {
 
         role.softDelete(null);
         roleRepository.save(role);
+        orderNotificationService.notifyManagementUpdated(role.getRestaurant() == null ? null : role.getRestaurant().getId());
     }
 
     /** Chốt tenant tại finder: phủ getRoleById / updateRole / deleteRole. */

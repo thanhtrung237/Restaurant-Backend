@@ -51,6 +51,7 @@ public class StaffNotification {
     }
 
     public enum Type {
+        TABLE_OPEN_REQUESTED,
         NEW_ORDER,
         PAYMENT_REQUESTED,
         STAFF_CALL,

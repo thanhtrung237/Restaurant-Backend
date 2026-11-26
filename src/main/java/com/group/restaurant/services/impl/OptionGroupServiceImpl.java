@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.optionGroup.OptionGroupAddRequest;
 import com.group.restaurant.dtos.request.optionGroup.OptionGroupUpdateRequest;
 import com.group.restaurant.dtos.response.base.PageResponse;
@@ -31,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class OptionGroupServiceImpl implements OptionGroupService {
 
     private final OptionGroupRepository optionGroupRepository;
+    private final OrderNotificationService orderNotificationService;
     private final RestaurantRepository restaurantRepository;
     private final OptionItemRepository optionItemRepository;
     private final DishOptionGroupRepository dishOptionGroupRepository;
@@ -67,6 +69,7 @@ public class OptionGroupServiceImpl implements OptionGroupService {
         optionGroup.setRestaurant(restaurant);
 
         OptionGroup saved = optionGroupRepository.save(optionGroup);
+        orderNotificationService.notifyMenuUpdated(optionGroup.getRestaurant().getId());
         return optionGroupMapper.toResponse(saved);
     }
 
@@ -103,6 +106,7 @@ public class OptionGroupServiceImpl implements OptionGroupService {
 
         optionGroupMapper.updateEntity(optionGroup, request);
         OptionGroup saved = optionGroupRepository.save(optionGroup);
+        orderNotificationService.notifyMenuUpdated(optionGroup.getRestaurant().getId());
         return optionGroupMapper.toResponse(saved);
     }
 
@@ -189,6 +193,7 @@ public class OptionGroupServiceImpl implements OptionGroupService {
         // Soft delete the group itself
         optionGroup.softDelete(null);
         optionGroupRepository.save(optionGroup);
+        orderNotificationService.notifyMenuUpdated(optionGroup.getRestaurant().getId());
     }
 
     private OptionGroup findById(Long id) {

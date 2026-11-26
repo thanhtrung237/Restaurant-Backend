@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
 import com.google.zxing.WriterException;
@@ -50,6 +51,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DiningTableServiceImpl implements DiningTableService {
 
     private final DiningTableRepository diningTableRepository;
+    private final OrderNotificationService orderNotificationService;
     private final BranchRepository branchRepository;
     private final AreaRepository areaRepository;
     private final TableSessionRepository tableSessionRepository;
@@ -89,6 +91,7 @@ public class DiningTableServiceImpl implements DiningTableService {
         table.setStatus(DiningTableStatus.AVAILABLE);
 
         DiningTable savedTable = diningTableRepository.save(table);
+        orderNotificationService.notifyManagementUpdated(table.getBranch().getRestaurant().getId());
         return buildDiningTableResponse(savedTable);
     }
 
@@ -123,6 +126,7 @@ public class DiningTableServiceImpl implements DiningTableService {
 
         diningTableMapper.updateEntity(table, request);
         DiningTable updatedTable = diningTableRepository.save(table);
+        orderNotificationService.notifyManagementUpdated(table.getBranch().getRestaurant().getId());
         return buildDiningTableResponse(updatedTable);
     }
 
@@ -247,6 +251,7 @@ public class DiningTableServiceImpl implements DiningTableService {
         }
         table.setStatus(status);
         diningTableRepository.save(table);
+        orderNotificationService.notifyManagementUpdated(table.getBranch().getRestaurant().getId());
     }
 
     @Override
@@ -261,6 +266,7 @@ public class DiningTableServiceImpl implements DiningTableService {
         }
         table.softDelete(null);
         diningTableRepository.save(table);
+        orderNotificationService.notifyManagementUpdated(table.getBranch().getRestaurant().getId());
     }
 
     private void assertTableIdle(DiningTable table) {
@@ -322,6 +328,7 @@ public class DiningTableServiceImpl implements DiningTableService {
         // 3. Đổi trạng thái Bàn sang RESERVED (3)
         table.setStatus(DiningTableStatus.RESERVED);
         DiningTable updatedTable = diningTableRepository.save(table);
+        orderNotificationService.notifyManagementUpdated(table.getBranch().getRestaurant().getId());
 
         // 4. Tạo bản ghi Phiên bàn (TableSession) ghi nhận thông tin đặt bàn
         TableSession reservationSession =
@@ -335,7 +342,8 @@ public class DiningTableServiceImpl implements DiningTableService {
                         .reservationTime(request.getReservationTime())
                         .note(request.getNote())
                         .build();
-        tableSessionRepository.save(reservationSession);
+        TableSession saved = tableSessionRepository.save(reservationSession);
+        orderNotificationService.notifySessionUpdated(saved);
 
         return buildDiningTableResponse(updatedTable);
     }
@@ -369,6 +377,7 @@ public class DiningTableServiceImpl implements DiningTableService {
             String code = "QR-B" + table.getBranch().getId() + "-" + cleanName;
             table.setQrCode(code);
             diningTableRepository.save(table);
+            orderNotificationService.notifyManagementUpdated(table.getBranch().getRestaurant().getId());
         }
 
         // Trả về URL hoàn chỉnh để FE biết nội dung cần mã hoá vào QR code
@@ -531,10 +540,12 @@ public class DiningTableServiceImpl implements DiningTableService {
                         .build();
 
         TableSession saved = tableSessionRepository.save(newSession);
+        orderNotificationService.notifySessionUpdated(saved);
 
         // Cập nhật trạng thái bàn → OCCUPIED
         table.setStatus(DiningTableStatus.OCCUPIED);
         diningTableRepository.save(table);
+        orderNotificationService.notifyManagementUpdated(table.getBranch().getRestaurant().getId());
 
         log.info(
                 "[FR-CUS-01] Quét QR bàn #{} ({}) → Tạo phiên #{} WAITING_FOR_OPEN",
@@ -571,6 +582,7 @@ public class DiningTableServiceImpl implements DiningTableService {
 
         table.setStatus(DiningTableStatus.AVAILABLE);
         diningTableRepository.save(table);
+        orderNotificationService.notifyManagementUpdated(table.getBranch().getRestaurant().getId());
 
         tableSessionRepository
                 .findActiveSessionByTableIdAndStatus(tableId, TableSessionStatus.RESERVED)
@@ -578,6 +590,7 @@ public class DiningTableServiceImpl implements DiningTableService {
                         session -> {
                             session.setStatus(TableSessionStatus.CANCELLED);
                             tableSessionRepository.save(session);
+                            orderNotificationService.notifySessionUpdated(session);
                         });
     }
 }

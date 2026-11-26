@@ -34,6 +34,7 @@ public class OperationalPermissionService {
             List.of("WAITER", "CASHIER", "BRANCH_MANAGER");
 
     private final RestaurantRepository restaurants;
+    private final OrderNotificationService orderNotificationService;
     private final BranchRepository branches;
     private final AccountRepository accounts;
     private final AssignmentRepository assignments;
@@ -109,6 +110,7 @@ public class OperationalPermissionService {
         if (!changedRoles.isEmpty()) {
             changedRoles.forEach(change -> overrides.put(change.role(), change.enabled()));
             restaurant.setOperationalPermissions(writeOverrides(overrides));
+            orderNotificationService.notifyManagementUpdated(restaurantId);
         }
         for (var change : changedRoles) {
             auditLog.recordInTransaction(

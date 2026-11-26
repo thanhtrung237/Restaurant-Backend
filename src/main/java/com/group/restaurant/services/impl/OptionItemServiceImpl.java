@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.optionItem.OptionItemAddRequest;
 import com.group.restaurant.dtos.request.optionItem.OptionItemUpdateRequest;
 import com.group.restaurant.dtos.response.base.PageResponse;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class OptionItemServiceImpl implements OptionItemService {
 
     private final OptionItemRepository optionItemRepository;
+    private final OrderNotificationService orderNotificationService;
     private final OptionGroupRepository optionGroupRepository;
     private final OptionItemMapper optionItemMapper;
     private final TenantGuard tenantGuard;
@@ -46,6 +48,7 @@ public class OptionItemServiceImpl implements OptionItemService {
         optionItem.setOptionGroup(optionGroup);
 
         OptionItem saved = optionItemRepository.save(optionItem);
+        orderNotificationService.notifyMenuUpdated(optionItem.getOptionGroup().getRestaurant().getId());
         return optionItemMapper.toResponse(saved);
     }
 
@@ -55,6 +58,7 @@ public class OptionItemServiceImpl implements OptionItemService {
 
         optionItemMapper.updateEntity(optionItem, request);
         OptionItem saved = optionItemRepository.save(optionItem);
+        orderNotificationService.notifyMenuUpdated(optionItem.getOptionGroup().getRestaurant().getId());
         return optionItemMapper.toResponse(saved);
     }
 
@@ -124,6 +128,7 @@ public class OptionItemServiceImpl implements OptionItemService {
         // Soft delete
         optionItem.softDelete(null);
         optionItemRepository.save(optionItem);
+        orderNotificationService.notifyMenuUpdated(optionItem.getOptionGroup().getRestaurant().getId());
     }
 
     private OptionItem findById(Long id) {

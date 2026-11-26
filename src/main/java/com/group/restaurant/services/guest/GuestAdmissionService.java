@@ -7,6 +7,7 @@ import com.group.restaurant.dtos.response.tableSession.TableSessionResponse;
 import com.group.restaurant.enums.*;
 import com.group.restaurant.models.*;
 import com.group.restaurant.repositories.*;
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.services.TableSessionService;
 import com.group.restaurant.utils.TenantGuard;
 import jakarta.persistence.EntityManager;
@@ -49,6 +50,7 @@ public class GuestAdmissionService {
     private final DiningTableRepository tables;
     private final TableSessionRepository sessions;
     private final TableSessionService sessionService;
+    private final OrderNotificationService notifications;
     private final GeofenceService geofence;
     private final GuestTokenService tokens;
     private final GuestRateLimiter limiter;
@@ -114,6 +116,7 @@ public class GuestAdmissionService {
             create.setGuestCount(request.guestCount() == null ? 2 : request.guestCount());
             response = sessionService.createSession(create);
             existing = sessions.findById(response.getId()).orElseThrow();
+            notifications.notifyTableOpenRequested(existing);
         }
         String token = tokens.issue(existing);
         sessions.save(existing);

@@ -6,7 +6,9 @@ import static org.mockito.Mockito.*;
 import com.group.restaurant.configurations.GuestWebSocketInterceptor;
 import com.group.restaurant.configurations.jwt.*;
 import com.group.restaurant.enums.TableSessionStatus;
+import com.group.restaurant.models.Branch;
 import com.group.restaurant.models.DiningTable;
+import com.group.restaurant.models.Restaurant;
 import com.group.restaurant.models.TableSession;
 import com.group.restaurant.repositories.TableSessionRepository;
 import com.group.restaurant.services.guest.*;
@@ -42,9 +44,15 @@ class GuestWebSocketSecurityTest {
                         guard,
                         tenant);
         attributes = new HashMap<>();
+        var restaurant = new Restaurant();
+        restaurant.setId(3L);
+        var branch = new Branch();
+        branch.setId(1L);
+        branch.setRestaurant(restaurant);
         session =
                 TableSession.builder()
                         .id(1L)
+                        .branch(branch)
                         .table(DiningTable.builder().id(1L).build())
                         .status(TableSessionStatus.SERVING)
                         .build();
@@ -57,6 +65,7 @@ class GuestWebSocketSecurityTest {
         accessor.setSessionAttributes(attributes);
         if (destination != null) accessor.setDestination(destination);
         if (credential != null) accessor.setNativeHeader("X-Guest-Token", credential);
+        if (command == StompCommand.SUBSCRIBE) accessor.setNativeHeader("X-Guest-Session", "1");
         accessor.setLeaveMutable(true);
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
@@ -91,6 +100,21 @@ class GuestWebSocketSecurityTest {
     }
 
     @Test
+    void guestCanSubscribeToSessionChangesAndOwnRestaurantMenu() {
+        connect();
+        when(sessions.findById(1L)).thenReturn(Optional.of(session));
+        for (String destination :
+                List.of("/topic/session/1/session-updated", "/topic/restaurant/3/menu-updated")) {
+            assertThatCode(
+                            () ->
+                                    interceptor.preSend(
+                                            frame(StompCommand.SUBSCRIBE, destination, null),
+                                            mock(MessageChannel.class)))
+                    .doesNotThrowAnyException();
+        }
+    }
+
+    @Test
     void guestCannotSubscribeToAnotherSession() {
         connect();
         var other =
@@ -115,8 +139,18 @@ class GuestWebSocketSecurityTest {
     @Test
     void guestCannotSubscribeToBranchOrWildcard() {
         connect();
+        when(sessions.findById(1L)).thenReturn(Optional.of(session));
         for (String destination :
-                List.of("/topic/branch/1/new-order", "/topic/session/*/item-status", "/topic/**"))
+                List.of(
+                        "/topic/branch/1/new-order",
+                        "/topic/branch/1/table-open-request",
+                        "/topic/branch/1/session-updated",
+                        "/topic/restaurant/3/management-updated",
+                        "/topic/restaurant/3/operations-updated",
+                        "/topic/restaurant/4/menu-updated",
+                        "/topic/platform/structure-updated",
+                        "/topic/session/*/item-status",
+                        "/topic/**"))
             assertThatThrownBy(
                             () ->
                                     interceptor.preSend(

@@ -186,6 +186,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                             .build());
         }
 
+        orderNotificationService.notifySessionUpdated(saved.getOrder().getTableSession());
         return toResponseWithOptions(saved);
     }
 
@@ -268,6 +269,8 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         if (servingNow == remaining) {
             detail.setStatus(OrderDetailStatus.SERVED);
             notifyDetailStatus(detail);
+        } else {
+            orderNotificationService.notifySessionUpdated(detail.getOrder().getTableSession());
         }
 
         return orderDetailMapper.toResponse(detail);
@@ -485,7 +488,9 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                         gross);
         detail.setPrice(gross.subtract(discount));
 
-        return orderDetailMapper.toResponse(orderDetailRepository.save(detail));
+        OrderDetail saved = orderDetailRepository.save(detail);
+        orderNotificationService.notifySessionUpdated(saved.getOrder().getTableSession());
+        return orderDetailMapper.toResponse(saved);
     }
 
     @Override
@@ -536,7 +541,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                         ? detail.getOrder().getTableSession().getId()
                         : null;
         if (sessionId != null) {
-            orderNotificationService.notifyItemStatusChanged(sessionId, id, status);
+            notifyDetailStatus(detail);
         }
     }
 
@@ -584,7 +589,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
             newlyConfirmedDetails.stream()
                     .map(detail -> detail.getOrder().getTableSession())
                     .distinct()
-                    .forEach(orderNotificationService::notifyTakeawayUpdated);
+                    .forEach(orderNotificationService::notifySessionUpdated);
             Map<Long, List<OrderDetail>> byOrder =
                     newlyConfirmedDetails.stream()
                             .filter(d -> d.getOrder() != null && d.getOrder().getId() != null)
@@ -607,7 +612,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         TableSession session = detail.getOrder().getTableSession();
         orderNotificationService.notifyItemStatusChanged(
                 session.getId(), detail.getId(), detail.getStatus());
-        orderNotificationService.notifyTakeawayUpdated(session);
+        orderNotificationService.notifySessionUpdated(session);
     }
 
     @Override
@@ -616,7 +621,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         assertOrderEditable(detail);
         detail.softDelete(null);
         orderDetailRepository.save(detail);
-        orderNotificationService.notifyTakeawayUpdated(detail.getOrder().getTableSession());
+        orderNotificationService.notifySessionUpdated(detail.getOrder().getTableSession());
     }
 
     /**

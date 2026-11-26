@@ -52,7 +52,7 @@ public class GuestWebSocketInterceptor implements ChannelInterceptor {
                 if (staff != null)
                     SecurityContextHolder.getContext().setAuthentication(authenticateStaff(staff));
                 if (destination != null
-                        && destination.matches("/topic/session/[0-9]+/item-status")) {
+                        && destination.matches("/topic/session/[0-9]+/(item-status|session-updated)")) {
                     Long id = Long.valueOf(destination.split("/")[3]);
                     if (staff != null) guests.require(id, false);
                     else {
@@ -62,12 +62,45 @@ public class GuestWebSocketInterceptor implements ChannelInterceptor {
                                 token,
                                 sessions.findById(id)
                                         .orElseThrow(() -> new ResponseStatusException(FORBIDDEN)),
-                                true);
+                                destination.endsWith("/item-status"));
+                    }
+                } else if (destination != null
+                        && destination.matches("/topic/restaurant/[0-9]+/menu-updated")) {
+                    Long restaurantId = Long.valueOf(destination.split("/")[3]);
+                    if (staff != null) {
+                        tenantGuard.assertRestaurant(restaurantId);
+                    } else {
+                        String guestSession = accessor.getFirstNativeHeader("X-Guest-Session");
+                        if (guestSession == null || !guestSession.matches("[0-9]{1,18}")) deny();
+                        var session =
+                                sessions.findById(Long.valueOf(guestSession))
+                                        .orElseThrow(() -> new ResponseStatusException(FORBIDDEN));
+                        guests.requireGuest(
+                                attributes == null ? null : (String) attributes.get("guestToken"),
+                                session,
+                                false);
+                        if (!restaurantId.equals(session.getBranch().getRestaurant().getId())) deny();
                     }
                 } else if (staff != null
                         && destination != null
+                        && destination.matches("/topic/restaurant/[0-9]+/management-updated")) {
+                    tenantGuard.assertRestaurant(Long.valueOf(destination.split("/")[3]));
+                } else if (staff != null
+                        && destination != null
+                        && destination.matches("/topic/restaurant/[0-9]+/operations-updated")) {
+                    var auth = SecurityContextHolder.getContext().getAuthentication();
+                    if (auth.getAuthorities().stream()
+                            .noneMatch(authority -> ("ROLE_" + TenantGuard.ROLE_MANAGER)
+                                    .equals(authority.getAuthority()))) deny();
+                    tenantGuard.assertRestaurant(Long.valueOf(destination.split("/")[3]));
+                } else if (staff != null
+                        && "/topic/platform/structure-updated".equals(destination)
+                        && tenantGuard.isPlatformAdmin()) {
+                    return message;
+                } else if (staff != null
+                        && destination != null
                         && destination.matches(
-                                "/topic/branch/[0-9]+/(new-order|payment-request|staff-call|takeaway-updated)")) {
+                                "/topic/branch/[0-9]+/(new-order|payment-request|staff-call|takeaway-updated|table-open-request|session-updated)")) {
                     tenantGuard.assertBranchAssigned(Long.valueOf(destination.split("/")[3]));
                 } else deny();
             } finally {

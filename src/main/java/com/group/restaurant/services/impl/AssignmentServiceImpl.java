@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.assignment.AssignmentAddRequest;
 import com.group.restaurant.dtos.response.assignment.AssignmentResponse;
 import com.group.restaurant.enums.AccountStatus;
@@ -33,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AssignmentServiceImpl implements AssignmentService {
 
     private final AssignmentRepository assignmentRepository;
+    private final OrderNotificationService orderNotificationService;
     private final AccountRepository accountRepository;
     private final RoleRepository roleRepository;
     private final BranchRepository branchRepository;
@@ -97,6 +99,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         assignment.setBranch(branch);
 
         Assignment savedAssignment = assignmentRepository.save(assignment);
+        orderNotificationService.notifyManagementUpdated(assignment.getAccount().getRestaurant() == null ? null : assignment.getAccount().getRestaurant().getId());
 
         auditLogService.record(
                 AuditEvent.builder()
@@ -159,6 +162,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         assertNotLastManagerAssignment(assignment);
         assignment.softDelete(null);
         assignmentRepository.save(assignment);
+        orderNotificationService.notifyManagementUpdated(assignment.getAccount().getRestaurant() == null ? null : assignment.getAccount().getRestaurant().getId());
 
         auditLogService.record(
                 AuditEvent.builder()

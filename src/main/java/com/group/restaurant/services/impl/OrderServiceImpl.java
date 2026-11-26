@@ -135,7 +135,7 @@ public class OrderServiceImpl implements OrderService {
                 session.getId(),
                 session.getDisplayName(),
                 orderedBy == null ? null : orderedBy.getId());
-        orderNotificationService.notifyTakeawayUpdated(session);
+        orderNotificationService.notifySessionUpdated(session);
 
         return orderMapper.toResponse(savedOrder);
     }
@@ -174,7 +174,7 @@ public class OrderServiceImpl implements OrderService {
                     sessionId, d.getId(), OrderDetailStatus.PREPARING);
         }
         if (!preparingDetails.isEmpty()) {
-            orderNotificationService.notifyTakeawayUpdated(order.getTableSession());
+            orderNotificationService.notifySessionUpdated(order.getTableSession());
         }
 
         return response;
@@ -185,7 +185,9 @@ public class OrderServiceImpl implements OrderService {
         Order order = findOrderById(id);
         assertTakeawayEditable(order);
         orderMapper.updateEntity(order, request);
-        return orderMapper.toResponse(orderRepository.save(order));
+        Order saved = orderRepository.save(order);
+        orderNotificationService.notifySessionUpdated(saved.getTableSession());
+        return orderMapper.toResponse(saved);
     }
 
     @Override
@@ -223,6 +225,7 @@ public class OrderServiceImpl implements OrderService {
         Order order = findOrderById(id);
         order.setStatus(status);
         orderRepository.save(order);
+        orderNotificationService.notifySessionUpdated(order.getTableSession());
     }
 
     @Override
@@ -241,6 +244,7 @@ public class OrderServiceImpl implements OrderService {
             }
         }
         orderRepository.save(order);
+        orderNotificationService.notifySessionUpdated(order.getTableSession());
     }
 
     @Override
@@ -257,6 +261,7 @@ public class OrderServiceImpl implements OrderService {
         }
         order.softDelete(null);
         orderRepository.save(order);
+        orderNotificationService.notifySessionUpdated(order.getTableSession());
     }
 
     private Order findOrderById(Long id) {

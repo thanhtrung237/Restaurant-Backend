@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.restaurant.RestaurantAddRequest;
 import com.group.restaurant.dtos.request.restaurant.RestaurantUpdateRequest;
 import com.group.restaurant.dtos.response.base.PageResponse;
@@ -32,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RestaurantServiceImpl implements RestaurantService {
 
     private final RestaurantRepository restaurantRepository;
+    private final OrderNotificationService orderNotificationService;
     private final BranchRepository branchRepository;
     private final AccountRepository accountRepository;
     private final RestaurantMapper restaurantMapper;
@@ -52,6 +54,7 @@ public class RestaurantServiceImpl implements RestaurantService {
         restaurant.setStatus(RestaurantStatus.ACTIVE);
 
         Restaurant savedRestaurant = restaurantRepository.save(restaurant);
+        orderNotificationService.notifyStructureUpdated(restaurant.getId());
         return buildRestaurantResponse(savedRestaurant);
     }
 
@@ -83,6 +86,7 @@ public class RestaurantServiceImpl implements RestaurantService {
         restaurant.setLogoUrl(blankToNull(restaurant.getLogoUrl()));
 
         Restaurant updatedRestaurant = restaurantRepository.save(restaurant);
+        orderNotificationService.notifyStructureUpdated(restaurant.getId());
 
         // BR-12: "thay đổi cấu hình chi nhánh/NHÀ HÀNG phải sinh bản ghi nhật ký".
         // Mã số thuế, tên và địa chỉ ở đây được IN LÊN HOÁ ĐƠN (FR-ADM-03) nên đổi phải có vết.
@@ -164,6 +168,7 @@ public class RestaurantServiceImpl implements RestaurantService {
         Restaurant restaurant = findRestaurantById(id);
         restaurant.setStatus(status);
         restaurantRepository.save(restaurant);
+        orderNotificationService.notifyStructureUpdated(restaurant.getId());
     }
 
     @Override
@@ -184,6 +189,7 @@ public class RestaurantServiceImpl implements RestaurantService {
 
         restaurant.softDelete(null);
         restaurantRepository.save(restaurant);
+        orderNotificationService.notifyStructureUpdated(restaurant.getId());
     }
 
     /**

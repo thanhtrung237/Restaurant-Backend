@@ -1,5 +1,6 @@
 package com.group.restaurant.services.impl;
 
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.enums.DiningTableStatus;
 import com.group.restaurant.enums.TableSessionStatus;
 import com.group.restaurant.models.Branch;
@@ -35,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class TableSessionScheduler {
 
     private final TableSessionRepository tableSessionRepository;
+    private final OrderNotificationService orderNotificationService;
     private final DiningTableRepository diningTableRepository;
     private final AuditLogService auditLogService;
 
@@ -115,6 +117,7 @@ public class TableSessionScheduler {
         session.setClosedAt(LocalDateTime.now());
         session.setNote(reason);
         tableSessionRepository.save(session);
+        orderNotificationService.notifySessionUpdated(session);
 
         DiningTable table = session.getTable();
         if (table != null) {

@@ -230,6 +230,7 @@ public class ManualDiscountServiceImpl implements ManualDiscountService {
                 saveInvoiceDiscount(invoice, discount);
             }
         }
+        if (!approved) orderNotificationService.notifySessionUpdated(invoice.getTableSession());
         recordApproval(
                 invoice, request, approved ? "Duyệt chiết khấu" : "Từ chối chiết khấu", approved);
         return invoiceService.getInvoiceById(invoiceId);

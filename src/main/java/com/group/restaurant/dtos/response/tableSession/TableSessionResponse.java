@@ -19,6 +19,7 @@ public class TableSessionResponse {
     private boolean canAddTakeawayItems;
     private LocalDateTime pickedUpAt;
     private Long branchId;
+    private Long restaurantId;
     private Integer guestCount;
     private String note;
     private BigDecimal coverFeePerGuestAtOpen;

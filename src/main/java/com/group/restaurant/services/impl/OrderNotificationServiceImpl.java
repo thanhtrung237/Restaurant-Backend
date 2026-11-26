@@ -50,11 +50,27 @@ public class OrderNotificationServiceImpl implements OrderNotificationService {
     private void doSend(String destination, Map<String, Object> payload) {
         try {
             messagingTemplate.convertAndSend(destination, payload);
-            log.info("[WS] {} payload={}", destination, payload);
+            log.debug("[WS] {} payload={}", destination, payload);
         } catch (Exception e) {
             // Push thất bại không được làm hỏng nghiệp vụ chính.
             log.error("[WS] Gửi thất bại → {} payload={}", destination, payload, e);
         }
+    }
+
+    @Override
+    public void notifyTableOpenRequested(TableSession session) {
+        Long branchId = session.getBranch().getId();
+        Long sessionId = session.getId();
+        String tableName = session.getDisplayName();
+        StaffNotification.Type type = StaffNotification.Type.TABLE_OPEN_REQUESTED;
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", type.name());
+        payload.put("tableSessionId", sessionId);
+        payload.put("tableNo", tableName == null ? "" : tableName);
+        persistAndSend(
+                "/topic/branch/" + branchId + "/table-open-request",
+                payload,
+                entry(type, branchId, sessionId, tableName).build());
     }
 
     @Override
@@ -96,6 +112,42 @@ public class OrderNotificationServiceImpl implements OrderNotificationService {
                         "status",
                         newStatus.name());
         send(destination, payload);
+    }
+
+    @Override
+    public void notifyMenuUpdated(Long restaurantId) {
+        if (restaurantId != null)
+            send("/topic/restaurant/" + restaurantId + "/menu-updated", Map.of("changed", true));
+    }
+
+    @Override
+    public void notifyManagementUpdated(Long restaurantId) {
+        if (restaurantId != null)
+            send("/topic/restaurant/" + restaurantId + "/management-updated", Map.of("changed", true));
+    }
+
+    @Override
+    public void notifyStructureUpdated(Long restaurantId) {
+        notifyManagementUpdated(restaurantId);
+        send("/topic/platform/structure-updated", Map.of("changed", true));
+    }
+
+    @Override
+    public void notifySessionUpdated(TableSession session) {
+        if (session == null) return;
+        Map<String, Object> payload = Map.of("tableSessionId", session.getId());
+        send("/topic/branch/" + session.getBranch().getId() + "/session-updated", payload);
+        if (session.getBranch().getRestaurant() != null) {
+            send(
+                    "/topic/restaurant/" + session.getBranch().getRestaurant().getId()
+                            + "/operations-updated",
+                    Map.of("changed", true));
+        }
+        if (session.isTakeaway()) {
+            notifyTakeawayUpdated(session);
+        } else {
+            send("/topic/session/" + session.getId() + "/session-updated", Map.of("changed", true));
+        }
     }
 
     @Override
