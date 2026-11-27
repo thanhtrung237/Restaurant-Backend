@@ -2,6 +2,7 @@ package com.group.restaurant.models;
 
 import com.group.restaurant.enums.AccountStatus;
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.*;
@@ -13,7 +14,9 @@ import org.hibernate.annotations.SQLRestriction;
         uniqueConstraints = {
             @UniqueConstraint(
                     name = "uk_account_restaurant_username",
-                    columnNames = {"restaurant_id", "username"})
+                    columnNames = {"restaurant_id", "username"}),
+            @UniqueConstraint(name = "uk_account_restaurant_phone",
+                    columnNames = {"restaurant_id", "phone"})
         })
 @SQLRestriction("is_deleted = false")
 @Getter
@@ -51,6 +54,12 @@ public class Account extends BaseEntity {
 
     @Column(length = 100)
     private String email;
+
+    @Column(length = 10)
+    private String phone;
+
+    @Column(name = "hire_date")
+    private LocalDate hireDate;
 
     @OneToMany(
             mappedBy = "account",

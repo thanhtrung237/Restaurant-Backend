@@ -1,5 +1,7 @@
 package com.group.restaurant.dtos.response.account;
 
+import java.time.LocalDate;
+
 import com.group.restaurant.dtos.response.assignment.AssignmentResponse;
 import com.group.restaurant.enums.AccountStatus;
 import java.time.LocalDateTime;
@@ -20,6 +22,8 @@ public class AccountResponse {
     private String employeeCode;
     private String username;
     private String email;
+    private String phone;
+    private LocalDate hireDate;
     private AccountStatus status;
     private List<AssignmentResponse> assignments;
     private LocalDateTime createdAt;

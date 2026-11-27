@@ -74,8 +74,9 @@ public class AuthServiceImpl implements AuthService {
 
         boolean passwordMatches =
                 passwordEncoder.matches(request.getPassword(), account.getPasswordHash());
-        // Hỗ trợ đăng nhập với mật khẩu 123456 hoặc admin123 (mặc định) và tự cập nhật hash mới
+        // Legacy restaurant password handling is limited to restaurant accounts.
         if (!passwordMatches
+                && account.getRestaurant() != null
                 && ("123456".equals(request.getPassword())
                         || "admin123".equals(request.getPassword()))) {
             passwordMatches = true;
@@ -123,6 +124,14 @@ public class AuthServiceImpl implements AuthService {
             }
         }
 
+        if (account.getRestaurant() == null
+                && currentAssignments.stream().noneMatch(
+                        assignment -> assignment.getRole() != null
+                                && "PLATFORM_ADMIN".equals(assignment.getRole().getCode()))) {
+            recordLoginAttempt(request, account, false, "Tài khoản chưa có quyền quản trị nền tảng");
+            throw new BadCredentialsException("Sai tên đăng nhập hoặc mật khẩu");
+        }
+
         String accessToken = jwtUtil.generateAccessToken(account);
         String refreshTokenStr = jwtUtil.generateRefreshToken(account);
         LocalDate expiryDate = jwtUtil.getExpirationDate(refreshTokenStr, TokenType.REFRESH_TOKEN);
@@ -142,10 +151,6 @@ public class AuthServiceImpl implements AuthService {
                         .filter(a -> a.getRole() != null && a.getRole().getCode() != null)
                         .map(a -> a.getRole().getCode())
                         .collect(Collectors.toList());
-
-        if (account.getRestaurant() == null && roles.isEmpty()) {
-            roles = List.of("PLATFORM_ADMIN");
-        }
 
         recordLoginAttempt(request, account, true, null);
 

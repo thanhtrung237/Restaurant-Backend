@@ -1,5 +1,7 @@
 package com.group.restaurant.dtos.request.account;
 
+import java.time.LocalDate;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -18,4 +20,6 @@ public class AccountUpdateRequest {
     @Email(message = "Email không hợp lệ")
     @Size(max = 100, message = "Email không được vượt quá 100 ký tự")
     private String email;
+    private String phone;
+    private LocalDate hireDate;
 }

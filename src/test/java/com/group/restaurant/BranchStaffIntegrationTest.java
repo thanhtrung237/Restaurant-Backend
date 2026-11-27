@@ -53,7 +53,8 @@ class BranchStaffIntegrationTest {
         String path = "/api/v1/branches/{branchId}/staff";
         String create =
                 """
-                {"fullName":"Nhân viên mới","username":"new_staff","password":"Start789!","roles":["WAITER"]}
+                {"fullName":"Nhân viên mới","username":"new_staff","password":"Start789!","roles":["WAITER"],
+                 "phone":"0321234567","hireDate":"2026-11-25"}
                 """;
 
         mvc.perform(get(path, outside.getId()).with(authentication(auth)))
@@ -90,6 +91,17 @@ class BranchStaffIntegrationTest {
                         .orElseThrow();
         assertThat(new BCryptPasswordEncoder().matches("Start789!", created.getPasswordHash()))
                 .isTrue();
+        assertThat(created.getPhone()).isEqualTo("0321234567");
+        assertThat(created.getHireDate()).isEqualTo(java.time.LocalDate.of(2026, 11, 25));
+        mvc.perform(post(path, local.getId()).with(authentication(auth))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(create.replace("new_staff", "duplicate_phone")))
+                .andExpect(status().isConflict());
+        mvc.perform(post(path, local.getId()).with(authentication(auth))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(create.replace("new_staff", "invalid_phone")
+                                .replace("0321234567", "0401234567")))
+                .andExpect(status().isBadRequest());
         assertThat(assignments.findByAccountId(created.getId()))
                 .singleElement()
                 .satisfies(

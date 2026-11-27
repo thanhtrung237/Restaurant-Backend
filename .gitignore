@@ -64,3 +64,4 @@ deploy/ec2/*.pem
 *.sql
 !docs/sql/2026-11-22-operational-permissions.sql
 !docs/sql/2026-11-26-table-open-notifications.sql
+!docs/sql/2026-11-27-staff-contact.sql

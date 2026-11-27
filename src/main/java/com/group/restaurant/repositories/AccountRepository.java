@@ -11,6 +11,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface AccountRepository extends JpaRepository<Account, Long> {
+
+    boolean existsByRestaurantIdAndPhone(Long restaurantId, String phone);
     @org.springframework.data.jpa.repository.Lock(
             jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from Account a where a.id = :id")

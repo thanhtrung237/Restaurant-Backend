@@ -20,6 +20,7 @@ import com.group.restaurant.repositories.DiningTableRepository;
 import com.group.restaurant.repositories.InvoiceRepository;
 import com.group.restaurant.repositories.OrderDetailRepository;
 import com.group.restaurant.repositories.OrderRepository;
+import com.group.restaurant.repositories.PaymentRepository;
 import com.group.restaurant.repositories.TableSessionRepository;
 import com.group.restaurant.services.AuditLogService;
 import com.group.restaurant.services.OperationalPermissionService;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -47,6 +49,7 @@ public class TableSessionServiceImpl implements TableSessionService {
     private final TableSessionMapper tableSessionMapper;
     private final OrderDetailRepository orderDetailRepository;
     private final InvoiceRepository invoiceRepository;
+    private final PaymentRepository paymentRepository;
     private final AuditLogService auditLogService;
     private final TenantGuard tenantGuard;
     private final OperationalPermissionService permissions;
@@ -148,7 +151,7 @@ public class TableSessionServiceImpl implements TableSessionService {
     @Override
     public TableSessionResponse confirmOpen(Long id, TableSessionConfirmOpenRequest request) {
         TableSession session = findSession(id);
-        tenantGuard.assertBranch(session.getBranch());
+        tenantGuard.assertBranchAssigned(session.getBranch().getId());
 
         if (session.getStatus() != TableSessionStatus.WAITING_FOR_OPEN
                 && session.getStatus() != TableSessionStatus.RESERVED) {
@@ -431,24 +434,31 @@ public class TableSessionServiceImpl implements TableSessionService {
     }
 
     @Override
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public TableSessionResponse cancelSession(Long id, String reason) {
-        TableSession session = findSession(id);
-        tenantGuard.assertBranch(session.getBranch());
+        TableSession session =
+                tableSessionRepository
+                        .findForUpdate(id)
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException("Không tìm thấy phiên bàn với ID: " + id));
+        tenantGuard.assertBranchAssigned(session.getBranch().getId(), TenantGuard.ROLE_BRANCH_MANAGER);
         if (session.getStatus() == TableSessionStatus.RESERVED) {
             permissions.require(session.getBranch().getId(), OperationalPermission.RESERVE_TABLE);
         }
         if (session.getStatus() == TableSessionStatus.CLOSED) {
             throw new ConflictException("Không thể hủy phiên bàn đã đóng");
         }
-        // QĐ-02: phiên CHỜ THANH TOÁN chỉ hủy thẳng được khi CHƯA phát sinh tiền —
-        // tổng tính được = 0 và chưa có hoá đơn đã phát hành / đã thu.
-        if (session.getStatus() == TableSessionStatus.WAITING_FOR_PAY) {
-            assertCancellableWhileWaitingForPay(session);
+        if (session.getStatus() == TableSessionStatus.CANCELLED
+                || session.getStatus() == TableSessionStatus.MERGED) {
+            throw new ConflictException("Phiên bàn này đã kết thúc");
         }
         // Bang 2.2: "Huy phien - DANG PHUC VU -> DA HUY, QL chi nhanh, bat buoc ly do,
         // ghi nhat ky". Truoc day API khong nhan ly do va khong ghi nhat ky dong nao.
         if (reason == null || reason.isBlank()) {
             throw new InvalidParamException("Phải nhập lý do huỷ phiên");
+        }
+        if (session.getStatus() == TableSessionStatus.WAITING_FOR_PAY) {
+            cancelUnpaidDraftForEmptySession(session);
         }
 
         TableSessionStatus previous = session.getStatus();
@@ -479,17 +489,10 @@ public class TableSessionServiceImpl implements TableSessionService {
     }
 
     /**
-     * QĐ-02 — hủy thẳng phiên CHỜ THANH TOÁN.
-     *
-     * Trước đây giao diện phải "mở lại bàn rồi mới hủy": hai lời gọi, và kẹt nửa chừng nếu
-     * bước hai lỗi. Phiên 0đ chưa phát sinh tiền nên không có gì để đối soát.
-     *
-     * Hai chốt chặn, cả hai đều là dữ liệu tiền bạc:
-     * 1. Tổng tiền tính được phải bằng 0 (cùng tiêu chí với hoá đơn — xem shouldCharge).
-     * 2. Không có hoá đơn ISSUED (đã phát hành, BR-09 bất biến) hay PAID (đã thu tiền).
-     *    Hoá đơn PENDING 0đ thì vẫn cho hủy: nó chỉ là bản nháp, thường do lỗi mục 17 sinh ra.
+     * Khi hủy phiên trống đang chờ thanh toán, khóa hóa đơn nháp để chặn thu tiền
+     * đồng thời và hủy bản nháp cùng phiên.
      */
-    private void assertCancellableWhileWaitingForPay(TableSession session) {
+    private void cancelUnpaidDraftForEmptySession(TableSession session) {
         BigDecimal total = billableTotal(session.getId());
         if (total.compareTo(BigDecimal.ZERO) > 0) {
             throw new ConflictException(
@@ -497,19 +500,19 @@ public class TableSessionServiceImpl implements TableSessionService {
                             + "hoặc mở lại bàn trước khi hủy");
         }
         invoiceRepository
-                .findByTableSessionId(session.getId())
-                .filter(
-                        invoice ->
-                                invoice.getStatus() == InvoiceStatus.ISSUED
-                                        || invoice.getStatus() == InvoiceStatus.PAID)
+                .findBySessionForPayment(session.getId())
                 .ifPresent(
                         invoice -> {
-                            throw new ConflictException(
-                                    "Phiên đã có hoá đơn "
-                                            + invoice.getInvoiceNumber()
-                                            + " ("
-                                            + invoice.getStatus()
-                                            + ") — không thể hủy phiên");
+                            if ((invoice.getStatus() != InvoiceStatus.PENDING
+                                            && invoice.getStatus() != InvoiceStatus.CANCELLED)
+                                    || invoice.getEInvoiceRef() != null
+                                    || paymentRepository.countByInvoiceId(invoice.getId()) > 0) {
+                                throw new ConflictException(
+                                        "Phiên đã phát sinh thanh toán hoặc phát hành hóa đơn, không thể hủy");
+                            }
+                            if (invoice.getStatus() == InvoiceStatus.PENDING) {
+                                invoice.setStatus(InvoiceStatus.CANCELLED);
+                            }
                         });
     }
 

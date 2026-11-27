@@ -1177,6 +1177,10 @@ class GuestQrIntegrationTest {
                                                         username,
                                                         "fullName",
                                                         "New employee",
+                                                        "phone",
+                                                        "0331234567",
+                                                        "hireDate",
+                                                        "2026-11-25",
                                                         "password",
                                                         "test-password"))))
                 .andExpect(status().isCreated());

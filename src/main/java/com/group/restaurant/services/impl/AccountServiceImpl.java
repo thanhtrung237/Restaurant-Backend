@@ -39,6 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class AccountServiceImpl implements AccountService {
+    private static final String MOBILE_PHONE_PATTERN =
+            "0(?:3[2-9]|5[25689]|7[06789]|8[1-9]|9[0-9])[0-9]{7}";
 
     private final AccountRepository accountRepository;
     private final OrderNotificationService orderNotificationService;
@@ -72,6 +74,17 @@ public class AccountServiceImpl implements AccountService {
                     "Tên đăng nhập '" + request.getUsername() + "' đã tồn tại trong nhà hàng này");
         }
 
+        if (!tenantGuard.isPlatformAdmin()) {
+            if (request.getPhone() == null || request.getPhone().isBlank()) {
+                throw new InvalidParamException("Vui lòng nhập số điện thoại nhân viên.");
+            }
+            if (request.getHireDate() == null) {
+                throw new InvalidParamException("Vui lòng nhập ngày vào làm.");
+            }
+        }
+        if (request.getPhone() != null) {
+            request.setPhone(validatePhone(restaurant.getId(), request.getPhone()));
+        }
         Account account = accountMapper.toEntity(request);
         account.setRestaurant(restaurant);
         account.setPasswordHash(hashPassword(request.getPassword()));
@@ -79,7 +92,7 @@ public class AccountServiceImpl implements AccountService {
 
         // QĐ-03: mã nhân viên do hệ thống sinh, client không gửi.
         account.setEmployeeCode(generateEmployeeCode(restaurant.getId()));
-        Account savedAccount = accountRepository.save(account);
+        Account savedAccount = saveAccount(account);
         orderNotificationService.notifyManagementUpdated(account.getRestaurant() == null ? null : account.getRestaurant().getId());
 
         // POST /accounts also serves Platform Admin onboarding for restaurant owners.
@@ -114,11 +127,45 @@ public class AccountServiceImpl implements AccountService {
     public AccountResponse updateAccount(Long id, AccountUpdateRequest request) {
         Account account = findAccountById(id);
 
+        if (request.getPhone() != null) {
+            String phone = request.getPhone().strip();
+            if (!phone.equals(account.getPhone())) {
+                request.setPhone(validatePhone(
+                        account.getRestaurant() == null ? null : account.getRestaurant().getId(), phone));
+            } else {
+                request.setPhone(phone);
+            }
+        }
         accountMapper.updateEntity(account, request);
-        Account updatedAccount = accountRepository.save(account);
+        Account updatedAccount = saveAccount(account);
         orderNotificationService.notifyManagementUpdated(account.getRestaurant() == null ? null : account.getRestaurant().getId());
 
         return buildAccountResponse(updatedAccount);
+    }
+
+    private String validatePhone(Long restaurantId, String rawPhone) {
+        String phone = rawPhone.strip();
+        if (!phone.matches(MOBILE_PHONE_PATTERN)) {
+            throw new InvalidParamException(
+                    "Số điện thoại phải có 10 chữ số, bắt đầu bằng 0 và có đầu số di động Việt Nam hợp lệ.");
+        }
+        if (restaurantId != null && accountRepository.existsByRestaurantIdAndPhone(restaurantId, phone)) {
+            throw new ConflictException("Số điện thoại đã được dùng bởi nhân viên trong nhà hàng này.");
+        }
+        return phone;
+    }
+
+    private Account saveAccount(Account account) {
+        try {
+            return accountRepository.saveAndFlush(account);
+        } catch (org.springframework.dao.DataIntegrityViolationException exception) {
+            String detail = exception.getMostSpecificCause().getMessage();
+            if (detail != null && detail.toLowerCase(java.util.Locale.ROOT)
+                    .contains("uk_account_restaurant_phone")) {
+                throw new ConflictException("Số điện thoại đã được dùng bởi nhân viên trong nhà hàng này.");
+            }
+            throw exception;
+        }
     }
 
     @Override

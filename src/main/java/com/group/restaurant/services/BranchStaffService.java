@@ -23,6 +23,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -62,6 +63,8 @@ public class BranchStaffService {
             @NotBlank @Size(max = 100) String fullName,
             @NotBlank @Size(max = 50) String username,
             @Email @Size(max = 100) String email,
+            String phone,
+            LocalDate hireDate,
             @NotBlank @Size(min = 8) String password,
             @NotEmpty @Size(max = 2) Set<@NotBlank String> roles) {}
 
@@ -104,6 +107,8 @@ public class BranchStaffService {
         accountRequest.setRestaurantId(branch.getRestaurant().getId());
         accountRequest.setFullName(request.fullName().strip());
         accountRequest.setUsername(request.username().strip());
+        accountRequest.setPhone(request.phone());
+        accountRequest.setHireDate(request.hireDate());
         accountRequest.setEmail(
                 request.email() == null || request.email().isBlank()
                         ? null

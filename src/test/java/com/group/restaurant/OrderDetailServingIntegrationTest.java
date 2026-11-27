@@ -1,5 +1,6 @@
 package com.group.restaurant;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -28,6 +29,76 @@ import org.springframework.transaction.annotation.Transactional;
 class OrderDetailServingIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired EntityManager entities;
+
+    @Test
+    void cancelsEmptyCheckoutAndItsDraftOnlyWhenNoMoneyWasCollected() throws Exception {
+        var restaurant = new Restaurant();
+        restaurant.setCode("EMPTY-CHECKOUT");
+        restaurant.setName("Test");
+        entities.persist(restaurant);
+        var branch = new Branch();
+        branch.setRestaurant(restaurant);
+        branch.setCode("EMPTY");
+        branch.setName("Test");
+        entities.persist(branch);
+        var table = DiningTable.builder()
+                .branch(branch)
+                .name("Bàn test")
+                .status(DiningTableStatus.OCCUPIED)
+                .build();
+        entities.persist(table);
+        var session = TableSession.builder()
+                .table(table)
+                .branch(branch)
+                .status(TableSessionStatus.WAITING_FOR_PAY)
+                .build();
+        entities.persist(session);
+        var order = Order.builder().tableSession(session).build();
+        entities.persist(order);
+        var invoice = Invoice.builder()
+                .branch(branch)
+                .order(order)
+                .tableSession(session)
+                .invoiceNumber("EMPTY-DRAFT")
+                .grandTotal(BigDecimal.ZERO)
+                .build();
+        entities.persist(invoice);
+        var payment = Payment.builder()
+                .invoice(invoice)
+                .method(PaymentMethod.CASH)
+                .amount(BigDecimal.ONE)
+                .build();
+        entities.persist(payment);
+
+        var account = Account.builder().id(903L).username("cancel-test").restaurant(restaurant).build();
+        var role = Role.builder().code("BRANCH_MANAGER").scope(RoleScope.BRANCH).build();
+        account.setAssignments(
+                List.of(Assignment.builder().account(account).branch(branch).role(role).build()));
+        var principal = new AccountUserDetails(account);
+        var staff = new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+        var request = post("/api/v1/table-sessions/{id}/cancel", session.getId())
+                .with(authentication(staff))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"All lines voided\"}");
+
+        mvc.perform(request).andExpect(status().isConflict());
+        assertThat(session.getStatus()).isEqualTo(TableSessionStatus.WAITING_FOR_PAY);
+        entities.remove(payment);
+        entities.flush();
+
+        mvc.perform(request)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+        entities.flush();
+        entities.clear();
+        assertThat(entities.find(TableSession.class, session.getId()).getNote())
+                .isEqualTo("All lines voided");
+        assertThat(entities.find(DiningTable.class, table.getId()).getStatus())
+                .isEqualTo(DiningTableStatus.AVAILABLE);
+        assertThat(entities.find(Invoice.class, invoice.getId()).getStatus())
+                .isEqualTo(InvoiceStatus.CANCELLED);
+        mvc.perform(request).andExpect(status().isConflict());
+    }
 
     @Test
     void recordsPartialServingsWithoutChangingOrderQuantityAndRejectsStaleCounts()
