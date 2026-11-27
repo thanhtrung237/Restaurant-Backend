@@ -132,7 +132,10 @@ public class PromotionEngine {
     }
 
     private LocalTime parseTimeFlexible(String s) {
-        if (s != null && s.length() == 4 && s.charAt(1) == ':') {
+        if (s.matches("[0-9]{1,2}")) {
+            return LocalTime.of(Integer.parseInt(s), 0);
+        }
+        if (s.length() == 4 && s.charAt(1) == ':') {
             s = "0" + s;
         }
         return LocalTime.parse(s);
@@ -210,7 +213,6 @@ public class PromotionEngine {
         List<Promotion> orderPromotions =
                 getActivePromotions(branchId, restaurantId).stream()
                         .filter(p -> p.getApplyLevel() == ApplyLevel.INVOICE)
-                        .filter(p -> p.getCode() == null || p.getCode().isBlank())
                         .filter(p -> !excludedIds.contains(p.getId()))
                         .filter(p -> p.getId().equals(reservedId) || isPromotionStillHasUsage(p))
                         .collect(Collectors.toList());

@@ -3,6 +3,7 @@ package com.group.restaurant.repositories;
 import com.group.restaurant.models.AuditLog;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,6 +13,24 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
+
+    Optional<AuditLog>
+            findFirstByBranchIdAndEntityTypeAndEntityIdAndActionTypeAndValueAfterStartingWithOrderByIdDesc(
+                    Long branchId, String entityType, Long entityId, String actionType, String valuePrefix);
+
+    @Query("""
+            SELECT a FROM AuditLog a LEFT JOIN FETCH a.performedBy
+            WHERE a.branch.id = :branchId
+              AND a.entityType = 'Invoice'
+              AND a.entityId IS NOT NULL
+              AND a.actionType = :actionType
+              AND a.valueAfter LIKE CONCAT(:valuePrefix, '%')
+            ORDER BY a.id DESC
+            """)
+    List<AuditLog> findInvoiceIssuanceLogs(
+            @Param("branchId") Long branchId,
+            @Param("actionType") String actionType,
+            @Param("valuePrefix") String valuePrefix);
 
     @Query(
             "SELECT a FROM AuditLog a WHERE a.restaurant.id = :restaurantId "

@@ -12,6 +12,7 @@ import com.group.restaurant.exceptions.ConflictException;
 import com.group.restaurant.exceptions.InvalidParamException;
 import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.mappers.InvoiceMapper;
+import com.group.restaurant.mappers.SoftDeleteSafe;
 import com.group.restaurant.models.*;
 import com.group.restaurant.repositories.*;
 import com.group.restaurant.services.AuditLogService;
@@ -32,6 +33,7 @@ import com.group.restaurant.utils.TenantGuard;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +47,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class InvoiceServiceImpl implements InvoiceService {
 
+    private static final String ISSUED_AUDIT_PREFIX = "status=" + InvoiceStatus.ISSUED + ";";
+
     private final InvoiceRepository invoiceRepository;
     private final BranchRepository branchRepository;
     private final TableSessionRepository tableSessionRepository;
@@ -56,6 +60,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceMapper invoiceMapper;
     private final InvoiceProvider invoiceProvider;
     private final AuditLogService auditLogService;
+    private final AuditLogRepository auditLogRepository;
     private final TenantGuard tenantGuard;
     private final PromotionEngine promotionEngine;
     private final PromotionRepository promotionRepository;
@@ -413,7 +418,32 @@ public class InvoiceServiceImpl implements InvoiceService {
                         ? invoiceRepository.findByBranchIdAndStatus(branchId, status)
                         : invoiceRepository.findByBranchId(branchId);
 
-        return invoices.stream().map(invoiceMapper::toListResponse).collect(Collectors.toList());
+        Map<Long, List<AuditLog>> issuanceLogs =
+                invoices.stream().anyMatch(InvoiceServiceImpl::hasIssuedInvoice)
+                        ? auditLogRepository
+                                .findInvoiceIssuanceLogs(
+                                        branchId, AuditAction.ISSUE_EINVOICE, ISSUED_AUDIT_PREFIX)
+                                .stream()
+                                .collect(Collectors.groupingBy(AuditLog::getEntityId))
+                        : Map.of();
+
+        return invoices.stream()
+                .map(
+                        invoice -> {
+                            InvoiceListResponse response = invoiceMapper.toListResponse(invoice);
+                            if (hasIssuedInvoice(invoice)) {
+                                String prefix = issueResultPrefix(invoice);
+                                issuanceLogs.getOrDefault(invoice.getId(), List.of()).stream()
+                                        .filter(log -> log.getValueAfter().startsWith(prefix))
+                                        .findFirst()
+                                        .ifPresent(
+                                                log -> response.setIssuerName(
+                                                        SoftDeleteSafe.get(
+                                                                log.getPerformedBy(), Account::getFullName)));
+                            }
+                            return response;
+                        })
+                .toList();
     }
 
     @Override
@@ -555,7 +585,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 result.getProviderName(),
                 taxCode);
 
-        auditLogService.record(
+        auditLogService.recordInTransaction(
                 AuditEvent.builder()
                         .entityType("Invoice")
                         .entityId(invoiceId)
@@ -805,8 +835,36 @@ public class InvoiceServiceImpl implements InvoiceService {
         return invoiceNumber;
     }
 
+    private static boolean hasIssuedInvoice(Invoice invoice) {
+        return invoice.getStatus() == InvoiceStatus.ISSUED
+                || invoice.getEInvoiceIssuedAt() != null
+                || invoice.getEInvoiceRef() != null;
+    }
+
+    private static String issueResultPrefix(Invoice invoice) {
+        String ref = invoice.getEInvoiceRef();
+        return ref == null || ref.isBlank() ? ISSUED_AUDIT_PREFIX : ISSUED_AUDIT_PREFIX + " ref=" + ref + ";";
+    }
+
     private InvoiceResponse buildInvoiceResponse(Invoice invoice) {
         InvoiceResponse response = invoiceMapper.toResponse(invoice);
+        if (response.getBranchId() != null && hasIssuedInvoice(invoice)) {
+            auditLogRepository
+                    .findFirstByBranchIdAndEntityTypeAndEntityIdAndActionTypeAndValueAfterStartingWithOrderByIdDesc(
+                            response.getBranchId(),
+                            "Invoice",
+                            invoice.getId(),
+                            AuditAction.ISSUE_EINVOICE,
+                            issueResultPrefix(invoice))
+                    .ifPresent(
+                            entry -> {
+                                Account issuer = entry.getPerformedBy();
+                                response.setEInvoiceIssuedByName(
+                                        SoftDeleteSafe.get(issuer, Account::getFullName));
+                                response.setEInvoiceIssuedByEmployeeCode(
+                                        SoftDeleteSafe.get(issuer, Account::getEmployeeCode));
+                            });
+        }
         response.setQuoteShared(invoice.getQuoteSharedAt() != null);
         response.setDiscountApprovalPending(
                 invoice.getDiscountApproval() != null

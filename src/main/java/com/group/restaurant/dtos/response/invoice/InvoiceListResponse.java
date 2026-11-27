@@ -16,7 +16,11 @@ public class InvoiceListResponse {
     private String invoiceNumber;
     private String branchName;
     private String tableName;
+    private boolean takeaway;
+    private Long areaId;
+    private String areaName;
     private BigDecimal grandTotal;
     private InvoiceStatus status;
     private LocalDateTime createdAt;
+    private String issuerName;
 }

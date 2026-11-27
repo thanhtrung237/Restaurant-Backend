@@ -12,6 +12,9 @@ import com.jayway.jsonpath.JsonPath;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,7 +45,18 @@ class ManualDiscountIntegrationTest {
         entities.persist(branch);
         persistPromotion(restaurant, "Ưu tiên cao", 100, 2_000);
         var best = persistPromotion(restaurant, "Giảm nhiều nhất", 1, 5_000);
-        var table = DiningTable.builder().branch(branch).name("Bàn 1").build();
+        best.setCode("AUTO5000");
+        best.setCondition("{\"minOrderValue\":50000}");
+        var belowMinimum = persistPromotion(restaurant, "Đơn từ 60000", 1, 20_000);
+        belowMinimum.setCode("AUTO20000");
+        belowMinimum.setCondition("{\"minOrderValue\":60000}");
+        var outsideHours = persistPromotion(restaurant, "Khung giờ khác", 1, 30_000);
+        outsideHours.setCode("LATER");
+        int hour = LocalTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).getHour();
+        outsideHours.setTimeWindow("%d-%d".formatted((hour + 2) % 24, (hour + 3) % 24));
+        var area = Area.builder().branch(branch).name("Tầng 1").build();
+        entities.persist(area);
+        var table = DiningTable.builder().branch(branch).area(area).name("Bàn 1").build();
         entities.persist(table);
         var session =
                 TableSession.builder()
@@ -88,6 +102,13 @@ class ManualDiscountIntegrationTest {
         var manager = staff(restaurant, branch, "BRANCH_MANAGER", 904L);
 
         mvc.perform(
+                        get("/api/v1/table-sessions/{id}/bill-preview", session.getId())
+                                .with(authentication(staff)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderPromotionId").value(best.getId()))
+                .andExpect(jsonPath("$.data.grandTotal").value(47_250));
+
+        mvc.perform(
                         post("/api/v1/invoices")
                                 .with(authentication(staff))
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -105,6 +126,34 @@ class ManualDiscountIntegrationTest {
                                 Long.class)
                         .setParameter("sessionId", session.getId())
                         .getSingleResult();
+
+        mvc.perform(get("/api/v1/invoices/branch/{id}", branch.getId()).with(authentication(staff)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(invoiceId))
+                .andExpect(jsonPath("$.data[0].areaId").value(area.getId()))
+                .andExpect(jsonPath("$.data[0].areaName").value("Tầng 1"))
+                .andExpect(jsonPath("$.data[0].takeaway").value(false));
+
+        // A draft created before the promotion was applied should show today's calculation.
+        var draft = entities.find(Invoice.class, invoiceId);
+        draft.setTotalPromotionDiscount(BigDecimal.ZERO);
+        draft.setGrandTotal(BigDecimal.valueOf(52_500));
+        mvc.perform(
+                        get("/api/v1/table-sessions/{id}/bill-preview", session.getId())
+                                .with(authentication(staff)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderPromotionDiscount").value(5_000))
+                .andExpect(jsonPath("$.data.grandTotal").value(47_250));
+        mvc.perform(
+                        post("/api/v1/invoices")
+                                .with(authentication(staff))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        "{\"branchId\":%d,\"tableSessionId\":%d}"
+                                                .formatted(branch.getId(), session.getId())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.id").value(invoiceId))
+                .andExpect(jsonPath("$.data.grandTotal").value(47_250));
 
         putDiscount(staff, invoiceId, 15_000, 31_500);
         putDiscount(staff, invoiceId, 10_000, 36_750);
@@ -166,6 +215,45 @@ class ManualDiscountIntegrationTest {
                                 """
                                                 .formatted(branch.getId(), session.getId())))
                 .andExpect(status().isBadRequest());
+
+        var issuer = Account.builder()
+                .restaurant(entities.getReference(Restaurant.class, restaurant.getId()))
+                .username("receipt-issuer")
+                .fullName("Nhân viên phát hành")
+                .employeeCode("NV-ISSUER")
+                .passwordHash("test-only")
+                .build();
+        entities.persist(issuer);
+        var issued = entities.find(Invoice.class, invoiceId);
+        issued.setStatus(InvoiceStatus.ISSUED);
+        issued.setEInvoiceIssuedAt(LocalDateTime.now());
+        issued.setEInvoiceRef("REF-ISSUER");
+        entities.persist(AuditLog.builder()
+                .branch(issued.getBranch())
+                .performedBy(issuer)
+                .entityType("Invoice")
+                .entityId(invoiceId)
+                .actionType("ISSUE_EINVOICE")
+                .valueAfter("status=ISSUED; ref=REF-ISSUER; provider=stub")
+                .occurredAt(LocalDateTime.now())
+                .build());
+        entities.persist(AuditLog.builder()
+                .branch(issued.getBranch())
+                .entityType("Invoice")
+                .entityId(invoiceId)
+                .actionType("ISSUE_EINVOICE")
+                .valueAfter("status=ISSUED; ref=OTHER; provider=stub")
+                .occurredAt(LocalDateTime.now())
+                .build());
+        mvc.perform(get("/api/v1/invoices/{id}", invoiceId).with(authentication(staff)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.einvoiceIssuedByName").value("Nhân viên phát hành"))
+                .andExpect(jsonPath("$.data.einvoiceIssuedByEmployeeCode").value("NV-ISSUER"));
+        mvc.perform(get("/api/v1/invoices/branch/{id}", branch.getId())
+                        .param("status", "ISSUED")
+                        .with(authentication(staff)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].issuerName").value("Nhân viên phát hành"));
     }
 
     private Promotion persistPromotion(

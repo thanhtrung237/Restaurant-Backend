@@ -65,6 +65,8 @@ public class InvoiceResponse {
     //  Thông tin hóa đơn điện tử
     private String eInvoiceRef;
     private LocalDateTime eInvoiceIssuedAt;
+    private String eInvoiceIssuedByName;
+    private String eInvoiceIssuedByEmployeeCode;
     private String taxCodeUsed;
     private String eInvoiceProvider;
     private int eInvoiceAttemptCount;

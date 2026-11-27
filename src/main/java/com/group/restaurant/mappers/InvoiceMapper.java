@@ -3,12 +3,16 @@ package com.group.restaurant.mappers;
 import com.group.restaurant.dtos.request.invoice.InvoiceCreateRequest;
 import com.group.restaurant.dtos.response.invoice.InvoiceListResponse;
 import com.group.restaurant.dtos.response.invoice.InvoiceResponse;
+import com.group.restaurant.models.Area;
 import com.group.restaurant.models.Branch;
+import com.group.restaurant.models.DiningTable;
 import com.group.restaurant.models.Invoice;
 import com.group.restaurant.models.Promotion;
 import com.group.restaurant.models.TableSession;
+import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 import org.mapstruct.ReportingPolicy;
 
@@ -68,6 +72,19 @@ public interface InvoiceMapper {
             expression = "java(SoftDeleteSafe.get(invoice.getBranch(), Branch::getName))")
     @Mapping(target = "tableName", expression = "java(InvoiceMapper.tableNameOf(invoice))")
     InvoiceListResponse toListResponse(Invoice invoice);
+
+    @AfterMapping
+    default void mapInvoiceLocation(
+            Invoice invoice, @MappingTarget InvoiceListResponse.InvoiceListResponseBuilder response) {
+        TableSession session = invoice.getTableSession();
+        boolean takeaway = Boolean.TRUE.equals(SoftDeleteSafe.get(session, TableSession::isTakeaway));
+        response.takeaway(takeaway);
+        if (takeaway) return;
+        DiningTable table = SoftDeleteSafe.get(session, TableSession::getTable);
+        Area area = SoftDeleteSafe.get(table, DiningTable::getArea);
+        String areaName = SoftDeleteSafe.get(area, Area::getName);
+        if (areaName != null) response.areaId(area.getId()).areaName(areaName);
+    }
 
     /**
      * Tên bàn của hoá đơn — đi qua HAI quan hệ (`tableSession` → `table`), nên cả hai đều có thể

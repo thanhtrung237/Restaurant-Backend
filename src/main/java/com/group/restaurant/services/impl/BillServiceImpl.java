@@ -2,6 +2,7 @@ package com.group.restaurant.services.impl;
 
 import com.group.restaurant.dtos.response.invoice.BillPreviewResponse;
 import com.group.restaurant.enums.InvoiceStatus;
+import com.group.restaurant.enums.TableSessionStatus;
 import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.models.Branch;
 import com.group.restaurant.models.Invoice;
@@ -10,12 +11,14 @@ import com.group.restaurant.models.OrderDetail;
 import com.group.restaurant.models.TableSession;
 import com.group.restaurant.repositories.InvoiceRepository;
 import com.group.restaurant.repositories.OrderDetailRepository;
+import com.group.restaurant.repositories.PaymentRepository;
 import com.group.restaurant.repositories.TableSessionRepository;
 import com.group.restaurant.services.BillService;
 import com.group.restaurant.services.billing.BillBreakdown;
 import com.group.restaurant.services.billing.BillCalculator;
 import com.group.restaurant.services.billing.BillCalculator.PromotionSelection;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +31,7 @@ public class BillServiceImpl implements BillService {
     private final TableSessionRepository tableSessionRepository;
     private final OrderDetailRepository orderDetailRepository;
     private final InvoiceRepository invoiceRepository;
+    private final PaymentRepository paymentRepository;
     private final BillCalculator billCalculator;
 
     @Override
@@ -43,7 +47,6 @@ public class BillServiceImpl implements BillService {
 
         List<OrderDetail> details = orderDetailRepository.findByTableSessionId(session.getId());
 
-        // Đã có hóa đơn (chưa hủy) → dùng đúng số đã chốt trên hóa đơn.
         Invoice invoice =
                 invoiceRepository
                         .findByTableSessionId(session.getId())
@@ -51,15 +54,27 @@ public class BillServiceImpl implements BillService {
                         .orElse(null);
 
         BillBreakdown bill;
-        if (invoice != null) {
+        boolean editableDraft =
+                invoice != null
+                        && invoice.getStatus() == InvoiceStatus.PENDING
+                        && session.getStatus() == TableSessionStatus.WAITING_FOR_PAY
+                        && invoice.getQuoteSharedAt() == null
+                        && paymentRepository.countByInvoiceId(invoice.getId()) == 0;
+        if (invoice != null && !editableDraft) {
             bill = billCalculator.describeInvoice(invoice, details);
         } else {
             Branch branch = session.getBranch();
             List<ManualDiscount> manualDiscounts =
-                    billCalculator.loadManualDiscounts(session.getId(), null);
+                    billCalculator.loadManualDiscounts(
+                            session.getId(), invoice != null ? invoice.getId() : null);
+            Long reservedPromotionId =
+                    invoice != null && invoice.getPromotion() != null
+                            ? invoice.getPromotion().getId()
+                            : null;
             bill =
                     billCalculator.calculate(
-                            session, branch, details, manualDiscounts, PromotionSelection.auto());
+                            session, branch, details, manualDiscounts,
+                            PromotionSelection.auto(reservedPromotionId, Set.of()));
         }
 
         return BillPreviewResponse.builder()
