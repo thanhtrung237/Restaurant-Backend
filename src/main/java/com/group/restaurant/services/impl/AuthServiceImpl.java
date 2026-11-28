@@ -68,19 +68,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BadCredentialsException("Sai tên đăng nhập hoặc mật khẩu");
         }
 
-        boolean passwordMatches =
-                passwordEncoder.matches(request.getPassword(), account.getPasswordHash());
-        // Legacy restaurant password handling is limited to restaurant accounts.
-        if (!passwordMatches
-                && account.getRestaurant() != null
-                && ("123456".equals(request.getPassword())
-                        || "admin123".equals(request.getPassword()))) {
-            passwordMatches = true;
-            account.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-            accountRepository.save(account);
-        }
-
-        if (!passwordMatches) {
+        if (!passwordEncoder.matches(request.getPassword(), account.getPasswordHash())) {
             recordLoginAttempt(request, account, false, "Sai mật khẩu");
             throw new BadCredentialsException("Sai tên đăng nhập hoặc mật khẩu");
         }
@@ -121,10 +109,14 @@ public class AuthServiceImpl implements AuthService {
         }
 
         if (account.getRestaurant() == null
-                && currentAssignments.stream().noneMatch(
-                        assignment -> assignment.getRole() != null
-                                && "PLATFORM_ADMIN".equals(assignment.getRole().getCode()))) {
-            recordLoginAttempt(request, account, false, "Tài khoản chưa có quyền quản trị nền tảng");
+                && currentAssignments.stream()
+                        .noneMatch(
+                                assignment ->
+                                        assignment.getRole() != null
+                                                && "PLATFORM_ADMIN"
+                                                        .equals(assignment.getRole().getCode()))) {
+            recordLoginAttempt(
+                    request, account, false, "Tài khoản chưa có quyền quản trị nền tảng");
             throw new BadCredentialsException("Sai tên đăng nhập hoặc mật khẩu");
         }
 

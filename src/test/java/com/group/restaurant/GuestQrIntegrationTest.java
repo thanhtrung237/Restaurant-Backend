@@ -130,7 +130,9 @@ class GuestQrIntegrationTest {
         mvc.perform(
                         get("/api/v1/tables/{id}/qr-url", table.getId())
                                 .param("frontendBaseUrl", "https://example.com/")
-                                .with(authentication(staff(branch, "MANAGER", RoleScope.RESTAURANT))))
+                                .with(
+                                        authentication(
+                                                staff(branch, "MANAGER", RoleScope.RESTAURANT))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").value("https://example.com/table/" + originalCode));
         assertThat(tables.findById(table.getId()).orElseThrow().getQrCode())
@@ -1115,24 +1117,22 @@ class GuestQrIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isEmpty());
 
-        var login = mvc.perform(
-                        post("/api/v1/auth/login")
-                                .header("X-Auth-Request", "1")
-                                .contentType("application/json")
-                                .content(
-                                        json.writeValueAsString(
-                                                Map.of(
-                                                        "restaurantCode",
-                                                        branch.getRestaurant().getCode(),
-                                                        "username",
-                                                        "new-cashier",
-                                                        "password",
-                                                        "test-password"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.roles").isEmpty())
-                .andExpect(jsonPath("$.data.refreshToken").doesNotExist())
-                .andReturn()
-                .getResponse();
+        String originalHash = accounts.findById(accountId).orElseThrow().getPasswordHash();
+        for (String legacyPassword : List.of("123456", "admin123")) {
+            loginAsRestaurantStaff("new-cashier", legacyPassword)
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(cookie().doesNotExist("refreshToken"));
+        }
+        assertThat(accounts.findById(accountId).orElseThrow().getPasswordHash())
+                .isEqualTo(originalHash);
+
+        var login =
+                loginAsRestaurantStaff("new-cashier", "test-password")
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.roles").isEmpty())
+                        .andExpect(jsonPath("$.data.refreshToken").doesNotExist())
+                        .andReturn()
+                        .getResponse();
         var cookie = login.getCookie("refreshToken");
         assertThat(cookie).isNotNull();
         assertThat(cookie.isHttpOnly()).isTrue();
@@ -1195,6 +1195,20 @@ class GuestQrIntegrationTest {
         createRestaurantAccount(authentication, "new-owner")
                 .andExpect(jsonPath("$.data.assignments.length()").value(1))
                 .andExpect(jsonPath("$.data.assignments[0].roleCode").value("MANAGER"));
+    }
+
+    private ResultActions loginAsRestaurantStaff(String username, String password)
+            throws Exception {
+        return mvc.perform(
+                post("/api/v1/auth/login")
+                        .header("X-Auth-Request", "1")
+                        .contentType("application/json")
+                        .content(
+                                json.writeValueAsString(
+                                        Map.of(
+                                                "restaurantCode", branch.getRestaurant().getCode(),
+                                                "username", username,
+                                                "password", password))));
     }
 
     private ResultActions createRestaurantAccount(
