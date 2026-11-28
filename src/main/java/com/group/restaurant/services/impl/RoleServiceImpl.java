@@ -1,6 +1,5 @@
 package com.group.restaurant.services.impl;
 
-import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.role.RoleAddRequest;
 import com.group.restaurant.dtos.request.role.RoleUpdateRequest;
 import com.group.restaurant.dtos.response.base.PageResponse;
@@ -15,6 +14,7 @@ import com.group.restaurant.models.Role;
 import com.group.restaurant.repositories.AssignmentRepository;
 import com.group.restaurant.repositories.RestaurantRepository;
 import com.group.restaurant.repositories.RoleRepository;
+import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.services.RoleService;
 import com.group.restaurant.utils.TenantGuard;
 import java.util.List;
@@ -39,24 +39,24 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     public RoleResponse createRole(RoleAddRequest request) {
-        if (roleRepository.existsByCode(request.getCode())) {
-            throw new ConflictException("Mã vai trò '" + request.getCode() + "' đã tồn tại");
-        }
-
         Restaurant restaurant =
                 restaurantRepository
-                        .findById(request.getRestaurantId())
+                        .findByIdForUpdate(request.getRestaurantId())
                         .orElseThrow(
                                 () ->
                                         new ResourceNotFoundException(
                                                 "Không tìm thấy nhà hàng với ID: "
                                                         + request.getRestaurantId()));
+        if (roleRepository.existsByCode(request.getCode())) {
+            throw new ConflictException("Mã vai trò '" + request.getCode() + "' đã tồn tại");
+        }
 
         Role role = roleMapper.toEntity(request);
         role.setRestaurant(restaurant);
 
         Role savedRole = roleRepository.save(role);
-        orderNotificationService.notifyManagementUpdated(role.getRestaurant() == null ? null : role.getRestaurant().getId());
+        orderNotificationService.notifyManagementUpdated(
+                role.getRestaurant() == null ? null : role.getRestaurant().getId());
         return buildRoleResponse(savedRole);
     }
 
@@ -66,7 +66,8 @@ public class RoleServiceImpl implements RoleService {
 
         roleMapper.updateEntity(role, request);
         Role updatedRole = roleRepository.save(role);
-        orderNotificationService.notifyManagementUpdated(role.getRestaurant() == null ? null : role.getRestaurant().getId());
+        orderNotificationService.notifyManagementUpdated(
+                role.getRestaurant() == null ? null : role.getRestaurant().getId());
 
         return buildRoleResponse(updatedRole);
     }
@@ -83,7 +84,7 @@ public class RoleServiceImpl implements RoleService {
     public RoleResponse getRoleByCode(String code) {
         Role role =
                 roleRepository
-                        .findByCode(code)
+                        .findByRestaurantIdAndCode(tenantGuard.currentRestaurantIdOrNull(), code)
                         .orElseThrow(
                                 () ->
                                         new ResourceNotFoundException(
@@ -188,7 +189,8 @@ public class RoleServiceImpl implements RoleService {
 
         role.softDelete(null);
         roleRepository.save(role);
-        orderNotificationService.notifyManagementUpdated(role.getRestaurant() == null ? null : role.getRestaurant().getId());
+        orderNotificationService.notifyManagementUpdated(
+                role.getRestaurant() == null ? null : role.getRestaurant().getId());
     }
 
     /** Chốt tenant tại finder: phủ getRoleById / updateRole / deleteRole. */

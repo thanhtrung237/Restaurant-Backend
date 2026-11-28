@@ -1,6 +1,5 @@
 package com.group.restaurant.services.impl;
 
-import com.group.restaurant.services.OrderNotificationService;
 import com.group.restaurant.dtos.request.restaurant.RestaurantAddRequest;
 import com.group.restaurant.dtos.request.restaurant.RestaurantUpdateRequest;
 import com.group.restaurant.dtos.response.base.PageResponse;
@@ -15,6 +14,8 @@ import com.group.restaurant.repositories.AccountRepository;
 import com.group.restaurant.repositories.BranchRepository;
 import com.group.restaurant.repositories.RestaurantRepository;
 import com.group.restaurant.services.AuditLogService;
+import com.group.restaurant.services.OrderNotificationService;
+import com.group.restaurant.services.RestaurantDefaultRoles;
 import com.group.restaurant.services.RestaurantService;
 import com.group.restaurant.services.audit.AuditAction;
 import com.group.restaurant.services.audit.AuditEvent;
@@ -39,6 +40,7 @@ public class RestaurantServiceImpl implements RestaurantService {
     private final RestaurantMapper restaurantMapper;
     private final TenantGuard tenantGuard;
     private final AuditLogService auditLogService;
+    private final RestaurantDefaultRoles defaultRoles;
 
     @Override
     public RestaurantResponse createRestaurant(RestaurantAddRequest request) {
@@ -54,6 +56,7 @@ public class RestaurantServiceImpl implements RestaurantService {
         restaurant.setStatus(RestaurantStatus.ACTIVE);
 
         Restaurant savedRestaurant = restaurantRepository.save(restaurant);
+        defaultRoles.provision(savedRestaurant.getId());
         orderNotificationService.notifyStructureUpdated(restaurant.getId());
         return buildRestaurantResponse(savedRestaurant);
     }
