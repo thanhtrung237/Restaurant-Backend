@@ -7,8 +7,6 @@ import com.group.restaurant.dtos.response.auth.RefreshTokenResponse;
 import com.group.restaurant.enums.AccountStatus;
 import com.group.restaurant.enums.RoleScope;
 import com.group.restaurant.enums.TokenType;
-import com.group.restaurant.exceptions.InvalidParamException;
-import com.group.restaurant.exceptions.ResourceNotFoundException;
 import com.group.restaurant.models.Account;
 import com.group.restaurant.models.Assignment;
 import com.group.restaurant.models.RefreshToken;
@@ -22,8 +20,6 @@ import com.group.restaurant.services.AuthService;
 import com.group.restaurant.services.audit.AuditAction;
 import com.group.restaurant.services.audit.AuditEvent;
 import io.jsonwebtoken.JwtException;
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -48,7 +44,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuditLogService auditLogService;
 
     @Override
-    public LoginResponse login(LoginRequest request) {
+    public LoginResult login(LoginRequest request) {
         Account account;
 
         // Platform Admin không cần restaurantCode (để null hoặc empty)
@@ -154,41 +150,43 @@ public class AuthServiceImpl implements AuthService {
 
         recordLoginAttempt(request, account, true, null);
 
-        return LoginResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshTokenStr)
-                .accountId(account.getId())
-                .restaurantId(
-                        account.getRestaurant() != null ? account.getRestaurant().getId() : null)
-                .username(account.getUsername())
-                .fullName(account.getFullName())
-                .roles(roles)
-                .build();
+        LoginResponse response =
+                LoginResponse.builder()
+                        .accessToken(accessToken)
+                        .accountId(account.getId())
+                        .restaurantId(
+                                account.getRestaurant() != null
+                                        ? account.getRestaurant().getId()
+                                        : null)
+                        .username(account.getUsername())
+                        .fullName(account.getFullName())
+                        .roles(roles)
+                        .build();
+        return new LoginResult(response, refreshTokenStr);
     }
 
     @Override
     @Transactional(readOnly = true)
     public RefreshTokenResponse refreshToken(String refreshTokenStr) {
         if (refreshTokenStr == null || refreshTokenStr.isBlank()) {
-            throw new InvalidParamException("Refresh token không được để trống");
+            throw new BadCredentialsException("Phiên đăng nhập đã hết hạn");
         }
 
-        jwtUtil.validateToken(refreshTokenStr, TokenType.REFRESH_TOKEN);
-
-        String username = jwtUtil.getUsernameFromToken(refreshTokenStr, TokenType.REFRESH_TOKEN);
+        try {
+            jwtUtil.validateToken(refreshTokenStr, TokenType.REFRESH_TOKEN);
+        } catch (JwtException | IllegalArgumentException ex) {
+            throw new BadCredentialsException("Phiên đăng nhập đã hết hạn", ex);
+        }
 
         RefreshToken dbToken =
                 refreshTokenRepository
                         .findByToken(refreshTokenStr)
                         .orElseThrow(
-                                () -> new ResourceNotFoundException("Refresh token không tồn tại"));
+                                () -> new BadCredentialsException("Phiên đăng nhập đã hết hạn"));
 
-        if (Boolean.TRUE.equals(dbToken.getRevoked())) {
-            throw new JwtException("Refresh token đã bị thu hồi");
-        }
-
-        if (dbToken.getExpiryDate().isBefore(LocalDate.now())) {
-            throw new JwtException("Refresh token đã hết hạn");
+        if (Boolean.TRUE.equals(dbToken.getRevoked())
+                || dbToken.getExpiryDate().isBefore(LocalDate.now())) {
+            throw new BadCredentialsException("Phiên đăng nhập đã hết hạn");
         }
 
         Account account = dbToken.getAccount();
@@ -200,30 +198,34 @@ public class AuthServiceImpl implements AuthService {
 
         return RefreshTokenResponse.builder()
                 .accessToken(newAccessToken)
-                .refreshToken(refreshTokenStr)
+                .accountId(account.getId())
                 .build();
     }
 
     @Override
-    public void logout(HttpServletRequest request) {
-        String refreshTokenStr = getRefreshTokenFromRequest(request);
+    public void logout(String refreshTokenStr) {
         if (refreshTokenStr == null) return;
 
         refreshTokenRepository
                 .findByToken(refreshTokenStr)
+                .filter(token -> !Boolean.TRUE.equals(token.getRevoked()))
                 .ifPresent(
                         token -> {
                             token.setRevoked(true);
                             refreshTokenRepository.save(token);
+                            Account account = token.getAccount();
+                            auditLogService.record(
+                                    AuditEvent.builder()
+                                            .entityType("Account")
+                                            .actionType(AuditAction.LOGOUT)
+                                            .performedByAccountId(account.getId())
+                                            .restaurantId(
+                                                    account.getRestaurant() == null
+                                                            ? null
+                                                            : account.getRestaurant().getId())
+                                            .reason("Đăng xuất")
+                                            .build());
                         });
-
-        // Người thực hiện lấy từ SecurityContext (đây là request đã xác thực).
-        auditLogService.record(
-                AuditEvent.builder()
-                        .entityType("Account")
-                        .actionType(AuditAction.LOGOUT)
-                        .reason("Đăng xuất")
-                        .build());
     }
 
     /**
@@ -258,19 +260,5 @@ public class AuthServiceImpl implements AuthService {
                                         ? "Đăng nhập thành công"
                                         : "Đăng nhập thất bại: " + failureReason)
                         .build());
-    }
-
-    private String getRefreshTokenFromRequest(HttpServletRequest request) {
-        // Hỗ trợ cả header và cookie
-        String header = request.getHeader("Refresh-Token");
-        if (header != null && !header.isBlank()) return header;
-
-        Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                if ("refreshToken".equals(cookie.getName())) return cookie.getValue();
-            }
-        }
-        return null;
     }
 }

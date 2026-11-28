@@ -125,6 +125,19 @@ class GuestQrIntegrationTest {
     }
 
     @Test
+    void tableQrUrlUsesEnglishPathAndKeepsTheExistingCode() throws Exception {
+        String originalCode = table.getQrCode();
+        mvc.perform(
+                        get("/api/v1/tables/{id}/qr-url", table.getId())
+                                .param("frontendBaseUrl", "https://example.com/")
+                                .with(authentication(staff(branch, "MANAGER", RoleScope.RESTAURANT))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value("https://example.com/table/" + originalCode));
+        assertThat(tables.findById(table.getId()).orElseThrow().getQrCode())
+                .isEqualTo(originalCode);
+    }
+
+    @Test
     void signedSepayTransferRequiresExactAmountAndOnlyRecordsOnce() throws Exception {
         org.mockito.Mockito.when(discord.enabled()).thenReturn(true);
         branch.setBankName("MB Bank");
@@ -1102,8 +1115,9 @@ class GuestQrIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isEmpty());
 
-        mvc.perform(
+        var login = mvc.perform(
                         post("/api/v1/auth/login")
+                                .header("X-Auth-Request", "1")
                                 .contentType("application/json")
                                 .content(
                                         json.writeValueAsString(
@@ -1115,7 +1129,28 @@ class GuestQrIntegrationTest {
                                                         "password",
                                                         "test-password"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.roles").isEmpty());
+                .andExpect(jsonPath("$.data.roles").isEmpty())
+                .andExpect(jsonPath("$.data.refreshToken").doesNotExist())
+                .andReturn()
+                .getResponse();
+        var cookie = login.getCookie("refreshToken");
+        assertThat(cookie).isNotNull();
+        assertThat(cookie.isHttpOnly()).isTrue();
+        assertThat(cookie.getSecure()).isTrue();
+        assertThat(cookie.getPath()).isEqualTo("/api/v1/auth");
+        assertThat(login.getHeader("Set-Cookie")).contains("SameSite=Lax");
+
+        mvc.perform(post("/api/v1/auth/refresh-token").cookie(cookie))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/auth/refresh-token").header("X-Auth-Request", "1").cookie(cookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accountId").value(accountId))
+                .andExpect(jsonPath("$.data.refreshToken").doesNotExist());
+        mvc.perform(post("/api/v1/auth/logout").header("X-Auth-Request", "1").cookie(cookie))
+                .andExpect(status().isOk())
+                .andExpect(cookie().maxAge("refreshToken", 0));
+        mvc.perform(post("/api/v1/auth/refresh-token").header("X-Auth-Request", "1").cookie(cookie))
+                .andExpect(status().isUnauthorized());
 
         Role cashier =
                 roles.save(

@@ -382,7 +382,7 @@ public class DiningTableServiceImpl implements DiningTableService {
 
         // Trả về URL hoàn chỉnh để FE biết nội dung cần mã hoá vào QR code
         // FE sẽ dùng thư viện (qrcode.react) để tự vẽ ảnh QR từ URL này
-        String customerUrl = baseUrl + "/ban/" + table.getQrCode();
+        String customerUrl = baseUrl + "/table/" + table.getQrCode();
         log.info(
                 "[FR-TBL-02] Mã QR bàn #{} ({}): code={}, url={}",
                 table.getId(),
@@ -425,7 +425,7 @@ public class DiningTableServiceImpl implements DiningTableService {
             if (qrContent.startsWith("http://") || qrContent.startsWith("https://")) {
                 urlToEncode = qrContent;
             } else {
-                urlToEncode = "http://localhost:5173/ban/" + qrContent;
+                urlToEncode = "http://localhost:5173/table/" + qrContent;
             }
 
             QRCodeWriter writer = new QRCodeWriter();

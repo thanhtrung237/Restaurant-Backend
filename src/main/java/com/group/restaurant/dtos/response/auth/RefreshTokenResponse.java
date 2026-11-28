@@ -10,5 +10,5 @@ import lombok.Setter;
 public class RefreshTokenResponse {
 
     private String accessToken;
-    private String refreshToken;
+    private Long accountId;
 }

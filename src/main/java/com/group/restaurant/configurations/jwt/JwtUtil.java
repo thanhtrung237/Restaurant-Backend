@@ -2,6 +2,7 @@ package com.group.restaurant.configurations.jwt;
 
 import com.group.restaurant.enums.TokenType;
 import com.group.restaurant.models.Account;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -13,6 +14,7 @@ import java.time.ZoneId;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -46,6 +48,7 @@ public class JwtUtil {
 
     public String generateRefreshToken(Account account) {
         Map<String, Object> claims = new HashMap<>();
+        claims.put(Claims.ID, UUID.randomUUID().toString());
         claims.put("accountId", account.getId());
         if (account.getRestaurant() != null) {
             claims.put("restaurantId", account.getRestaurant().getId());

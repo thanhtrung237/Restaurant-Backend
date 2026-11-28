@@ -11,7 +11,6 @@ import lombok.Setter;
 public class LoginResponse {
 
     private String accessToken;
-    private String refreshToken;
     private Long accountId;
     private Long restaurantId;
     private String username;

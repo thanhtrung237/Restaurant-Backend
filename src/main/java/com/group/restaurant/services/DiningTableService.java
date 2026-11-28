@@ -34,7 +34,7 @@ public interface DiningTableService {
      * Lấy đường dẫn URL của QR code bàn (để FE tự sinh ảnh QR).
      * @param tableId ID bàn
      * @param frontendBaseUrl base URL của FE (VD: http://localhost:5173)
-     * @return URL của bàn (VD: http://localhost:5173/ban/QR-B1-T01)
+     * @return URL của bàn (VD: http://localhost:5173/table/QR-B1-T01)
      */
     String getQrUrl(Long tableId, String frontendBaseUrl);
 

@@ -26,7 +26,7 @@ không thay đổi EC2. Cấu hình gộp Java và MySQL trong một container �
 
 | Thành phần | Địa chỉ mặc định |
 | --- | --- |
-| FE / đăng nhập | http://localhost:8088/dang-nhap |
+| FE / đăng nhập | http://localhost:8088/login |
 | BE / Swagger | http://localhost:8081/swagger-ui/index.html |
 | MySQL Workbench | `127.0.0.1:3307` |
 
@@ -93,9 +93,9 @@ MySQL không publish port. Swagger yêu cầu `SWAGGER_ENABLED=true`.
 Khi DNS `restaurant.thanhtrung.click` đã trỏ về EC2, dùng
 `deploy/ec2/Caddyfile.backend` cho `/etc/caddy/Caddyfile` để có Swagger HTTPS:
 `https://restaurant.thanhtrung.click/swagger-ui/index.html`. File này cũng giữ
-đường dẫn IP HTTP. FE Vercel dùng
-`VITE_API_BASE_URL=https://restaurant.thanhtrung.click/api/v1` và
-`VITE_WS_URL=https://restaurant.thanhtrung.click/ws`; đổi env cần Redeploy FE.
+đường dẫn IP HTTP. FE Vercel dùng `VITE_API_BASE_URL=/api/v1` để Vercel chuyển tiếp
+API về EC2 và trình duyệt lưu cookie phiên trên chính tên miền frontend. Giữ
+`VITE_WS_URL=https://restaurant.thanhtrung.click/ws` và redeploy FE sau khi đổi biến môi trường.
 
 Server mới đã nhận dữ liệu từ Docker local theo lựa chọn của người dùng:
 28 bảng, 142 dòng tại thời điểm chuyển, đối chiếu từng bảng sau khi BE khởi động.

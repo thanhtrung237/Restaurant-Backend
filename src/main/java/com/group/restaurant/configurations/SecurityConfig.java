@@ -99,6 +99,7 @@ public class SecurityConfig {
         "/webhooks/sepay",
         "/auth/login",
         "/auth/refresh-token",
+        "/auth/logout",
         "/guest/access", // quét QR
         // Staff use POST /table-sessions; guests use POST /guest/access.
         "/table-sessions/*/request-payment", // khách bấm "Yêu cầu tính tiền"
@@ -185,11 +186,8 @@ public class SecurityConfig {
                         .filter(origin -> !origin.isEmpty())
                         .toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        // "Refresh-Token": AuthController.refreshToken đọc token từ header này.
-        // Thiếu nó trong allowedHeaders → browser chặn ngay ở preflight → luồng
-        // refresh token không bao giờ chạy được từ FE (chỉ chạy khi test bằng Postman).
         config.setAllowedHeaders(
-                List.of("Authorization", "Content-Type", "Refresh-Token", "X-Guest-Token"));
+                List.of("Authorization", "Content-Type", "X-Auth-Request", "X-Guest-Token"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

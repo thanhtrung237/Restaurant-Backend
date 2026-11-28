@@ -62,6 +62,7 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set a different Base64 JWT_REFRESH_SECRET in .env.docker}
       JWT_ACCESS_EXPIRATION_MS: ${JWT_ACCESS_EXPIRATION_MS:-3600000}
       JWT_REFRESH_EXPIRATION_DAYS: ${JWT_REFRESH_EXPIRATION_DAYS:-7}
+      APP_AUTH_COOKIE_SECURE: ${APP_AUTH_COOKIE_SECURE:-false}
       # Placeholder allows local startup; real credentials are needed for uploads.
       CLOUDINARY_URL: ${CLOUDINARY_URL:-cloudinary://local:local@local-demo}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
